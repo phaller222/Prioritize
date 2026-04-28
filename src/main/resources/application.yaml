@@ -1,0 +1,16 @@
+spring:
+  profiles:
+      active: h2
+
+  application:
+    name: prioritize
+
+server:
+  tomcat:
+    basedir: tomcat
+    accesslog:
+      directory: logs
+
+logging:
+  level:
+    org.flowable: INFO

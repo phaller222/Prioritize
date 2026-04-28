@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/prioritize_db
+    username: prioritize
+    password: prioritize
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: public
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+flowable:
+  database-schema: flowable
+  database-schema-update: true
+  # Das hier ersetzt den manuellen Prefix-Code in der Java-Klasse:
+  table-prefix: flowable.
