@@ -18,9 +18,6 @@ package de.hallerweb.enterprise.prioritize.model.company;
 
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import lombok.*;
 
 
@@ -51,6 +48,8 @@ public class Address extends PObject {
     private String street;
     @ToString.Include
     private String housenumber;
+    @ToString.Include
+    private String floor; // Etage (bei Bedarf)
     @ToString.Include
     private String zipCode;
     @ToString.Include

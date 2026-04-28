@@ -21,11 +21,13 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
             "  AND (:city IS NULL OR LOWER(a.city) = LOWER(:city)) " +
             "  AND (:street IS NULL OR LOWER(a.street) LIKE LOWER(CONCAT('%', :street, '%'))) " +
             "  AND (:country IS NULL OR a.country = :country) " +
+            "  AND (:floor IS NULL OR a.floor = :floor) " +
             "  AND (:housenumber IS NULL OR a.housenumber = :housenumber)")
     Collection<Address> findByFilter(
             @Param("city") String city,
             @Param("zipCode") String zipCode,
             @Param("street") String street,
             @Param("housenumber") String housenumber,
+            @Param("floor") String floor,
             @Param("country") String country);
 }

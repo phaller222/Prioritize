@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -44,6 +45,7 @@ public class AddressService {
                 filter.getZipCode(),
                 filter.getStreet(),
                 filter.getHousenumber(),
+                filter.getFloor(),
                 filter.getCountry()
         );
     }
@@ -54,13 +56,18 @@ public class AddressService {
 
     public void updateAddress(Integer id, Address addressDetails) {
         // Erst laden, dann ändern -> Schützt vor Datenverlust bei Teil-Updates
-        Address address = findById(id);
+        Optional<Address> foundAddress = addressRepository.findById(id);
+        Address address = foundAddress.orElseThrow(() -> new EntityNotFoundException("Address not found with id: " + id));
 
         address.setCity(addressDetails.getCity());
         address.setZipCode(addressDetails.getZipCode());
         address.setStreet(addressDetails.getStreet());
         address.setHousenumber(addressDetails.getHousenumber());
         address.setCountry(addressDetails.getCountry());
+        address.setFloor(addressDetails.getFloor());
+        address.setPhone(addressDetails.getPhone());
+        address.setFax(addressDetails.getFax());
+        address.setMobile(addressDetails.getMobile());
 
         // save() ist hier dank @Transactional und Dirty Checking optional
     }
