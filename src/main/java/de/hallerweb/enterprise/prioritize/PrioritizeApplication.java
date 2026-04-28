@@ -11,7 +11,4 @@ public class PrioritizeApplication {
 		SpringApplication.run(PrioritizeApplication.class, args);
 	}
 
-
-
-
 }
