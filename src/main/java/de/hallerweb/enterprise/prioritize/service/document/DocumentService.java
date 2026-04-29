@@ -37,7 +37,7 @@ public class DocumentService {
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
         // 1. Berechtigung auf die GRUPPE prüfen (Darf der User hier Dokumente anlegen?)
-        if (!authService.hasPermission(user, group, Action.UPDATE)) {
+        if (!user.isAdmin() && !authService.hasPermission(user, group, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung, in dieser Gruppe Dokumente zu erstellen.");
         }
 
@@ -74,7 +74,7 @@ public class DocumentService {
                 .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
 
         // Berechtigung am logischen Dokument prüfen
-        if (!authService.hasPermission(user, info, Action.UPDATE)) {
+        if (!user.isAdmin() || !authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
         }
 
@@ -110,7 +110,7 @@ public class DocumentService {
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
         // WICHTIG: Security-Check auch hier!
-        if (!authService.hasPermission(user, group, Action.READ)) {
+        if (!user.isAdmin() && !authService.hasPermission(user, group, Action.READ)) {
             throw new AccessDeniedException("Keine Leseberechtigung für diese Gruppe.");
         }
 
@@ -138,7 +138,7 @@ public class DocumentService {
         }
 
         // Berechtigung prüfen (UPDATE-Recht nötig zum Sperren)
-        if (!authService.hasPermission(user, info, Action.UPDATE)) {
+        if (!user.isAdmin() && !authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung zum Sperren dieses Dokuments.");
         }
 

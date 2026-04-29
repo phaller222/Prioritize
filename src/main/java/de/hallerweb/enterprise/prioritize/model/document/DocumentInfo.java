@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.model.document;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -61,6 +62,7 @@ public class DocumentInfo extends PObject implements PAuthorizedObject {
     @Builder.Default
     @OneToMany(mappedBy = "documentInfo", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("version DESC") // Neueste Versionen zuerst ist meist sinnvoller
+    @JsonManagedReference
     private Set<Document> recentDocuments = new HashSet<>();
 
     @ToString.Include
