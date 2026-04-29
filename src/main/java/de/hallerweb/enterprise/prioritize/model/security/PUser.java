@@ -7,6 +7,7 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -38,11 +39,8 @@ public class PUser extends PActor implements PAuthorizedObject {
     private String occupation;
     private String apiKey;
 
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date lastLogin;
-
-    @Temporal(TemporalType.DATE)
-    private Date dateOfBirth;
+    private LocalDateTime lastLogin;
+    private LocalDateTime dateOfBirth;
 
     @Enumerated(EnumType.STRING)
     private Gender gender;
@@ -75,6 +73,12 @@ public class PUser extends PActor implements PAuthorizedObject {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<SkillRecord> skills = new HashSet<>();
+
+    private boolean admin;
+
+    public boolean isAdmin() {
+        return admin;
+    }
 
     // --- Hilfsmethoden für bequemes Handling ---
 

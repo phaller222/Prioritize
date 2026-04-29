@@ -3,8 +3,6 @@ package de.hallerweb.enterprise.prioritize.controller;
 import de.hallerweb.enterprise.prioritize.dto.ApiError;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.logging.Log;
-import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,17 +28,30 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
 
-    // 2. Wenn die Berechtigung fehlt (403)
+    //Wenn die Berechtigung fehlt (403)
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleForbidden(AccessDeniedException ex) {
         ApiError error = new ApiError("Zugriff verweigert: " + ex.getMessage(), HttpStatus.FORBIDDEN.value(), System.currentTimeMillis());
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 
-    // 3. Genereller Fehlerfänger (500)
+    //  Genereller Fehlerfänger (500)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneralError(Exception ex) {
         ApiError error = new ApiError("Ein interner Serverfehler ist aufgetreten.", HttpStatus.INTERNAL_SERVER_ERROR.value(), System.currentTimeMillis());
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+
+    //  Konflikt (z.B. Dokument schon gesperrt)
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex) {
+        ApiError error = new ApiError(
+                ex.getMessage(),
+                HttpStatus.CONFLICT.value(),
+                System.currentTimeMillis()
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
 }

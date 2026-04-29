@@ -65,8 +65,31 @@ public class DocumentRestController {
      */
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
-        // Hier rufen wir die Liste der Metadaten ab
-        // (Logik muss im Service noch leicht angepasst werden für DocumentInfo statt Document)
-        return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId));
+        PUser currentUser = userService.getCurrentUser();
+        return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId,currentUser));
     }
+
+    @PostMapping("/{id}/check-out")
+    public ResponseEntity<String> checkOut(@PathVariable int id) {
+        PUser currentUser = userService.getCurrentUser();
+        documentService.checkOut(id, currentUser);
+        return ResponseEntity.ok("Dokument erfolgreich gesperrt.");
+    }
+
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<DocumentInfo> checkIn(
+            @PathVariable int id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        PUser currentUser = userService.getCurrentUser();
+        Document newVersion = documentService.checkIn(
+                id,
+                file.getBytes(),
+                file.getContentType(),
+                currentUser
+        );
+
+        return ResponseEntity.ok(newVersion.getDocumentInfo());
+    }
+
 }
