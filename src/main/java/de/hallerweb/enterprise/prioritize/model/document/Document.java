@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.model.document;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import jakarta.persistence.*;
@@ -74,6 +75,7 @@ public class Document extends PObject {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_info_id")
+    @JsonBackReference
     private DocumentInfo documentInfo;
 
     @Lob
