@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 
 @Service
@@ -88,5 +89,22 @@ public class DocumentService {
 
         documentInfoRepository.save(info);
         return newVersion;
+    }
+
+    public List<DocumentInfo> getDocumentsInGroup(int groupId) {
+        // TODO: Hier prüfen wir im Service die Berechtigung auf die Gruppe
+        // und geben dann alle DocumentInfos zurück
+        return documentInfoRepository.findByDocumentGroup_Id(groupId);
+    }
+
+    public DocumentInfo getDocument(int documentInfoId, PUser user) {
+        DocumentInfo info = documentInfoRepository.findById(documentInfoId)
+                .orElseThrow(() -> new NoSuchElementException("Dokument mit ID " + documentInfoId + " nicht gefunden."));
+
+        if (!authService.hasPermission(user, info, Action.READ)) {
+            throw new AccessDeniedException("Keine Leseberechtigung für dieses Dokument.");
+        }
+
+        return info;
     }
 }
