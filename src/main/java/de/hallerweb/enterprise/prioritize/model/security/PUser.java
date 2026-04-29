@@ -76,6 +76,12 @@ public class PUser extends PActor implements PAuthorizedObject {
     @Builder.Default
     private Set<SkillRecord> skills = new HashSet<>();
 
+    private boolean admin;
+
+    public boolean isAdmin() {
+        return admin;
+    }
+
     // --- Hilfsmethoden für bequemes Handling ---
 
     public void addRole(Role role) {
