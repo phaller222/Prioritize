@@ -69,7 +69,7 @@ public class DocumentGroup extends PObject implements PAuthorizedObject {
     public void addDocument(DocumentInfo info) {
         if (info == null) return;
         if (this.documents.add(info)) {
-            info.setDocumentGroup(this); // Rückbeziehung setzen (falls in DocumentInfo vorhanden)
+            info.setDocumentGroup(this);
         }
     }
 

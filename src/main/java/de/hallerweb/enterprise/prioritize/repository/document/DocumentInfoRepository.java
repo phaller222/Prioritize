@@ -10,8 +10,8 @@ import java.util.List;
 public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Integer> {
 
     /**
-     * Findet alle DocumentInfo-Objekte (logische Dokumente),
-     * die zu einer bestimmten Gruppe gehören.
+     * Finds all DocumentInfo-Objects (logical document entities referencing the current document),
+     * which belong to the given group.
      */
     List<DocumentInfo> findByDocumentGroup_Id(int groupId);
 }

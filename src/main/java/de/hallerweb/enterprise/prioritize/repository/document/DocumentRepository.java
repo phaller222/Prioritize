@@ -14,20 +14,20 @@ import java.util.Optional;
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Integer> {
 
-    // Lädt das Dokument und die Gruppe in einem SQL-Join (Performance!)
+    // Loads the document and the group in a single SQL join for better performance.
     @EntityGraph(attributePaths = {"documentGroup"})
     Optional<Document> findById(Integer id);
 
     List<Document> findByNameContaining(String name);
 
-    // Wichtig für den DocumentService
+    // Important for the DocumentService.
     List<Document> findByDocumentInfo_DocumentGroup_Id(int documentGroupId);
 
-    // Findet die neueste Version eines Dokuments anhand des Namens innerhalb einer Gruppe
+    // Finds the latest version of a document by name within a group.
     @Query("SELECT d FROM Document d WHERE d.name = :name AND d.documentInfo.documentGroup.id = :groupId ORDER BY d.version DESC")
     List<Document> findLatestVersionByName(@Param("name") String name, @Param("groupId") int groupId);
 
-    // Deine Filter-Query
+    // Custom filter query.
     @Query("SELECT d FROM Document d " +
             "WHERE (:name IS NULL OR d.name = :name) " +
             "AND (:tag IS NULL OR d.tag = :tag) " +

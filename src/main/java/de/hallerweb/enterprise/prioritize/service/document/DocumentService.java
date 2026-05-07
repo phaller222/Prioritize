@@ -32,20 +32,20 @@ public class DocumentService {
     private final UserService userService;
 
     /**
-     * Erstellt ein neues logisches Dokument (DocumentInfo) und die erste Version (Document).
+     * Creates a new logical document (DocumentInfo) and the first version (Document).
      */
     @Transactional
     public DocumentInfo createDocument(String name, int groupId, PUser user, byte[] content, String mimeType) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
-        // 1. Dokument-Hülle erstellen und speichern (damit docInfo eine ID bekommt)
+        // 1. Create and save the document wrapper so that docInfo gets an ID.
         DocumentInfo docInfo = new DocumentInfo();
         docInfo.setDocumentGroup(group);
         docInfo.setLocked(false);
-        docInfo = documentInfoRepository.save(docInfo); // ID wird generiert!
+        docInfo = documentInfoRepository.save(docInfo); // ID is generated!
 
-        // 2. Version erstellen
+        // 2. Create version.
 
         String finalName = name;
         if (!name.contains(".")) {
@@ -61,28 +61,28 @@ public class DocumentService {
                 .documentInfo(docInfo)
                 .build();
 
-        // 3. Jetzt verknüpfen (Beide haben nun IDs oder sind stabil)
+        // 3. Link now; both now have IDs or are stable.
         docInfo.setCurrentDocument(firstVersion);
         docInfo.getRecentDocuments().add(firstVersion);
 
-        // 4. Finales Speichern (aktualisiert die Verknüpfung)
+        // 4. Final save updates the link.
         return documentInfoRepository.save(docInfo);
     }
 
     /**
-     * Erstellt eine neue Version für ein bestehendes Dokument.
+     * Creates a new version for an existing document.
      */
     @Transactional
     public Document addNewVersion(int documentInfoId, PUser user, byte[] content, String mimeType) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
 
-        // Berechtigung am logischen Dokument prüfen
+        // Check authorization on the logical document.
         if (!authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
         }
 
-        // SICHERHEITS-CHECK:
+        // SECURITY CHECK:
         if (!info.isLocked()) {
             throw new IllegalStateException("Version kann nicht erstellt werden: Dokument muss zuerst ausgecheckt werden.");
         }
@@ -141,7 +141,7 @@ public class DocumentService {
             throw new IllegalStateException("Dokument ist bereits von " + info.getLockedBy().getName() + " gesperrt.");
         }
 
-        // Berechtigung prüfen (UPDATE-Recht nötig zum Sperren)
+        // Check authorization; UPDATE permission is required for locking.
         if (!authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung zum Sperren dieses Dokuments.");
         }
@@ -161,7 +161,7 @@ public class DocumentService {
             throw new IllegalStateException("Dokument ist nicht gesperrt.");
         }
 
-        // Sicherer Check gegen Null und ID-Vergleich
+        // Safe check against null and ID comparison.
         PUser locker = info.getLockedBy();
         if (locker == null) {
             log.warn("Dokument {} war gesperrt, aber lockedBy war null!", documentInfoId);
@@ -169,10 +169,10 @@ public class DocumentService {
             throw new AccessDeniedException("Nur der Besitzer des Locks (" + locker.getUsername() + ") darf einchecken.");
         }
 
-        // Neue Version erstellen (Logik aus addNewVersion nutzen)
+        // Create new version by using the logic from addNewVersion.
         Document newVersion = addNewVersion(documentInfoId, user, content, mimeType);
 
-        // Lock aufheben
+        // Release lock.
         info.setLocked(false);
         info.setLockedBy(null);
         documentInfoRepository.saveAndFlush(info);
@@ -187,10 +187,10 @@ public class DocumentService {
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         if (!info.isLocked()) {
-            return; // Nichts zu tun
+            return; // Nothing to do.
         }
 
-        // Nur Besitzer oder Admin dürfen abbrechen
+        // Only the owner or an admin may cancel.
         if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
             throw new AccessDeniedException("Nur der Besitzer des Locks kann die Sperre aufheben.");
         }

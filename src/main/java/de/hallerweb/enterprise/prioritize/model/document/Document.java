@@ -54,7 +54,7 @@ public class Document extends PObject {
     public static final String PROPERTY_ENCRYPTED = "encrypted";
     public static final String PROPERTY_CHANGES = "changes";
 
-    @EqualsAndHashCode.Include // Wir nehmen die ID (auch wenn sie null ist)
+    @EqualsAndHashCode.Include // We include the ID, even if it is null.
     @Override
     public Integer getId() {
         return super.getId();
@@ -63,20 +63,20 @@ public class Document extends PObject {
     @ToString.Include
     private String name; // Name of the document.
     @ToString.Include
-    private int version; // Version of the document
+    private int version; // Version of the document.
     @ToString.Include
-    private String mimeType; // mimeType
+    private String mimeType; // MIME type.
     @ToString.Include
-    private String tag; // Tag for this document (if it has been tagged)
+    private String tag; // Tag for this document, if it has been tagged.
     @LastModifiedDate
     @ToString.Include
-    private LocalDateTime lastModified;  // Date of last modification
+    private LocalDateTime lastModified;  // Date of the last modification.
     @ToString.Include
     private String changes; // Description of the last changes made.
 
     @LastModifiedBy
     @ManyToOne
-    private PUser lastModifiedBy; // Who last modified this document
+    private PUser lastModifiedBy; // User who last modified this document.
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_info_id")
@@ -87,5 +87,5 @@ public class Document extends PObject {
     @Lob
     @Basic(fetch = FetchType.LAZY)
     @ToString.Exclude
-    private byte[] data; // the data of the document (e.G. binary MS-word data).
+    private byte[] data; // Document data, for example binary MS Word data.
 }
