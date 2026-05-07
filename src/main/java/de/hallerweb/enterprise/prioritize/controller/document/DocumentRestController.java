@@ -26,8 +26,12 @@ public class DocumentRestController {
     private final UserService userService; // To determine the current user
 
     /**
-     * Uploads a new document to a group.
+     * ---------- Upload document to a DocumentGroup. ----------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/upload/[GROUP_ID]
+     * <p>
      * The group is identified by the groupId
+     * -------------------------------------------------------
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
@@ -57,9 +61,14 @@ public class DocumentRestController {
         }
     }
 
+
     /**
-     * Downloads the content of the most recent version of a document.
-     * The DocumentInfo is passed as parameter
+     * ---------- Download document contents of most recent document. ----------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/download/[DOCUMENT_INFO_ID]
+     * <p>
+     * The DocumentInfo is identified by the documentInfoId
+     * ------------------------------------------------------------------------
      */
     @GetMapping("/download/{documentInfoId}")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable int documentInfoId) {
@@ -75,8 +84,14 @@ public class DocumentRestController {
             .body(doc.getData());
     }
 
+
     /**
-     * Lists all document infos of a group.
+     * ---------- List all documents of a DocumentGroup. ----------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/group/[DOCUMENT_GROUP_ID]
+     * <p>
+     * The group is identified by the groupId
+     * ------------------------------------------------------------------------
      */
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
@@ -84,6 +99,16 @@ public class DocumentRestController {
         return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId, currentUser));
     }
 
+
+    /**
+     * ---------- Explicitly Lock a Document on the server for edits----------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/check-out
+     * <p>
+     * Call this method if a Document shall be edited by a user and during
+     * that time no other user shall edit the Document.
+     * ------------------------------------------------------------------------
+     */
     @PostMapping("/{id}/check-out")
     public ResponseEntity<String> checkOut(@PathVariable int id) {
         log.info("Checking out document: {}", id);
@@ -92,6 +117,16 @@ public class DocumentRestController {
         return ResponseEntity.ok("Document successfully locked.");
     }
 
+
+    /**
+     * ---------- Unlock a Document locked by the user on the server----------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/check-in
+     * <p>
+     * Call this method after a document has been updated on the server by the user
+     * to unlock the document for further editing by other users.
+     * ------------------------------------------------------------------------
+     */
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
         @PathVariable int id,
@@ -108,8 +143,6 @@ public class DocumentRestController {
             file.getContentType(),
             currentUser
         );
-
         return ResponseEntity.ok(newVersion.getDocumentInfo());
     }
-
 }
