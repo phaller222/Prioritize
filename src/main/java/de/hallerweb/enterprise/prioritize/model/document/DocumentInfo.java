@@ -62,7 +62,7 @@ public class DocumentInfo extends PObject implements PAuthorizedObject {
     private DocumentGroup documentGroup;
 
     @Builder.Default
-    @OneToMany(mappedBy = "documentInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "documentInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("version DESC") // Newest version first
     @JsonManagedReference
     @JsonIgnore

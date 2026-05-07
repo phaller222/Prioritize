@@ -32,7 +32,10 @@ public class DocumentService {
     private final UserService userService;
 
     /**
-     * Creates a new logical document (DocumentInfo) and the first version (Document).
+     * ---------- Creates a new logical document (DocumentInfo) and the first version (Document). ----------
+     * Call this method to create a new document
+     * <p>
+     * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
     public DocumentInfo createDocument(String name, int groupId, PUser user, byte[] content, String mimeType) {
@@ -59,6 +62,7 @@ public class DocumentService {
                 .mimeType(mimeType)
                 .version(1)
                 .documentInfo(docInfo)
+                .lastModifiedBy(user)
                 .build();
 
         // 3. Link now; both now have IDs or are stable.
@@ -69,8 +73,13 @@ public class DocumentService {
         return documentInfoRepository.save(docInfo);
     }
 
+
+
     /**
-     * Creates a new version for an existing document.
+     * ---------- Creates a new version for an existing document ----------
+     * <p> A new document version is beeing created and uploaded.
+     *
+     * ---------------------------------------------------------------------
      */
     @Transactional
     public Document addNewVersion(int documentInfoId, PUser user, byte[] content, String mimeType) {
@@ -109,6 +118,13 @@ public class DocumentService {
         return newVersion;
     }
 
+
+
+    /**
+     * ---------- Returns all current documents in the given DocumentGroup ----------
+     * <p>
+     * -----------------------------------------------------------------------------------------------------
+     */
     public List<DocumentInfo> getDocumentsInGroup(int groupId, PUser user) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
@@ -131,9 +147,18 @@ public class DocumentService {
         return info;
     }
 
+
+
+
+    /**
+     * ----------Checks out a document (lock the document in the DB) ----------
+     * <p> If documents are beeing edited after download and shall be
+     * put back as new version, users must lock the document first to
+     * avoid conflicts.
+     * -----------------------------------------------------------------------------------------------------
+     */
     @Transactional
     public void checkOut(int documentInfoId, PUser user) {
-        log.info("Suche DocumentInfo mit ID: {}", documentInfoId);
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
@@ -152,6 +177,14 @@ public class DocumentService {
         log.info("Dokument ID {} wurde von User {} ausgecheckt.", documentInfoId, user.getUsername());
     }
 
+
+
+    /**
+     * ----------Checks in a document (unlock the document in the DB) ----------
+     * <p> If documents had been processed and wrítten back to the server ,
+     * they must be unlock so that other users can edit them too.
+     * -----------------------------------------------------------------------------------------------------
+     */
     @Transactional
     public Document checkIn(int documentInfoId, byte[] content, String mimeType, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
@@ -175,12 +208,21 @@ public class DocumentService {
         // Release lock.
         info.setLocked(false);
         info.setLockedBy(null);
-        documentInfoRepository.saveAndFlush(info);
+        documentInfoRepository.save(info);
 
         log.info("Dokument ID {} wurde erfolgreich von User {} eingecheckt.", documentInfoId, user.getUsername());
         return newVersion;
     }
 
+
+
+    /**
+     * ----------Cancels a check out process----------
+     * <p> If user decides to cancel to edit the document without changing
+     * anything, there must be a way to simply cancel the checkout and
+     * unlock the document without changes.
+     * -----------------------------------------------------------------------------------------------------
+     */
     @Transactional
     public void cancelCheckOut(int documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)

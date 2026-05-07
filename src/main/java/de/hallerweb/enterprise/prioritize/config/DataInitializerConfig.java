@@ -31,6 +31,7 @@ public class DataInitializerConfig {
                 admin.setUsername("admin");
                 admin.setPassword("p@ssword");
                 admin.setAdmin(true);
+                admin.setGender(PUser.Gender.OTHER);
                 admin = userService.createUser(admin); // Speichern und Instanz halten
                 log.info("Initialer Admin-User 'admin' wurde erstellt.");
             } else {

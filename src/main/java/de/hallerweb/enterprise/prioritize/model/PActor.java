@@ -1,9 +1,6 @@
 package de.hallerweb.enterprise.prioritize.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Inheritance;
-import jakarta.persistence.InheritanceType;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,7 +10,9 @@ import lombok.Setter;
  * arbeiten können (z.B. Personen oder Maschinen).
  */
 @Entity
+@Table(name = "pactor")
 @Inheritance(strategy = InheritanceType.JOINED)
+@DiscriminatorColumn(name = "actor_type") // Hilft Hibernate beim Mapping
 @Getter
 @Setter
 @NoArgsConstructor

@@ -14,7 +14,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(callSuper = true)
 public class PermissionRecord extends PObject implements PAuthorizedObject {
 
     private boolean createPermission;
@@ -26,7 +25,7 @@ public class PermissionRecord extends PObject implements PAuthorizedObject {
     private String objectName;
     private int objectId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     private Department department;
 

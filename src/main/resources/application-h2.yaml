@@ -10,15 +10,24 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        # Verhindert die "Temporary Table" (HTE) Geschichte von Hibernate 7
         hbm2ddl.extra_physical_table_types: TABLE
         default_schema: PUBLIC
   h2:
     console:
       enabled: true
       path: /h2-console
-      settings:
-        trace: false
+#logging:
+#  level:
+#    org:
+#      springframework:
+#        security: DEBUG
+#      hibernate:
+#        SQL: DEBUG
+#        orm.results: DEBUG
+#        orm.jdbc.bind: TRACE
+        # Falls du noch mehr Details zum Schema-Export willst:
+#        tool.schema: DEBUG
+
 flowable:
   database-schema-update: true
   async-executor-activate: true
