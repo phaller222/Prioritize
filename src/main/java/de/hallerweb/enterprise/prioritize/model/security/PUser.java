@@ -1,5 +1,6 @@
 package de.hallerweb.enterprise.prioritize.model.security;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.company.Address;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
@@ -33,9 +34,11 @@ public class PUser extends PActor implements PAuthorizedObject {
     private String email;
 
     @Getter(AccessLevel.NONE) // Passwort sollte nicht einfach per getPassword() im JSON landen
+    @JsonIgnore
     private String password;
 
     private String occupation;
+    @JsonIgnore
     private String apiKey;
 
     private LocalDateTime lastLogin;
@@ -60,6 +63,7 @@ public class PUser extends PActor implements PAuthorizedObject {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     @Builder.Default // Damit der Builder kein null-Set erzeugt
+    @JsonIgnore
     private Set<Role> roles = new HashSet<>();
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

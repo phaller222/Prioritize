@@ -17,12 +17,14 @@
 package de.hallerweb.enterprise.prioritize.model.document;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import jakarta.persistence.*;
 import lombok.*;
+
 
 import java.util.HashSet;
 import java.util.Set;
@@ -60,15 +62,18 @@ public class DocumentInfo extends PObject implements PAuthorizedObject {
     private DocumentGroup documentGroup;
 
     @Builder.Default
-    @OneToMany(mappedBy = "documentInfo", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "documentInfo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("version DESC") // Neueste Versionen zuerst ist meist sinnvoller
     @JsonManagedReference
+    @JsonIgnore
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Document> recentDocuments = new HashSet<>();
 
     @ToString.Include
     private boolean locked;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @ToString.Include
     private PUser lockedBy;
 }

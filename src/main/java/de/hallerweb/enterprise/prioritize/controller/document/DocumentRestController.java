@@ -6,6 +6,7 @@ import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
+@Log4j2
 public class DocumentRestController {
 
     private final DocumentService documentService;
@@ -32,18 +34,26 @@ public class DocumentRestController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name) throws IOException {
 
-        // In einer echten API würden wir den User aus dem SecurityContext holen
-        PUser currentUser = userService.getCurrentUser();
+        log.info("Upload-Request empfangen: Name={}, Group={}, Size={}", name, groupId, file.getSize());
 
-        DocumentInfo info = documentService.createDocument(
-                name,
-                groupId,
-                currentUser,
-                file.getBytes(),
-                file.getContentType()
-        );
+        try {
+            // In einer echten API würden wir den User aus dem SecurityContext holen
+            PUser currentUser = userService.getCurrentUser();
+            log.info("User für Upload identifiziert: {}", currentUser.getUsername());
+            DocumentInfo info = documentService.createDocument(
+                    name,
+                    groupId,
+                    currentUser,
+                    file.getBytes(),
+                    file.getContentType()
+            );
+            log.info("Dokument erfolgreich erstellt.");
 
-        return ResponseEntity.ok(info);
+            return ResponseEntity.ok(info);
+        } catch (Exception e) {
+            log.error("Fehler beim Upload: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     /**
@@ -54,9 +64,12 @@ public class DocumentRestController {
         PUser currentUser = userService.getCurrentUser();
         Document doc = documentService.getDocument(documentInfoId, currentUser).getCurrentDocument();
 
+        String filename = doc.getName();
+
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getMimeType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
                 .body(doc.getData());
     }
 
@@ -66,11 +79,12 @@ public class DocumentRestController {
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
         PUser currentUser = userService.getCurrentUser();
-        return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId,currentUser));
+        return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId, currentUser));
     }
 
     @PostMapping("/{id}/check-out")
     public ResponseEntity<String> checkOut(@PathVariable int id) {
+        log.info("Checking out document: {}", id);
         PUser currentUser = userService.getCurrentUser();
         documentService.checkOut(id, currentUser);
         return ResponseEntity.ok("Dokument erfolgreich gesperrt.");
@@ -81,7 +95,11 @@ public class DocumentRestController {
             @PathVariable int id,
             @RequestParam("file") MultipartFile file) throws IOException {
 
-        PUser currentUser = userService.getCurrentUser();
+        String currentUsername = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getName();
+
+        // 2. Den User "sauber" holen (ohne dass Hibernate einen Auto-Flush macht)
+        PUser currentUser = userService.getUserByUsername(currentUsername);
         Document newVersion = documentService.checkIn(
                 id,
                 file.getBytes(),

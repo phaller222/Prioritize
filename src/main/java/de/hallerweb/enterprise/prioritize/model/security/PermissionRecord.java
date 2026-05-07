@@ -1,6 +1,6 @@
 package de.hallerweb.enterprise.prioritize.model.security;
 
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import jakarta.persistence.Entity;
@@ -27,11 +27,13 @@ public class PermissionRecord extends PObject implements PAuthorizedObject {
     private int objectId;
 
     @ManyToOne(fetch = FetchType.EAGER)
+    @JsonIgnore
     private Department department;
 
-    // Logik zur Namensextraktion beim Setzen des Typs
-    public void setAbsoluteObjectType(String absoluteObjectType) {
-        this.absoluteObjectType = absoluteObjectType;
+    // Diese Methode wird automatisch vor jedem INSERT und UPDATE aufgerufen
+    @jakarta.persistence.PrePersist
+    @jakarta.persistence.PreUpdate
+    public void updateObjectName() {
         if (absoluteObjectType != null && absoluteObjectType.contains(".")) {
             this.objectName = absoluteObjectType.substring(absoluteObjectType.lastIndexOf('.') + 1);
         } else {

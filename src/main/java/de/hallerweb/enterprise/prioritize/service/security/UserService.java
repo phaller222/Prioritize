@@ -2,6 +2,7 @@ package de.hallerweb.enterprise.prioritize.service.security;
 
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.security.UserRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -28,13 +29,12 @@ public class UserService implements UserDetailsService {
      */
     public PUser getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() ||
-                authentication instanceof AnonymousAuthenticationToken) {
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
             throw new AccessDeniedException("Kein Benutzer angemeldet.");
         }
         String currentPrincipalName = authentication.getName();
-        return userRepository.findByUsername(currentPrincipalName)
-                .orElseThrow(() -> new NoSuchElementException("Benutzer nicht gefunden."));
+        return userRepository.findByUsername(currentPrincipalName).orElseThrow(() ->
+                new NoSuchElementException("Benutzer nicht gefunden."));
     }
 
     public List<PUser> getAllUsers() {
@@ -59,6 +59,20 @@ public class UserService implements UserDetailsService {
                 .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
                 .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
                 .build();
+    }
+
+    // In UserService.java
+    public PUser getUserByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
+    }
+
+    @Transactional
+    public PUser updateUser(PUser user) {
+        if (!userRepository.existsById(user.getId())) {
+            throw new NoSuchElementException("User mit ID " + user.getId() + " existiert nicht.");
+        }
+        return userRepository.save(user);
     }
 
 }

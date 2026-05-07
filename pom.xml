@@ -102,6 +102,15 @@
             <version>${lombok.version}</version>
         </dependency>
 
+        <!-- Apache tika for file extension from mimeType -->
+        <!-- Source: https://mvnrepository.com/artifact/org.apache.tika/tika-core -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>3.3.0</version>
+            <scope>compile</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

@@ -1,19 +1,43 @@
 package de.hallerweb.enterprise.prioritize.config;
 
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.repository.security.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.AuditorAware;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-@Component
+@Component("auditorProvider")
+@RequiredArgsConstructor
 public class AuditorAwareImpl implements AuditorAware<PUser> {
+
+    private final UserRepository userRepository; // Nutze dein Repository
+
     @Override
     public Optional<PUser> getCurrentAuditor() {
-        // Holt den aktuell eingeloggten User aus dem Security-Context
-        return Optional.ofNullable(SecurityContextHolder.getContext().getAuthentication())
-                .filter(auth -> auth.isAuthenticated())
-                .map(auth -> (PUser) auth.getPrincipal());
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+
+        // 1. Benutzernamen extrahieren
+        String username;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserDetails) {
+            username = ((UserDetails) principal).getUsername();
+        } else {
+            username = principal.toString();
+        }
+
+        // 2. Die echte Entity aus der DB laden
+        return userRepository.findByUsername("admin");
     }
 }

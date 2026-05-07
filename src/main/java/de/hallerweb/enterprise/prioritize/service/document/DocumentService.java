@@ -11,9 +11,12 @@ import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.mime.MimeType;
+import org.apache.tika.mime.MimeTypes;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -36,32 +39,33 @@ public class DocumentService {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
-        // 1. Berechtigung auf die GRUPPE prüfen (Darf der User hier Dokumente anlegen?)
-        if (!user.isAdmin() && !authService.hasPermission(user, group, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, in dieser Gruppe Dokumente zu erstellen.");
+        // 1. Dokument-Hülle erstellen und speichern (damit docInfo eine ID bekommt)
+        DocumentInfo docInfo = new DocumentInfo();
+        docInfo.setDocumentGroup(group);
+        docInfo.setLocked(false);
+        docInfo = documentInfoRepository.save(docInfo); // ID wird generiert!
+
+        // 2. Version erstellen
+
+        String finalName = name;
+        if (!name.contains(".")) {
+            String extension = getExtension(mimeType);
+            finalName = name + extension;
         }
 
-        // Die erste Version (Document) erstellen
         Document firstVersion = Document.builder()
-                .name(name)
+                .name(finalName)
                 .data(content)
                 .mimeType(mimeType)
                 .version(1)
-                // lastModified und lastModifiedBy werden von Spring automatisch gesetzt!
+                .documentInfo(docInfo)
                 .build();
 
-        // Logische Hülle (DocumentInfo) erstellen
-        DocumentInfo docInfo = DocumentInfo.builder()
-                .documentGroup(group)
-                .currentDocument(firstVersion)
-                .locked(false)
-                .build();
-
-        //  Rückverknüpfung für JPA (Document braucht die Info)
-        firstVersion.setDocumentInfo(docInfo);
+        // 3. Jetzt verknüpfen (Beide haben nun IDs oder sind stabil)
+        docInfo.setCurrentDocument(firstVersion);
         docInfo.getRecentDocuments().add(firstVersion);
 
-        //  Speichern (Cascade in DocumentInfo sorgt dafür, dass firstVersion mitgespeichert wird)
+        // 4. Finales Speichern (aktualisiert die Verknüpfung)
         return documentInfoRepository.save(docInfo);
     }
 
@@ -74,7 +78,7 @@ public class DocumentService {
                 .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
 
         // Berechtigung am logischen Dokument prüfen
-        if (!user.isAdmin() || !authService.hasPermission(user, info, Action.UPDATE)) {
+        if (!authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
         }
 
@@ -84,7 +88,7 @@ public class DocumentService {
         }
 
 
-        if (!info.getLockedBy().equals(user) && !user.isAdmin()) {
+        if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
             throw new AccessDeniedException("Nur der Besitzer des Locks darf eine neue Version hochladen.");
         }
 
@@ -109,8 +113,7 @@ public class DocumentService {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
-        // WICHTIG: Security-Check auch hier!
-        if (!user.isAdmin() && !authService.hasPermission(user, group, Action.READ)) {
+        if (!authService.hasPermission(user, group, Action.READ)) {
             throw new AccessDeniedException("Keine Leseberechtigung für diese Gruppe.");
         }
 
@@ -130,6 +133,7 @@ public class DocumentService {
 
     @Transactional
     public void checkOut(int documentInfoId, PUser user) {
+        log.info("Suche DocumentInfo mit ID: {}", documentInfoId);
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
@@ -138,7 +142,7 @@ public class DocumentService {
         }
 
         // Berechtigung prüfen (UPDATE-Recht nötig zum Sperren)
-        if (!user.isAdmin() && !authService.hasPermission(user, info, Action.UPDATE)) {
+        if (!authService.hasPermission(user, info, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung zum Sperren dieses Dokuments.");
         }
 
@@ -157,9 +161,12 @@ public class DocumentService {
             throw new IllegalStateException("Dokument ist nicht gesperrt.");
         }
 
-        // Nur derjenige, der gesperrt hat (oder ein Admin), darf einchecken
-        if (!info.getLockedBy().equals(user) && !user.isAdmin()) {
-            throw new AccessDeniedException("Nur der Besitzer des Locks darf das Dokument einchecken.");
+        // Sicherer Check gegen Null und ID-Vergleich
+        PUser locker = info.getLockedBy();
+        if (locker == null) {
+            log.warn("Dokument {} war gesperrt, aber lockedBy war null!", documentInfoId);
+        } else if (locker.getId() != user.getId() && !user.isAdmin()) {
+            throw new AccessDeniedException("Nur der Besitzer des Locks (" + locker.getUsername() + ") darf einchecken.");
         }
 
         // Neue Version erstellen (Logik aus addNewVersion nutzen)
@@ -168,7 +175,7 @@ public class DocumentService {
         // Lock aufheben
         info.setLocked(false);
         info.setLockedBy(null);
-        documentInfoRepository.save(info);
+        documentInfoRepository.saveAndFlush(info);
 
         log.info("Dokument ID {} wurde erfolgreich von User {} eingecheckt.", documentInfoId, user.getUsername());
         return newVersion;
@@ -184,7 +191,7 @@ public class DocumentService {
         }
 
         // Nur Besitzer oder Admin dürfen abbrechen
-        if (!info.getLockedBy().equals(user) && !user.isAdmin()) {
+        if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
             throw new AccessDeniedException("Nur der Besitzer des Locks kann die Sperre aufheben.");
         }
 
@@ -192,6 +199,16 @@ public class DocumentService {
         info.setLockedBy(null);
         documentInfoRepository.save(info);
         log.info("Lock für Dokument ID {} wurde von User {} aufgehoben (Abbruch).", documentInfoId, user.getUsername());
+    }
+
+    public String getExtension(String contentType) {
+        MimeTypes allTypes = MimeTypes.getDefaultMimeTypes();
+        try {
+            MimeType type = allTypes.forName(contentType);
+            return type.getExtension(); // Liefert z.B. ".pdf"
+        } catch (Exception e) {
+            return "";
+        }
     }
 
 }

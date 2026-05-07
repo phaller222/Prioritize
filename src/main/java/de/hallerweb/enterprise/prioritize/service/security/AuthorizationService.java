@@ -4,9 +4,14 @@ import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.security.PermissionRecord;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.stream.Stream;
 
 @Service
+@Transactional
 public class AuthorizationService {
 
     // Jetzt mit Action Enum statt String
@@ -15,14 +20,20 @@ public class AuthorizationService {
             return true;
         }
 
-        return user.getRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .anyMatch(record -> isPermissionMatching(record, targetObject, action));
+        // Stream aus Rollen-Permissions
+        Stream<PermissionRecord> rolePerms = user.getRoles().stream().flatMap(role -> role.getPermissions().stream());
+
+        // Stream aus persönlichen Permissions
+        Stream<PermissionRecord> personalPerms = user.getPersonalPermissions().stream();
+
+        // Kombinieren und prüfen
+        return Stream.concat(rolePerms, personalPerms).anyMatch(
+                record -> isPermissionMatching(record, targetObject, action));
     }
 
     private boolean isAdmin(PUser user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN"));
+        return user.isAdmin() || user.getRoles().stream().anyMatch(
+                role -> role.getName().equalsIgnoreCase("ADMIN"));
     }
 
     private boolean isPermissionMatching(PermissionRecord record, PAuthorizedObject target, Action action) {
@@ -33,7 +44,7 @@ public class AuthorizationService {
 
     private boolean isMatchingType(PermissionRecord record, PAuthorizedObject target) {
         // Nutzt den Canonical Name (z.B. de.hallerweb...Resource)
-        return record.getAbsoluteObjectType().equals(target.getClass().getCanonicalName());
+        return record.getAbsoluteObjectType().equals(Hibernate.unproxy(target).getClass().getCanonicalName());
     }
 
     private boolean isMatchingInstance(PermissionRecord record, PAuthorizedObject target) {

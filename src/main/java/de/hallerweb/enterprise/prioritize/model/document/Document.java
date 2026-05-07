@@ -43,7 +43,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 public class Document extends PObject {
@@ -54,6 +54,11 @@ public class Document extends PObject {
     public static final String PROPERTY_ENCRYPTED = "encrypted";
     public static final String PROPERTY_CHANGES = "changes";
 
+    @EqualsAndHashCode.Include // Wir nehmen die ID (auch wenn sie null ist)
+    @Override
+    public Integer getId() {
+        return super.getId();
+    }
 
     @ToString.Include
     private String name; // Name of the document.
@@ -76,9 +81,11 @@ public class Document extends PObject {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_info_id")
     @JsonBackReference
+    @ToString.Exclude
     private DocumentInfo documentInfo;
 
     @Lob
     @Basic(fetch = FetchType.LAZY)
+    @ToString.Exclude
     private byte[] data; // the data of the document (e.G. binary MS-word data).
 }
