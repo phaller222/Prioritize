@@ -23,41 +23,43 @@ import java.util.List;
 public class DocumentRestController {
 
     private final DocumentService documentService;
-    private final UserService userService; // Um den aktuellen User zu bestimmen
+    private final UserService userService; // To determine the current user
 
     /**
-     * Lädt ein neues Dokument in eine Gruppe hoch.
+     * Uploads a new document to a group.
+     * The group is identified by the groupId
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
-            @PathVariable int groupId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("name") String name) throws IOException {
+        @PathVariable int groupId,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("name") String name) throws IOException {
 
-        log.info("Upload-Request empfangen: Name={}, Group={}, Size={}", name, groupId, file.getSize());
+        log.info("Upload request received: Name={}, Group={}, Size={}", name, groupId, file.getSize());
 
         try {
-            // In einer echten API würden wir den User aus dem SecurityContext holen
+            // In a real API we would get the user from the SecurityContext
             PUser currentUser = userService.getCurrentUser();
-            log.info("User für Upload identifiziert: {}", currentUser.getUsername());
+            log.info("User identified for upload: {}", currentUser.getUsername());
             DocumentInfo info = documentService.createDocument(
-                    name,
-                    groupId,
-                    currentUser,
-                    file.getBytes(),
-                    file.getContentType()
+                name,
+                groupId,
+                currentUser,
+                file.getBytes(),
+                file.getContentType()
             );
-            log.info("Dokument erfolgreich erstellt.");
+            log.info("Document successfully created.");
 
             return ResponseEntity.ok(info);
         } catch (Exception e) {
-            log.error("Fehler beim Upload: ", e);
+            log.error("Error during upload: ", e);
             return ResponseEntity.internalServerError().build();
         }
     }
 
     /**
-     * Lädt den Inhalt der aktuellsten Version eines Dokuments herunter.
+     * Downloads the content of the most recent version of a document.
+     * The DocumentInfo is passed as parameter
      */
     @GetMapping("/download/{documentInfoId}")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable int documentInfoId) {
@@ -67,14 +69,14 @@ public class DocumentRestController {
         String filename = doc.getName();
 
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(doc.getMimeType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
-                .body(doc.getData());
+            .contentType(MediaType.parseMediaType(doc.getMimeType()))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+            .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+            .body(doc.getData());
     }
 
     /**
-     * Listet alle Dokument-Infos einer Gruppe auf.
+     * Lists all document infos of a group.
      */
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
@@ -87,24 +89,24 @@ public class DocumentRestController {
         log.info("Checking out document: {}", id);
         PUser currentUser = userService.getCurrentUser();
         documentService.checkOut(id, currentUser);
-        return ResponseEntity.ok("Dokument erfolgreich gesperrt.");
+        return ResponseEntity.ok("Document successfully locked.");
     }
 
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
-            @PathVariable int id,
-            @RequestParam("file") MultipartFile file) throws IOException {
+        @PathVariable int id,
+        @RequestParam("file") MultipartFile file) throws IOException {
 
         String currentUsername = org.springframework.security.core.context.SecurityContextHolder
-                .getContext().getAuthentication().getName();
+            .getContext().getAuthentication().getName();
 
-        // 2. Den User "sauber" holen (ohne dass Hibernate einen Auto-Flush macht)
+        // 2. Get the user "cleanly" (without Hibernate doing an auto-flush)
         PUser currentUser = userService.getUserByUsername(currentUsername);
         Document newVersion = documentService.checkIn(
-                id,
-                file.getBytes(),
-                file.getContentType(),
-                currentUser
+            id,
+            file.getBytes(),
+            file.getContentType(),
+            currentUser
         );
 
         return ResponseEntity.ok(newVersion.getDocumentInfo());
