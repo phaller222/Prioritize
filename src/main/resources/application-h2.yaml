@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:file:~/prioritize;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:file:~/prioritize;MODE=PostgreSQL;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -16,17 +16,17 @@ spring:
     console:
       enabled: true
       path: /h2-console
-#logging:
-#  level:
-#    org:
-#      springframework:
-#        security: DEBUG
-#      hibernate:
-#        SQL: DEBUG
-#        orm.results: DEBUG
-#        orm.jdbc.bind: TRACE
-        # Falls du noch mehr Details zum Schema-Export willst:
-#        tool.schema: DEBUG
+logging:
+  level:
+    org:
+      #springframework:
+      #  security: DEBUG
+      hibernate:
+        #SQL: DEBUG
+        #orm.results: DEBUG
+        #orm.jdbc.bind: TRACE
+       # Falls du noch mehr Details zum Schema-Export willst:
+        tool.schema: ERROR
 
 flowable:
   database-schema-update: true

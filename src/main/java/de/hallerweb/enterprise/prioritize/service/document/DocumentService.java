@@ -74,50 +74,73 @@ public class DocumentService {
     }
 
 
-
     /**
      * ---------- Creates a new version for an existing document ----------
      * <p> A new document version is beeing created and uploaded.
-     *
+     * <p>
      * ---------------------------------------------------------------------
      */
     @Transactional
-    public Document addNewVersion(int documentInfoId, PUser user, byte[] content, String mimeType) {
-        DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
+    public Document addNewVersion(int documentInfoId, PUser user, byte[] content, String mimeType, String comment) {
+        {
+            DocumentInfo info = documentInfoRepository.findById(documentInfoId)
+                    .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
 
-        // Check authorization on the logical document.
-        if (!authService.hasPermission(user, info, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
+            // Check authorization on the logical document.
+            if (!authService.hasPermission(user, info, Action.UPDATE)) {
+                throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
+            }
+
+            // SECURITY CHECK:
+            if (!info.isLocked()) {
+                throw new IllegalStateException("Version kann nicht erstellt werden: Dokument muss zuerst ausgecheckt werden.");
+            }
+
+
+            if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
+                throw new AccessDeniedException("Nur der Besitzer des Locks darf eine neue Version hochladen.");
+            }
+
+            int nextVersion = info.getCurrentDocument().getVersion() + 1;
+
+            Document newVersion = Document.builder()
+                    .name(info.getCurrentDocument().getName())
+                    .data(content)
+                    .mimeType(mimeType)
+                    .version(nextVersion)
+                    .changes(comment)
+                    .documentInfo(info)
+                    .build();
+
+            info.setCurrentDocument(newVersion);
+            info.getRecentDocuments().add(newVersion);
+
+            documentInfoRepository.save(info);
+            return newVersion;
         }
-
-        // SECURITY CHECK:
-        if (!info.isLocked()) {
-            throw new IllegalStateException("Version kann nicht erstellt werden: Dokument muss zuerst ausgecheckt werden.");
-        }
-
-
-        if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
-            throw new AccessDeniedException("Nur der Besitzer des Locks darf eine neue Version hochladen.");
-        }
-
-        int nextVersion = info.getCurrentDocument().getVersion() + 1;
-
-        Document newVersion = Document.builder()
-                .name(info.getCurrentDocument().getName())
-                .data(content)
-                .mimeType(mimeType)
-                .version(nextVersion)
-                .documentInfo(info)
-                .build();
-
-        info.setCurrentDocument(newVersion);
-        info.getRecentDocuments().add(newVersion);
-
-        documentInfoRepository.save(info);
-        return newVersion;
     }
 
+    /**
+     * Returns all versions, newest first
+     * @param documentInfoId
+     * @param user
+     * @return documents
+     */
+    public List<Document> getDocumentHistory(int documentInfoId, PUser user) {
+        DocumentInfo info = getDocument(documentInfoId, user);
+        // returns all versions, newest first
+        return info.getRecentDocuments().stream()
+                .sorted((a, b) -> Integer.compare(b.getVersion(), a.getVersion()))
+                .toList();
+    }
+
+    public Document getSpecificVersion(int documentInfoId, int version, PUser user) {
+        DocumentInfo info = getDocument(documentInfoId, user);
+        return info.getRecentDocuments().stream()
+                .filter(d -> d.getVersion() == version)
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Version not found."));
+    }
 
 
     /**
@@ -148,8 +171,6 @@ public class DocumentService {
     }
 
 
-
-
     /**
      * ----------Checks out a document (lock the document in the DB) ----------
      * <p> If documents are beeing edited after download and shall be
@@ -159,11 +180,13 @@ public class DocumentService {
      */
     @Transactional
     public void checkOut(int documentInfoId, PUser user) {
-        DocumentInfo info = documentInfoRepository.findById(documentInfoId)
+        DocumentInfo info = documentInfoRepository.findByIdWithLockedBy(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         if (info.isLocked()) {
-            throw new IllegalStateException("Dokument ist bereits von " + info.getLockedBy().getName() + " gesperrt.");
+            // make sure info is not null
+            String lockerName = (info.getLockedBy() != null) ? info.getLockedBy().getUsername() : "Unknown";
+            throw new IllegalStateException("Dokument ist bereits von " + lockerName + " gesperrt.");
         }
 
         // Check authorization; UPDATE permission is required for locking.
@@ -178,7 +201,6 @@ public class DocumentService {
     }
 
 
-
     /**
      * ----------Checks in a document (unlock the document in the DB) ----------
      * <p> If documents had been processed and wrítten back to the server ,
@@ -186,7 +208,7 @@ public class DocumentService {
      * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
-    public Document checkIn(int documentInfoId, byte[] content, String mimeType, PUser user) {
+    public Document checkIn(int documentInfoId, byte[] content, String mimeType, String comment, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
@@ -203,7 +225,7 @@ public class DocumentService {
         }
 
         // Create new version by using the logic from addNewVersion.
-        Document newVersion = addNewVersion(documentInfoId, user, content, mimeType);
+        Document newVersion = addNewVersion(documentInfoId, user, content, mimeType, comment);
 
         // Release lock.
         info.setLocked(false);
@@ -213,7 +235,6 @@ public class DocumentService {
         log.info("Dokument ID {} wurde erfolgreich von User {} eingecheckt.", documentInfoId, user.getUsername());
         return newVersion;
     }
-
 
 
     /**
@@ -247,10 +268,29 @@ public class DocumentService {
         MimeTypes allTypes = MimeTypes.getDefaultMimeTypes();
         try {
             MimeType type = allTypes.forName(contentType);
-            return type.getExtension(); // Liefert z.B. ".pdf"
+            return type.getExtension();
         } catch (Exception e) {
             return "";
         }
+    }
+
+    @Transactional
+    public void deleteDocument(int documentInfoId, PUser user) {
+        DocumentInfo info = documentInfoRepository.findById(documentInfoId)
+                .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+
+        // check for Action.DELETE
+        if (!authService.hasPermission(user, info, Action.DELETE)) {
+            throw new AccessDeniedException("Keine Berechtigung zum Löschen.");
+        }
+
+        // If document is locked, it cannot be deleted except by admins
+        if (info.isLocked() && !user.isAdmin()) {
+            throw new IllegalStateException("Gesperrte Dokumente können nicht gelöscht werden.");
+        }
+
+        documentInfoRepository.delete(info);
+        log.info("Dokument {} wurde von User {} gelöscht.", documentInfoId, user.getUsername());
     }
 
 }

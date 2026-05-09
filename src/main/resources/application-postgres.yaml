@@ -6,7 +6,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     properties:
       hibernate:
         default_schema: public
@@ -17,3 +17,15 @@ flowable:
   database-schema-update: true
   # Das hier ersetzt den manuellen Prefix-Code in der Java-Klasse:
   table-prefix: flowable.
+
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+      hibernate:
+        SQL: DEBUG
+        orm.results: DEBUG
+        orm.jdbc.bind: TRACE
+#Falls du noch mehr Details zum Schema-Export willst:
+        tool.schema: DEBUG

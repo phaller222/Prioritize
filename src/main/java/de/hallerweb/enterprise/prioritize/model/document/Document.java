@@ -84,8 +84,7 @@ public class Document extends PObject {
     @ToString.Exclude
     private DocumentInfo documentInfo;
 
-    @Lob
-    @Basic(fetch = FetchType.LAZY)
     @ToString.Exclude
+    @Column(name = "data", columnDefinition = "bytea")
     private byte[] data; // Document data, for example binary MS Word data.
 }

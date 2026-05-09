@@ -1,5 +1,7 @@
 package de.hallerweb.enterprise.prioritize.controller.document;
 
+import de.hallerweb.enterprise.prioritize.dto.document.DocumentHistoryDTO;
+import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -10,6 +12,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,9 +38,9 @@ public class DocumentRestController {
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
-        @PathVariable int groupId,
-        @RequestParam("file") MultipartFile file,
-        @RequestParam("name") String name) throws IOException {
+            @PathVariable int groupId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("name") String name) throws IOException {
 
         log.info("Upload request received: Name={}, Group={}, Size={}", name, groupId, file.getSize());
 
@@ -46,11 +49,11 @@ public class DocumentRestController {
             PUser currentUser = userService.getCurrentUser();
             log.info("User identified for upload: {}", currentUser.getUsername());
             DocumentInfo info = documentService.createDocument(
-                name,
-                groupId,
-                currentUser,
-                file.getBytes(),
-                file.getContentType()
+                    name,
+                    groupId,
+                    currentUser,
+                    file.getBytes(),
+                    file.getContentType()
             );
             log.info("Document successfully created.");
 
@@ -78,10 +81,10 @@ public class DocumentRestController {
         String filename = doc.getName();
 
         return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(doc.getMimeType()))
-            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-            .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
-            .body(doc.getData());
+                .contentType(MediaType.parseMediaType(doc.getMimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .body(doc.getData());
     }
 
 
@@ -90,13 +93,73 @@ public class DocumentRestController {
      * <p>
      * http://[HOST]:[PORT]/api/v1/documents/group/[DOCUMENT_GROUP_ID]
      * <p>
-     * The group is identified by the groupId
+     * The group is identified by the groupId. Returns a DocumentSummaryDTO
+     * containing  the id of the documents.
      * ------------------------------------------------------------------------
      */
     @GetMapping("/group/{groupId}")
-    public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable int groupId) {
         PUser currentUser = userService.getCurrentUser();
-        return ResponseEntity.ok(documentService.getDocumentsInGroup(groupId, currentUser));
+        List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
+
+        // Mapping auf das schlanke DTO
+        List<DocumentSummaryDTO> summary = documents.stream()
+                .map(doc -> new DocumentSummaryDTO(
+                        doc.getId(),
+                        doc.getCurrentDocument().getName(),
+                        doc.getCurrentDocument().getVersion(),
+                        doc.isLocked(),
+                        doc.getLockedBy() != null ? doc.getLockedBy().getUsername() : null
+                ))
+                .toList();
+        return ResponseEntity.ok(summary);
+    }
+
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable int id) {
+        PUser currentUser = userService.getCurrentUser();
+        List<Document> history = documentService.getDocumentHistory(id, currentUser);
+
+        List<DocumentHistoryDTO> dtos = history.stream()
+                .map(d -> new DocumentHistoryDTO(
+                        d.getVersion(),
+                        d.getName(),
+                        d.getLastModifiedBy().getUsername(),
+                        d.getChanges(),
+                        d.getLastModified()
+                )).toList();
+
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/{id}/version/{versionNumber}")
+    public ResponseEntity<byte[]> downloadSpecificVersion(@PathVariable int id, @PathVariable int versionNumber) {
+        PUser currentUser = userService.getCurrentUser();
+        Document doc = documentService.getSpecificVersion(id, versionNumber, currentUser);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(doc.getMimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getName() + "\"")
+                .body(doc.getData());
+    }
+
+
+    /**
+     * Deletes a  (DocumentInfo) and all corresponding versions.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteDocument(@PathVariable int id) {
+        log.info("Delete request for document: {}", id);
+        PUser currentUser = userService.getCurrentUser();
+
+        try {
+            documentService.deleteDocument(id, currentUser);
+            return ResponseEntity.noContent().build(); // 204 No Content is default
+        } catch (Exception e) {
+            log.error("Error deleting document {}: ", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
 
@@ -129,19 +192,21 @@ public class DocumentRestController {
      */
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
-        @PathVariable int id,
-        @RequestParam("file") MultipartFile file) throws IOException {
+            @PathVariable int id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "comment", required = false) String comment) throws IOException {
 
         String currentUsername = org.springframework.security.core.context.SecurityContextHolder
-            .getContext().getAuthentication().getName();
+                .getContext().getAuthentication().getName();
 
         // 2. Get the user "cleanly" (without Hibernate doing an auto-flush)
         PUser currentUser = userService.getUserByUsername(currentUsername);
         Document newVersion = documentService.checkIn(
-            id,
-            file.getBytes(),
-            file.getContentType(),
-            currentUser
+                id,
+                file.getBytes(),
+                file.getContentType(),
+                comment,
+                currentUser
         );
         return ResponseEntity.ok(newVersion.getDocumentInfo());
     }
