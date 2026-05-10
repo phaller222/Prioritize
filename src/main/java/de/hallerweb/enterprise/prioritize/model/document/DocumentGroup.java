@@ -54,7 +54,6 @@ public class DocumentGroup extends PObject implements PAuthorizedObject {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     @JsonBackReference(value = "departmentBackRef")
-    @ToString.Exclude
     private Department department;
 
 
@@ -62,7 +61,6 @@ public class DocumentGroup extends PObject implements PAuthorizedObject {
     @Builder.Default
     @OneToMany(mappedBy = "documentGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonBackReference(value = "documentsBackRef")
-    @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private Set<DocumentInfo> documents = new HashSet<>();
 

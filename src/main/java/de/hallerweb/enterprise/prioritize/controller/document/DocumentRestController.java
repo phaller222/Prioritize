@@ -4,8 +4,10 @@ import de.hallerweb.enterprise.prioritize.dto.document.DocumentHistoryDTO;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
+import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
+import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -27,6 +29,7 @@ public class DocumentRestController {
 
     private final DocumentService documentService;
     private final UserService userService; // To determine the current user
+    private final AuthorizationService authorizationService;
 
     /**
      * ---------- Upload document to a DocumentGroup. ----------
@@ -210,4 +213,18 @@ public class DocumentRestController {
         );
         return ResponseEntity.ok(newVersion.getDocumentInfo());
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name) {
+        PUser currentUser = userService.getCurrentUser();
+        // Der Service gibt direkt die Liste der DTOs zurück
+        return ResponseEntity.ok(documentService.searchDocumentsByName(name, currentUser));
+    }
+
+    @GetMapping("/recent")
+    public ResponseEntity<List<DocumentSummaryDTO>> getRecent() {
+        PUser currentUser = userService.getCurrentUser();
+        return ResponseEntity.ok(documentService.getRecentDocuments(currentUser));
+    }
+
 }

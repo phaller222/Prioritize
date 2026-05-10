@@ -87,12 +87,6 @@
             <version>${flowable.version}</version>
         </dependency>
 
-        <!-- Postgres DB -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
 
         <!-- Lombok - for cleaner model -->
         <dependency>

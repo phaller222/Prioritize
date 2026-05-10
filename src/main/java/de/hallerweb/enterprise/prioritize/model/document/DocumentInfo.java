@@ -67,7 +67,6 @@ public class DocumentInfo extends PObject implements PAuthorizedObject {
     @JsonManagedReference
     @JsonIgnore
     @EqualsAndHashCode.Exclude
-    @ToString.Exclude
     private Set<Document> recentDocuments = new HashSet<>();
 
     @ToString.Include

@@ -1,6 +1,7 @@
 package de.hallerweb.enterprise.prioritize.repository.document;
 
 import de.hallerweb.enterprise.prioritize.model.document.Document;
+import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -35,4 +36,7 @@ public interface DocumentRepository extends JpaRepository<Document, Integer> {
     Collection<Document> findByFilter(@Param("name") String name,
                                       @Param("tag") String tag,
                                       @Param("version") Integer version);
+
+
+
 }

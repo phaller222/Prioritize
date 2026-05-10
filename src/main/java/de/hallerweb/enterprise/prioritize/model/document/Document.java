@@ -81,10 +81,8 @@ public class Document extends PObject {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_info_id")
     @JsonBackReference
-    @ToString.Exclude
     private DocumentInfo documentInfo;
 
-    @ToString.Exclude
     @Column(name = "data", columnDefinition = "bytea")
     private byte[] data; // Document data, for example binary MS Word data.
 }

@@ -1,5 +1,6 @@
 package de.hallerweb.enterprise.prioritize.service.document;
 
+import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentGroup;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
@@ -292,5 +293,34 @@ public class DocumentService {
         documentInfoRepository.delete(info);
         log.info("Dokument {} wurde von User {} gelöscht.", documentInfoId, user.getUsername());
     }
+
+    public List<DocumentSummaryDTO> searchDocumentsByName(String name, PUser user) {
+        return documentInfoRepository.findByCurrentDocument_NameContainingIgnoreCase(name).stream()
+                .filter(info -> authService.hasPermission(user, info, Action.READ))
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentSummaryDTO> getRecentDocuments(PUser user) {
+        return documentInfoRepository.findTop10ByOrderByCurrentDocument_LastModifiedDesc()
+                .stream()
+                // Nur Dokumente zeigen, für die der User Leserechte hat
+                .filter(info -> authService.hasPermission(user, info, Action.READ))
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+
+    private DocumentSummaryDTO convertToDTO(DocumentInfo info) {
+        return new DocumentSummaryDTO(
+                info.getId(),
+                info.getCurrentDocument().getName(),
+                info.getCurrentDocument().getVersion(),
+                info.isLocked(),
+                info.getLockedBy() != null ? info.getLockedBy().getUsername() : null
+        );
+    }
+
 
 }

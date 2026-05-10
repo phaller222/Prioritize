@@ -60,6 +60,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private boolean remote;
     private String ip;
     private boolean busy;
+    @Builder.Default
     private int maxSlots = 1;
 
     // --- Geolocation ---

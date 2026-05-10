@@ -20,4 +20,20 @@ public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Inte
 
     @Query("SELECT d FROM DocumentInfo d LEFT JOIN FETCH d.lockedBy WHERE d.id = :id")
     Optional<DocumentInfo> findByIdWithLockedBy(@Param("id") int id);
+
+    // Suche über die Beziehung "currentDocument" nach dem Feld "name"
+    List<DocumentInfo> findByCurrentDocument_NameContainingIgnoreCase(String name);
+
+
+    // Suche nach Tags (falls du das Feld 'tag' in Document nutzt)
+    List<DocumentInfo> findByCurrentDocument_Tag(String tag);
+
+    // Die neuesten X Dokumente (für ein Dashboard)
+    List<DocumentInfo> findTop10ByOrderByCurrentDocument_LastModifiedDesc();
+
+
+    // Suche über den Kommentar in der aktuellen Version:
+    List<DocumentInfo> findByCurrentDocument_ChangesContainingIgnoreCase(String comment);
+
 }
+

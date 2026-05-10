@@ -15,7 +15,6 @@ import java.util.Set;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @Builder
-@ToString(onlyExplicitlyIncluded = true)
 public class Skill extends PObject implements PAuthorizedObject {
 
     @ToString.Include
