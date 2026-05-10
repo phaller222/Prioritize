@@ -4,7 +4,6 @@ import de.hallerweb.enterprise.prioritize.dto.document.DocumentHistoryDTO;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
-import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
@@ -119,6 +118,16 @@ public class DocumentRestController {
         return ResponseEntity.ok(summary);
     }
 
+
+    /**
+     * ---------- Retrieves the history of a document ------------------------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/history
+     * <p>
+     * Retrieves a list with all changes on the document with the given id
+     * containing name,version,lastModifiedBy, lastModifiedDate and comment (if present)
+     * -----------------------------------------------------------------------------------
+     */
     @GetMapping("/{id}/history")
     public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable int id) {
         PUser currentUser = userService.getCurrentUser();
@@ -136,6 +145,15 @@ public class DocumentRestController {
         return ResponseEntity.ok(dtos);
     }
 
+
+    /**
+     * ---------- Download a specific document version ------------------------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/version/[VERSION_NUMBER]
+     * <p>
+     * Downloads a specific version of a document indicated by the version number.
+     * ------------------------------------------------------------------------------------
+     */
     @GetMapping("/{id}/version/{versionNumber}")
     public ResponseEntity<byte[]> downloadSpecificVersion(@PathVariable int id, @PathVariable int versionNumber) {
         PUser currentUser = userService.getCurrentUser();
@@ -149,7 +167,12 @@ public class DocumentRestController {
 
 
     /**
-     * Deletes a  (DocumentInfo) and all corresponding versions.
+     * ---------- Delete a document-------------------------------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]
+     * <p>
+     * Deletes the document with the given ID.
+     * ------------------------------------------------------------------------
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable int id) {
@@ -214,6 +237,16 @@ public class DocumentRestController {
         return ResponseEntity.ok(newVersion.getDocumentInfo());
     }
 
+
+    /**
+     * ---------- search for a Document --------------------------------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/search
+     * <p>
+     * Call this method to search a document by a part of the name.
+     * effectively it is a like search : WHERE name LIKE %searchterm% .
+     * ------------------------------------------------------------------------
+     */
     @GetMapping("/search")
     public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name) {
         PUser currentUser = userService.getCurrentUser();
@@ -221,6 +254,15 @@ public class DocumentRestController {
         return ResponseEntity.ok(documentService.searchDocumentsByName(name, currentUser));
     }
 
+
+    /**
+     * ---------- Show the latest 10 documents created -----------------------
+     * <p>
+     * http://[HOST]:[PORT]/api/v1/documents/recent
+     * <p>
+     * Call this method to show the latest doocuments added.
+     * ------------------------------------------------------------------------
+     */
     @GetMapping("/recent")
     public ResponseEntity<List<DocumentSummaryDTO>> getRecent() {
         PUser currentUser = userService.getCurrentUser();
