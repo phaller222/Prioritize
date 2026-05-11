@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/prioritize_db
+    url: jdbc:postgresql://localhost:5432/prioritize
     username: prioritize
     password: prioritize
     driver-class-name: org.postgresql.Driver
@@ -13,7 +13,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 flowable:
-  database-schema: flowable
+  database-schema: public
   database-schema-update: true
   # Das hier ersetzt den manuellen Prefix-Code in der Java-Klasse:
   table-prefix: flowable.
@@ -22,10 +22,10 @@ logging:
   level:
     org:
       springframework:
-        security: DEBUG
+        security: INFO
       hibernate:
-        SQL: DEBUG
-        orm.results: DEBUG
-        orm.jdbc.bind: TRACE
+        SQL: INFO
+        orm.results: INFO
+        orm.jdbc.bind: INFO
 #Falls du noch mehr Details zum Schema-Export willst:
-        tool.schema: DEBUG
+        tool.schema: INFO

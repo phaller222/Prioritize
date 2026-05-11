@@ -24,6 +24,7 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -51,6 +52,9 @@ import java.util.Set;
 @ToString(onlyExplicitlyIncluded = true)
 public class Resource extends PActor implements PAuthorizedObject, Comparable<Resource> {
 
+    @Transient
+    private int currentOccupiedSlots;
+
     @ToString.Include
     private String name;
     private String description;
@@ -73,7 +77,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private String mqttDataSendTopic;
     private String mqttDataReceiveTopic;
     private boolean mqttOnline;
-    private Date mqttLastPing;
+    private LocalDateTime mqttLastPing;
     private boolean agent;
 
     @ElementCollection
@@ -85,11 +89,13 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private Set<NameValueEntry> mqttValues;
 
     @Lob
-    @Basic(fetch = FetchType.LAZY) // Lob nur laden, wenn man es wirklich braucht
+    @Basic(fetch = FetchType.LAZY)
+    @Column(columnDefinition = "bytea")
     private byte[] mqttDataReceived;
 
     @Lob
     @Basic(fetch = FetchType.LAZY)
+    @Column(columnDefinition = "bytea")
     private byte[] mqttDataToSend;
 
     // --- Beziehungen ---
@@ -123,4 +129,9 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     public int compareTo(Resource other) {
         return Integer.compare(this.id, other.id);
     }
+
+    public boolean isFull() {
+        return currentOccupiedSlots >= maxSlots;
+    }
+
 }

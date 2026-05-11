@@ -1,14 +1,9 @@
-# Step 1: Use an official OpenJDK base image from Docker Hub
-FROM eclipse-temurin:25-jdk-alpine
+# Stage 1: Build mit Maven
+FROM maven:3.9.6-eclipse-temurin-21 AS build
+COPY . .
+RUN mvn clean package -DskipTests
 
-# Step 2: Set the working directory inside the container
-WORKDIR /app
-
-# Step 3: Copy the Spring Boot JAR file into the container
-COPY target/prioritize-0.0.1-SNAPSHOT.jar /app/prioritize.jar
-
-# Step 4: Expose the port your application runs on
-EXPOSE 8080
-
-# Step 5: Define the command to run your Spring Boot application
-CMD ["java", "-jar", "/app/prioritize.jar"]
+# Stage 2: Runtime
+FROM eclipse-temurin:21-jre
+COPY --from=build /target/prioritize-0.0.1-SNAPSHOT.jar app.jar
+ENTRYPOINT ["java", "-jar", "/app.jar"]

@@ -48,6 +48,8 @@ import java.util.Set;
 @ToString(onlyExplicitlyIncluded = true)
 public class DocumentGroup extends PObject implements PAuthorizedObject {
 
+    public static final String DEFAULT_GROUP_NAME = "Default";
+
     @ToString.Include
     private String name;
 

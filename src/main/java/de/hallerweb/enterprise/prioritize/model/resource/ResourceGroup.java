@@ -1,14 +1,15 @@
 package de.hallerweb.enterprise.prioritize.model.resource;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
+import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -18,14 +19,29 @@ import lombok.*;
 @EqualsAndHashCode(callSuper = true)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
-public class ResourceGroup extends PObject {
+public class ResourceGroup extends PObject implements PAuthorizedObject {
+
+    public static final String DEFAULT_GROUP_NAME = "Default";
 
     @ToString.Include
-    String name;
+    private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     @JsonBackReference(value = "resourceGroupDeptRef")
     private Department department;
 
+    @Builder.Default
+    @OneToMany(mappedBy = "resourceGroup", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference(value = "resourceGroupResources")
+    private Set<Resource> resources = new HashSet<>();
+
+    // Hilfsmethode für bidirektionale Konsistenz
+    public void addResource(Resource resource) {
+        if (resources == null) {
+            resources = new HashSet<>();
+        }
+        resources.add(resource);
+        resource.setResourceGroup(this);
+    }
 }
