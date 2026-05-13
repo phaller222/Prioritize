@@ -5,8 +5,8 @@ services:
     container_name: prioritize-db
     environment:
       POSTGRES_DB: prioritize
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: prioritize
+      POSTGRES_PASSWORD: prioritize
     ports:
       - "5432:5432"
 
