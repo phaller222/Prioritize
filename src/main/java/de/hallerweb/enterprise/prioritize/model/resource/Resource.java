@@ -17,6 +17,9 @@ package de.hallerweb.enterprise.prioritize.model.resource;
 
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
@@ -26,7 +29,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -54,32 +56,41 @@ import java.util.Set;
 public class Resource extends PActor implements PAuthorizedObject, Comparable<Resource> {
 
     @Transient
-    private int currentOccupiedSlots;
+    @Builder.Default
+    private Integer currentOccupiedSlots = 0;
 
     @ToString.Include
     private String name;
+    @ToString.Include
     private String description;
 
     // --- Physische Eigenschaften ---
-    private boolean stationary;
-    private boolean remote;
-    private String ip;
-    private boolean busy;
     @Builder.Default
-    private int maxSlots = 1;
+    private Boolean stationary = true;
+    @Builder.Default
+    private Boolean remote = true;
+    private String ip;
+    @Builder.Default
+    private Boolean busy = false;
+    @Builder.Default
+    private Integer maxSlots = 1;
 
     // --- Geolocation ---
     private String latitude;
     private String longitude;
 
     // --- MQTT Eigenschaften ---
-    private boolean mqttResource;
+    @Builder.Default
+    private Boolean mqttResource=false;
     private String mqttUUID;
     private String mqttDataSendTopic;
     private String mqttDataReceiveTopic;
-    private boolean mqttOnline;
-    private LocalDateTime mqttLastPing;
-    private boolean agent;
+    @Builder.Default
+    private Boolean mqttOnline = false;
+    @Builder.Default
+    private LocalDateTime mqttLastPing = LocalDateTime.now();
+    @Builder.Default
+    private Boolean agent = false;
 
     @ElementCollection
     private Set<String> mqttCommands;
@@ -89,22 +100,26 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     @OrderBy("mqttName")
     private Set<NameValueEntry> mqttValues;
 
-    @Lob
-    @Basic(fetch = FetchType.LAZY)
-    @Column(columnDefinition = "bytea")
-    private byte[] mqttDataReceived;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(columnDefinition = "bytea")
-    private byte[] mqttDataToSend;
+    @Column(name = "mqtt_data_received", columnDefinition = "bytea")
+    @Builder.Default
+    private byte[] mqttDataReceived = new byte[]{};
+
+
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "mqtt_data_to_send", columnDefinition = "bytea")
+    @Builder.Default
+    private byte[] mqttDataToSend = new byte[]{};
 
     // --- Beziehungen ---
-    @ManyToOne(fetch = FetchType.LAZY) // Eine Resource gehört zu einer Abteilung
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
+    @JsonBackReference(value = "department-resources-fallback") // Eindeutige Back-Reference!
     private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"password", "roles", "departments", "reservations"})
     private PUser busyBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -114,11 +129,13 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
 
     @Builder.Default
     @OneToMany(mappedBy = "resource", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference(value = "resource-reservations")
     private Set<ResourceReservation> reservations = new HashSet<>();
 
     @Builder.Default
     @OneToMany(cascade = CascadeType.ALL)
     @JoinColumn(name = "resource_id")
+    @JsonIgnore
     private Set<SkillRecord> skills = new HashSet<>();
 
     // --- Helper ---
@@ -132,7 +149,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
         return Integer.compare(this.id, other.id);
     }
 
-    public boolean isFull() {
+    public Boolean isFull() {
         return currentOccupiedSlots >= maxSlots;
     }
 

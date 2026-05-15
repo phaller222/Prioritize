@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.model.company;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import jakarta.persistence.Entity;
 import lombok.*;
@@ -42,6 +43,7 @@ import lombok.*;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Address extends PObject {
 
     @ToString.Include

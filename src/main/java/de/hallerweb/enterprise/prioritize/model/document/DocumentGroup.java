@@ -55,7 +55,7 @@ public class DocumentGroup extends PObject implements PAuthorizedObject {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
-    @JsonBackReference(value = "departmentBackRef")
+    @JsonBackReference(value = "documentGroupDeptRef")
     private Department department;
 
 

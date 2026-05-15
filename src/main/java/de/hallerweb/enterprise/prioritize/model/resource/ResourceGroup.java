@@ -16,7 +16,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 public class ResourceGroup extends PObject implements PAuthorizedObject {
@@ -35,6 +35,12 @@ public class ResourceGroup extends PObject implements PAuthorizedObject {
     @OneToMany(mappedBy = "resourceGroup", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference(value = "resourceGroupResources")
     private Set<Resource> resources = new HashSet<>();
+
+    @EqualsAndHashCode.Include
+    @Override
+    public Integer getId() {
+        return super.getId();
+    }
 
     // Hilfsmethode für bidirektionale Konsistenz
     public void addResource(Resource resource) {

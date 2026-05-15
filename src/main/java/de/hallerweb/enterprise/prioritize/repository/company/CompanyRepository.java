@@ -1,6 +1,7 @@
 package de.hallerweb.enterprise.prioritize.repository.company;
 
 import de.hallerweb.enterprise.prioritize.model.company.Company;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +12,9 @@ import java.util.List;
 
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, Integer> {
+
+    @EntityGraph(attributePaths = {"departments", "departments.resourceGroups"})
+    List<Company> findAll();
 
     List<Company> findByNameEqualsIgnoreCase(String name);
 

@@ -2,6 +2,7 @@ package de.hallerweb.enterprise.prioritize.model.resource;
 
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import jakarta.persistence.*;
@@ -26,6 +27,7 @@ public class ResourceReservation {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"password", "roles", "departments", "reservations"})
     private PUser reservedBy; // Nutzt dein neues PUser Modell
 
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)

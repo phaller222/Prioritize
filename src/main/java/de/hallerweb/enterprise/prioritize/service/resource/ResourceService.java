@@ -11,6 +11,7 @@ import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepos
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceReservationRepository;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.access.AccessDeniedException;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
 public class ResourceService {
 
     private final ResourceRepository resourceRepository;
-    private final ResourceGroupRepository groupRepository;
+    private final ResourceGroupRepository resourceGroupRepository;
     private final ResourceReservationRepository reservationRepository;
     private final AuthorizationService authService; // Dein zentraler Wächter
 
@@ -48,14 +49,14 @@ public class ResourceService {
                 .name(name)
                 .department(dept)
                 .build();
-        return groupRepository.save(group);
+        return resourceGroupRepository.save(group);
     }
 
 
     // --- Resource Management ---
 
     public Resource createResource(Resource resource, int groupId, PUser user) {
-        ResourceGroup group = groupRepository.findById(groupId)
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Zielgruppe nicht gefunden"));
 
         // Darf der User Ressourcen in dieser Gruppe erstellen?
@@ -65,6 +66,32 @@ public class ResourceService {
 
         resource.setResourceGroup(group);
         resource.setDepartment(group.getDepartment());
+
+        if (resource.getAgent() == null) {
+            resource.setAgent(false);
+        }
+        if (resource.getStationary() == null) {
+            resource.setStationary(false);
+        }
+        if (resource.getRemote() == null) {
+            resource.setRemote(false);
+        }
+        if (resource.getBusy() == null) {
+            resource.setBusy(false);
+        }
+        if (resource.getMqttResource() == null) {
+            resource.setMqttResource(false);
+        }
+        if (resource.getMqttOnline() == null) {
+            resource.setMqttOnline(false);
+        }
+        if (resource.getCurrentOccupiedSlots() == null) {
+            resource.setCurrentOccupiedSlots(0);
+        }
+        if (resource.getMaxSlots() == null) {
+            resource.setMaxSlots(1);
+        }
+
         return resourceRepository.save(resource);
     }
 
@@ -82,6 +109,17 @@ public class ResourceService {
         res.setCurrentOccupiedSlots((int) occupied);
         return res;
     }
+
+    @Transactional(readOnly = true)
+    public Set<Resource> getResourcesByGroupId(int groupId) {
+        // Holt die ResourceGroup aus der DB oder wirft eine Exception, wenn nicht gefunden
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
+                .orElseThrow(() -> new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden"));
+
+        // Gibt das Set der Ressourcen zurück (Hibernate lädt das jetzt sicher nach)
+        return group.getResources();
+    }
+
 
     // --- Reservierungs-Logik ---
 
@@ -152,7 +190,7 @@ public class ResourceService {
      * @param user Der ausführende Benutzer (für die Rechteprüfung)
      */
     public void deleteResourceGroup(int groupId, PUser user) {
-        ResourceGroup group = groupRepository.findById(groupId)
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Ressourcengruppe nicht gefunden."));
 
         // 1. Schutz der Default-Gruppe (System-Invariant)
@@ -168,7 +206,7 @@ public class ResourceService {
         // 3. Löschen
         // Hinweis: Falls Ressourcen in der Gruppe sind, entscheidet das Cascade-Label im Model,
         // ob diese mitgelöscht werden oder das Löschen verhindert wird.
-        groupRepository.delete(group);
+        resourceGroupRepository.delete(group);
         log.info("Ressourcengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
                 group.getName(), groupId, user.getUsername());
     }

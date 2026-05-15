@@ -1,6 +1,9 @@
 package de.hallerweb.enterprise.prioritize.service;
 
+import de.hallerweb.enterprise.prioritize.model.company.Address;
+import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.repository.company.CompanyRepository;
 import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -15,12 +18,44 @@ import java.util.List;
 public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
+    private final CompanyRepository companyRepository;
 
     /**
      * Erstellt eine neue Abteilung oder aktualisiert eine bestehende.
      */
-    public Department saveDepartment(Department department) {
+    public Department saveDepartment(Department department, Integer companyId) {
+        Company company = companyRepository.findById(companyId).orElseThrow(() -> new EntityNotFoundException("Company with id " + companyId + " not found."));
+        department.setCompany(company);
+        company.addDepartment(department);
         return departmentRepository.save(department);
+    }
+
+
+    public Department updateDepartment(Integer id, Department departmentDetails) {
+        Department existingDept = getDepartmentById(id);
+
+        // Nur die Felder aktualisieren, die geändert werden dürfen
+        existingDept.setName(departmentDetails.getName());
+        existingDept.setDescription(departmentDetails.getDescription());
+        if (departmentDetails.getAddress() != null) {
+            if (existingDept.getAddress() != null) {
+                // Wir kopieren die Werte in die bestehende Adresse, damit die ID gleich bleibt
+                Address existingAddr = existingDept.getAddress();
+                Address newAddr = departmentDetails.getAddress();
+                existingAddr.setStreet(newAddr.getStreet());
+                existingAddr.setCity(newAddr.getCity());
+                existingAddr.setZipCode(newAddr.getZipCode());
+                existingAddr.setCountry(newAddr.getCountry());
+                existingAddr.setHousenumber(newAddr.getHousenumber());
+                existingAddr.setFloor(newAddr.getFloor());
+
+            } else {
+                // Es gab noch keine Adresse, also neue setzen
+                existingDept.setAddress(departmentDetails.getAddress());
+            }
+        }
+
+        return departmentRepository.save(existingDept);
     }
 
     /**

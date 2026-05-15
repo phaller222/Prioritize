@@ -226,7 +226,7 @@ public class DocumentRestController {
                 .getContext().getAuthentication().getName();
 
         // 2. Get the user "cleanly" (without Hibernate doing an auto-flush)
-        PUser currentUser = userService.getUserByUsername(currentUsername);
+        PUser currentUser = userService.findUserByUsername(currentUsername);
         Document newVersion = documentService.checkIn(
                 id,
                 file.getBytes(),

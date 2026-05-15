@@ -64,7 +64,7 @@ public class UserService implements UserDetailsService {
     }
 
     // In UserService.java
-    public PUser getUserByUsername(String username) {
+    public PUser findUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
     }

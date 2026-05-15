@@ -1,4 +1,4 @@
-package de.hallerweb.enterprise.prioritize.controller;
+package de.hallerweb.enterprise.prioritize.controller.company;
 
 import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.service.CompanyService;

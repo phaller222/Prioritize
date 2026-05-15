@@ -2,6 +2,10 @@ spring:
   profiles:
       active: postgres
 
+  jackson:
+    serialization:
+      FAIL_ON_EMPTY_BEANS: false
+
   application:
     name: prioritize
 

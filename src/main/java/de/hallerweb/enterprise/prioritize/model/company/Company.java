@@ -62,7 +62,7 @@ public class Company extends PObject implements PAuthorizedObject {
     private String vatNumber;
     private String taxId;
 
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY )
     @JsonManagedReference(value = "companyBackRef") // Der "Chef" der Beziehung
     @Builder.Default
     private Set<Department> departments = new HashSet<>();
