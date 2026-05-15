@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.model.company;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
@@ -45,13 +44,14 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
-@Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @ToString(onlyExplicitlyIncluded = true)
+@Builder
 public class Company extends PObject implements PAuthorizedObject {
 
 
     @ToString.Include
+    @EqualsAndHashCode.Include
     private String name;
     private String description;
 
@@ -64,7 +64,14 @@ public class Company extends PObject implements PAuthorizedObject {
 
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference(value = "companyBackRef") // Der "Chef" der Beziehung
-    private Set<Department> departments;
+    @Builder.Default
+    private Set<Department> departments = new HashSet<>();
+
+    @EqualsAndHashCode.Include
+    @Override
+    public Integer getId() {
+        return super.getId();
+    }
 
     // Synchronisations-Hilfsmethode
     public void addDepartment(Department dept) {

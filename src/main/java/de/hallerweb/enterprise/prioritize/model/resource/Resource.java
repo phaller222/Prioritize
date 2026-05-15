@@ -16,6 +16,7 @@ package de.hallerweb.enterprise.prioritize.model.resource;
  */
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
@@ -108,6 +109,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resource_group_id")
+    @JsonBackReference("resourceGroupResources")
     private ResourceGroup resourceGroup;
 
     @Builder.Default

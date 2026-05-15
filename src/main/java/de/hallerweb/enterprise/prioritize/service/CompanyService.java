@@ -38,6 +38,7 @@ public class CompanyService {
         Address addr = filter.getMainAddress();
         String country = (addr != null) ? addr.getCountry() : null;
         String city = (addr != null) ? addr.getCity() : null;
+        String street = (addr != null) ? addr.getStreet() : null;
         String housenumber = (addr != null) ? addr.getHousenumber() : null;
 
         return companyRepository.findCompaniesByFilter(
@@ -46,14 +47,15 @@ public class CompanyService {
                 filter.getTaxId(),
                 country,
                 housenumber,
+                street,
                 filter.getDescription(),
                 city
         );
     }
 
 
-    public void createCompany(Company company) {
-        companyRepository.save(company);
+    public Company createCompany(Company company) {
+        return  companyRepository.save(company);
     }
 
     public void updateCompany(Integer id, Company companyDetails) {

@@ -36,11 +36,11 @@ public class GlobalExceptionHandler {
     }
 
     //  Genereller Fehlerfänger (500)
-    @ExceptionHandler(Exception.class)
+   /* @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneralError(Exception ex) {
         ApiError error = new ApiError("Ein interner Serverfehler ist aufgetreten.", HttpStatus.INTERNAL_SERVER_ERROR.value(), System.currentTimeMillis());
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+    }*/
 
 
     //  Konflikt (z.B. Dokument schon gesperrt)

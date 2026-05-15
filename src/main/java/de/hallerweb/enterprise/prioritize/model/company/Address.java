@@ -39,20 +39,24 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 public class Address extends PObject {
 
     @ToString.Include
+    @EqualsAndHashCode.Include
     private String street;
     @ToString.Include
+    @EqualsAndHashCode.Include
     private String housenumber;
     @ToString.Include
     private String floor; // Etage (bei Bedarf)
     @ToString.Include
+    @EqualsAndHashCode.Include
     private String zipCode;
     @ToString.Include
+    @EqualsAndHashCode.Include
     private String city;
     @ToString.Include
     private String country;

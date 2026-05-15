@@ -48,7 +48,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 public class Department extends PObject implements PAuthorizedObject {
@@ -68,18 +68,25 @@ public class Department extends PObject implements PAuthorizedObject {
 
     @Builder.Default
     @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private Set<DocumentGroup> documentGroups = new HashSet<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private Set<ResourceGroup> resourceGroups = new HashSet<>();
 
     @ToString.Include
+    @EqualsAndHashCode.Include
     String name;
     @ToString.Include
     String description;
 
-
+    @EqualsAndHashCode.Include
+    @Override
+    public Integer getId() {
+        return super.getId();
+    }
 
     public void addDocumentGroup(DocumentGroup documentGroup) {
         if (documentGroup == null) return;

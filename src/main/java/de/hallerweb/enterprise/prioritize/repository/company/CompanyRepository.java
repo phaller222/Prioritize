@@ -15,17 +15,23 @@ public interface CompanyRepository extends JpaRepository<Company, Integer> {
     List<Company> findByNameEqualsIgnoreCase(String name);
 
     @Query("SELECT c FROM Company c " +
-            "WHERE (:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))" +
+            "WHERE (:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))" +
             "  AND (:vatNumber IS NULL OR c.vatNumber = :vatNumber)" +
             "  AND (:taxId IS NULL OR c.taxId = :taxId)" +
             "  AND (:country IS NULL OR c.mainAddress.country = :country)" +
             "  AND (:housenumber IS NULL OR c.mainAddress.housenumber = :housenumber)" +
-            "  AND (:description IS NULL OR LOWER(c.description) LIKE LOWER(CONCAT('%', :description, '%')))" +
-            "  AND (:city IS NULL OR LOWER(c.mainAddress.city) LIKE LOWER(CONCAT('%', :city, '%')))")
-    Collection<Company> findCompaniesByFilter(@Param("name") String name, @Param("vatNumber") String vatNumber,
-                                              @Param("taxId") String taxId, @Param("country") String country,
-                                              @Param("housenumber") String housenumber,
-                                              @Param("description") String description, @Param("city") String city);
+            "  AND (:street IS NULL OR LOWER(c.mainAddress.street) LIKE LOWER(CONCAT('%', CAST(:street AS string), '%')))" + // NEU
+            "  AND (:description IS NULL OR LOWER(c.description) LIKE LOWER(CONCAT('%', CAST(:description AS string), '%')))" +
+            "  AND (:city IS NULL OR LOWER(c.mainAddress.city) LIKE LOWER(CONCAT('%', CAST(:city AS string), '%')))")
+    Collection<Company> findCompaniesByFilter(
+            @Param("name") String name,
+            @Param("vatNumber") String vatNumber,
+            @Param("taxId") String taxId,
+            @Param("country") String country,
+            @Param("housenumber") String housenumber,
+            @Param("street") String street, // Parameter hinzufügen!
+            @Param("description") String description,
+            @Param("city") String city);
 
 
 }

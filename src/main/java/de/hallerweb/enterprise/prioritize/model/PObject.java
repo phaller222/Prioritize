@@ -3,6 +3,7 @@ package de.hallerweb.enterprise.prioritize.model;
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -17,6 +18,7 @@ import java.io.Serializable;
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @EntityListeners(AuditingEntityListener.class)
+@NoArgsConstructor
 public abstract class PObject implements Serializable {
 
     @Id

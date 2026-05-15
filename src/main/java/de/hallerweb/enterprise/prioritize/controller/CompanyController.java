@@ -2,7 +2,8 @@ package de.hallerweb.enterprise.prioritize.controller;
 
 import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.service.CompanyService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,34 +11,37 @@ import java.util.Collection;
 import java.util.List;
 
 @RestController
+@RequestMapping("/api/v1/companies")
+@RequiredArgsConstructor
+@Log4j2
 public class CompanyController {
 
-    @Autowired
-    CompanyService companyService;
+    private final CompanyService companyService;
 
-    @GetMapping("/api/v1/companies")
+    @GetMapping
     public List<Company> getAllCompanies() {
         return companyService.findAll();
     }
 
-    @GetMapping("/api/v1/companies/{id}")
-    public Company getCompany(@PathVariable Integer id) {
+    @GetMapping("/{id}")
+    public Company get(@PathVariable Integer id) {
         return companyService.findById(id);
     }
 
-    @GetMapping("/api/v1/companies/filter")
-    public Collection<Company> findByCompany(@RequestBody Company company) {
+    @PostMapping("/filter")
+    public Collection<Company> findBy(@RequestBody Company company) {
         return companyService.searchCompanies(company);
     }
 
-    @PostMapping("/api/v1/companies")
-    public void createCompany(@RequestBody Company company) {
-        companyService.createCompany(company);
+    @PostMapping // Das leere Mapping für "POST /api/v1/companies"
+    public ResponseEntity<Company> create(@RequestBody Company company) {
+        Company created = companyService.createCompany(company);
+        return ResponseEntity.status(201).body(created);
     }
 
-    @PutMapping("/api/v1/companies/{id}")
-    public ResponseEntity<String> updateCompany(@RequestBody Company company, @PathVariable Integer id) {
-       if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
+    @PutMapping("/{id}")
+    public ResponseEntity<String> update(@RequestBody Company company, @PathVariable Integer id) {
+        if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
             return ResponseEntity.badRequest()
                     .body("Manuelle ID-Vergabe für Adressen ist nicht erlaubt.");
         }
@@ -45,10 +49,8 @@ public class CompanyController {
         return ResponseEntity.ok().build();
     }
 
-    @DeleteMapping("/api/v1/companies/{id}")
-    public void deleteCompany(@PathVariable Integer id) {
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
         companyService.deleteCompany(id);
     }
-
-
 }

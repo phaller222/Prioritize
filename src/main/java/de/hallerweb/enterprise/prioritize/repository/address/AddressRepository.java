@@ -17,12 +17,12 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
     List<Address> findByZipCodeEqualsIgnoreCase(String zipCode);
 
     @Query("SELECT a FROM Address a " +
-            "WHERE (:zipCode IS NULL OR a.zipCode = :zipCode) " +
-            "  AND (:city IS NULL OR LOWER(a.city) = LOWER(:city)) " +
-            "  AND (:street IS NULL OR LOWER(a.street) LIKE LOWER(CONCAT('%', :street, '%'))) " +
-            "  AND (:country IS NULL OR a.country = :country) " +
-            "  AND (:floor IS NULL OR a.floor = :floor) " +
-            "  AND (:housenumber IS NULL OR a.housenumber = :housenumber)")
+            "WHERE (CAST(:zipCode AS string) IS NULL OR a.zipCode = :zipCode) " +
+            "  AND (CAST(:city AS string) IS NULL OR LOWER(a.city) = LOWER(CAST(:city AS string))) " +
+            "  AND (CAST(:street AS string) IS NULL OR LOWER(a.street) LIKE LOWER(CONCAT('%', CAST(:street AS string), '%'))) " +
+            "  AND (CAST(:country AS string) IS NULL OR a.country = :country) " +
+            "  AND (CAST(:floor AS string) IS NULL OR a.floor = :floor) " +
+            "  AND (CAST(:housenumber AS string) IS NULL OR a.housenumber = :housenumber)")
     Collection<Address> findByFilter(
             @Param("city") String city,
             @Param("zipCode") String zipCode,
