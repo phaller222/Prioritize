@@ -7,7 +7,7 @@ image::http://www.prioritize-iot.de/logo.png[]
 
 ## What it is:
 
-Prioritize is an open source JakartaEE-Framework to accomplish basically the following tasks:
+Prioritize is an open source Spring-based Framework to accomplish basically the following tasks:
 
 * Create and manage **companies** and different **departments** as basic structures.
 * Create and manage **users** and **roles** within that structures
@@ -19,12 +19,8 @@ Prioritize is an open source JakartaEE-Framework to accomplish basically the fol
 * Assign tasks from projects to users **and** devices!
 *
 
-It can be installed as a JakartaEE-Application.
+It can be installed and run as a Spring-Application standalone or in a Docker container.
 It comes with a ready to use REST-API. You can perform different tasks by calling the REST-API Endpoint and provide the correct credentials (Department-Token, User-Token).
-
-IMPORTANT: A local or remote Database, Application Server (e.G. Wildfly) and a persistence unit must be installed/configured.
-See the files persistence.xml as an example.
-
 
 
 ## Getting started (Quickstart).... TODO...
