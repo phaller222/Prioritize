@@ -1,0 +1,78 @@
+# Prioritize
+
+image::http://www.prioritize-iot.de/logo.png[]
+
+
+
+
+## What it is:
+
+Prioritize is an open source JakartaEE-Framework to accomplish basically the following tasks:
+
+* Create and manage **companies** and different **departments** as basic structures.
+* Create and manage **users** and **roles** within that structures
+* Create and manage **documents** and **devices** (IOT) over MQTT
+* Create and manage **skills** for users and devices
+* Create and manage **projects**, **tasks** and project **blackboards**
+* **calendar** and scheduler to use with these objects
+* Store and display sensor data from different devices (e.G. temperature from a smartphone) via MQTT and REST interface.
+* Assign tasks from projects to users **and** devices!
+*
+
+It can be installed as a JakartaEE-Application.
+It comes with a ready to use REST-API. You can perform different tasks by calling the REST-API Endpoint and provide the correct credentials (Department-Token, User-Token).
+
+IMPORTANT: A local or remote Database, Application Server (e.G. Wildfly) and a persistence unit must be installed/configured.
+See the files persistence.xml as an example.
+
+
+
+## Getting started (Quickstart).... TODO...
+
+
+
+## Getting started
+
+### Technologie and structure
+
+
+
+**Company** - Defines a company. Prioritize can host more than one company.
+
+**Department** - Defines a department (e.G. sales) within a company.
+
+**User** - As it states, a User of the system usually equipped with credentials to log in.
+
+**Role** - 					A role a user can be part of (eG. admin role).
+
+**PermissionRecord** - 		Important class to realize the prioritize permissionm model.
+
+**Resource** - 				A resource, or device can represents an IoT-device and communicate with the outside.
+
+**Document** - 				A class representing a concrete document (e.G. a PowerPoint file uploaded by a user).
+
+**Skill** - 					Users can have skills (e.G. selling). But skills can also be assigned to resources / devices!
+
+**Calendar** - 				As it states a class to represent a calendar holding illness, vacation and other meeting data.
+
+**Project** - 				Main class to represent projects in prioritize
+
+**Blackboard** -				Implements the concept of a blackboard. All tasks of a project can be picked by any user.
+
+**ActionBoard** - 			Ment to be a kind of message board with user defined data beeing displayed.
+
+**Task** - 					Represents a task of a project.
+
+**TimeTracker**				An implementation of a simple timetracker functionality.
+
+**ProjectGoal**				Class holding information about project goals, which can be determined automatically.
+...
+
+You can completely use the REST interface of prioritize to write your own client (e.G. by using VuJS, angular or any other technology which is capable of communicating with the REST backend.
+
+
+## Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+[Apache] (http://www.apache.org/licenses/LICENSE-2.0)
