@@ -63,7 +63,7 @@ public class UserService implements UserDetailsService {
                 .build();
     }
 
-    // In UserService.java
+
     public PUser findUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));

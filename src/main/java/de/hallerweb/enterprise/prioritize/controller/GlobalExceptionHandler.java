@@ -13,7 +13,11 @@ import java.util.NoSuchElementException;
 
 @ControllerAdvice
 @Slf4j
+/**
+ * Globaler Exception-Handler für die Prioritize-Anwendung.
+ */
 public class GlobalExceptionHandler {
+
 
     @ExceptionHandler({NoSuchElementException.class, EntityNotFoundException.class})
     public ResponseEntity<ApiError> handleNotFound(Exception ex) {

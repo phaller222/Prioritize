@@ -5,6 +5,9 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
+/**
+ * DTO für eine Zusammenfassung eines Dokuments, enthält ID, Name, aktuelle Version, Sperre und Benutzer, der die Sperre aufgehoben hat.
+ */
 public class DocumentSummaryDTO {
     private int id;
     private String name;

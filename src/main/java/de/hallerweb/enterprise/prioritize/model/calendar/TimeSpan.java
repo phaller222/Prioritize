@@ -16,6 +16,9 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * Zeitraum, der für eine bestimmte Ressource reserviert ist oder für andere Zwecke verwendet wird.
+ */
 public class TimeSpan implements PAuthorizedObject {
 
     public enum TimeSpanType {
@@ -32,18 +35,18 @@ public class TimeSpan implements PAuthorizedObject {
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "timespan_resources",
-            joinColumns = @JoinColumn(name = "timespan_id"),
-            inverseJoinColumns = @JoinColumn(name = "resource_id")
+        name = "timespan_resources",
+        joinColumns = @JoinColumn(name = "timespan_id"),
+        inverseJoinColumns = @JoinColumn(name = "resource_id")
     )
     private Set<Resource> involvedResources = new HashSet<>();
 
     @Builder.Default
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "timespan_users",
-            joinColumns = @JoinColumn(name = "timespan_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
+        name = "timespan_users",
+        joinColumns = @JoinColumn(name = "timespan_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
     )
     private Set<PUser> involvedUsers = new HashSet<>();
 
@@ -55,6 +58,12 @@ public class TimeSpan implements PAuthorizedObject {
 
     // --- Business Logik ---
 
+    /**
+     * Überprüft, ob dieser Zeitraum mit einem anderen Zeitraum überlapt.
+     *
+     * @param other Der andere Zeitraum, mit dem überprüft werden soll
+     * @return true, wenn die Zeitraume sich überlappen, sonst false
+     */
     public boolean intersects(TimeSpan other) {
         if (other == null || other.getDateFrom() == null || other.getDateUntil() == null) {
             return false;

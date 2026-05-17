@@ -53,7 +53,7 @@ It comes with a ready to use REST-API. You can perform different tasks by callin
 
 **Project** - 				Main class to represent projects in prioritize
 
-**Blackboard** -				Implements the concept of a blackboard. All tasks of a project can be picked by any user.
+**Blackboard** -				Implements the concept of a blackboard. All tasks of a project can be picked by user or resources.
 
 **ActionBoard** - 			Ment to be a kind of message board with user defined data beeing displayed.
 
