@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/prioritize
+    #url: jdbc:postgresql://localhost:5432/prioritize
+    url: jdbc:postgresql://memoryalpha:5431/prioritize
     username: prioritize
     password: prioritize
     driver-class-name: org.postgresql.Driver
