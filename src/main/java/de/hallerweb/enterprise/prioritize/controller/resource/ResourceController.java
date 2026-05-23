@@ -5,9 +5,11 @@ import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import de.hallerweb.enterprise.prioritize.service.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService; // Passe den Package-Pfad an
+import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,7 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final UserService userService;
     private final DepartmentService departmentService;
+    private final SkillService skillService;
 
     /**
      * Hilfsmethode, um den aktuell authentifizierten Benutzer zu ermitteln.
@@ -62,8 +65,8 @@ public class ResourceController {
      */
     @PostMapping("/departments/{deptId}/resourcegroups")
     public ResponseEntity<ResourceGroup> createResourceGroup(
-        @PathVariable int deptId,
-        @RequestParam String name) {
+            @PathVariable int deptId,
+            @RequestParam String name) {
 
         Department dept = departmentService.getDepartmentById(deptId);
         ResourceGroup group = resourceService.createResourceGroup(name, dept, getCurrentUser());
@@ -93,8 +96,8 @@ public class ResourceController {
      */
     @PostMapping("/resourcegroups/{groupId}/resources")
     public ResponseEntity<Resource> createResource(
-        @PathVariable int groupId,
-        @RequestBody Resource resource) {
+            @PathVariable int groupId,
+            @RequestBody Resource resource) {
 
         Resource created = resourceService.createResource(resource, groupId, getCurrentUser());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -136,9 +139,9 @@ public class ResourceController {
      */
     @PostMapping("/resources/{id}/reserve")
     public ResponseEntity<ResourceReservation> reserveResource(
-        @PathVariable int id,
-        @RequestParam String fromIsoDate,
-        @RequestParam String untilIsoDate) {
+            @PathVariable int id,
+            @RequestParam String fromIsoDate,
+            @RequestParam String untilIsoDate) {
 
         // Konvertiert die ISO-Strings (z.B. 2026-05-15T14:00:00Z) in Instants
         Instant from = Instant.parse(fromIsoDate);
@@ -146,5 +149,25 @@ public class ResourceController {
 
         ResourceReservation reservation = resourceService.reserveResource(id, getCurrentUser(), from, until);
         return ResponseEntity.status(HttpStatus.CREATED).body(reservation);
+    }
+
+
+    // ==========================================
+    // SKILL RECORDS - RESSOURCEN ZUORDNUNG
+    // ==========================================
+
+    @GetMapping({"/resources/{resourceId}/skills", "/resourcegroups/{groupId}/resources/{resourceId}/skills"})
+    public ResponseEntity<Set<SkillRecord>> getSkillsForResource(@PathVariable int resourceId) {
+        return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
+    }
+
+
+
+    @PostMapping("/resources/{resourceId}/skills")
+    public ResponseEntity<SkillRecord> assignSkillToResource(
+            @PathVariable int resourceId,
+            @RequestBody SkillRecord record) {
+        SkillRecord assignedRecord = skillService.assignSkillToResource(resourceId, record);
+        return ResponseEntity.status(HttpStatus.CREATED).body(assignedRecord);
     }
 }

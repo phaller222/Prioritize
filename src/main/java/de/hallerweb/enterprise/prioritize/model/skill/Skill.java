@@ -1,5 +1,6 @@
 package de.hallerweb.enterprise.prioritize.model.skill;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import jakarta.persistence.*;
@@ -13,7 +14,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 @Builder
 public class Skill extends PObject implements PAuthorizedObject {
 
@@ -31,6 +32,7 @@ public class Skill extends PObject implements PAuthorizedObject {
 
     @Builder.Default
     @OneToMany(mappedBy = "skill", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference(value = "skill-properties")
     private Set<SkillProperty> skillProperties = new HashSet<>();
 
     // Helper für bidirektionale Verknüpfung (Wichtig für JPA!)

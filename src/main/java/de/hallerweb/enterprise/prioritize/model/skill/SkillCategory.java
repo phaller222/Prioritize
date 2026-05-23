@@ -1,5 +1,7 @@
 package de.hallerweb.enterprise.prioritize.model.skill;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,10 +26,12 @@ public class SkillCategory extends PObject { // Interface PAuthorizedObject entf
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_category_id")
+    @JsonBackReference(value = "category-tree")
     private SkillCategory parentCategory;
 
     @Builder.Default
     @OneToMany(mappedBy = "parentCategory", cascade = CascadeType.ALL)
+    @JsonManagedReference(value = "category-tree")
     private Set<SkillCategory> subCategories = new HashSet<>();
 
     public String getQualifiedName() {

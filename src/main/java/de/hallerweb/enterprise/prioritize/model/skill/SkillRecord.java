@@ -1,6 +1,7 @@
 package de.hallerweb.enterprise.prioritize.model.skill;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -15,7 +16,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = true)
 @Builder
 @ToString(onlyExplicitlyIncluded = true)
 public class SkillRecord extends PObject {
@@ -24,9 +25,11 @@ public class SkillRecord extends PObject {
     private Skill skill;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
     private PUser user;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
     private Resource resource;
 
     @Builder.Default
@@ -34,7 +37,7 @@ public class SkillRecord extends PObject {
     @JoinColumn(name = "skill_record_id")
     private Set<SkillRecordProperty> skillRecordProperties = new HashSet<>();
 
-    private int enthusiasm; // 0 bis 10
+    private Integer enthusiasm; // 0 bis 10
 
     // Helper für Properties
     public void addSkillRecordProperty(SkillRecordProperty prop) {
