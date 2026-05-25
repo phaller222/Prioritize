@@ -1,4 +1,4 @@
-package de.hallerweb.enterprise.prioritize.service;
+package de.hallerweb.enterprise.prioritize.service.company;
 
 import de.hallerweb.enterprise.prioritize.model.company.Address;
 import de.hallerweb.enterprise.prioritize.model.company.Company;

@@ -6,7 +6,7 @@ import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
-import de.hallerweb.enterprise.prioritize.service.DepartmentService;
+import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService; // Passe den Package-Pfad an
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
