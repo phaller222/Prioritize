@@ -42,7 +42,7 @@ public class DocumentGroupRestController {
      * Pfad: /api/v1/document-groups/{groupId}/documents
      */
     @GetMapping("/{groupId}/documents")
-    public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable int groupId) {
+    public ResponseEntity<List<DocumentInfo>> getDocumentsInGroup(@PathVariable Long groupId) {
         PUser currentUser = userService.getCurrentUser();
         List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
         return ResponseEntity.ok(documents);

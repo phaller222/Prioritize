@@ -1,14 +1,17 @@
 package de.hallerweb.enterprise.prioritize.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.Instant;
 
-@Getter
-@Setter
-@AllArgsConstructor
-public class ApiError {
-    private String message;
-    private int status;
-    private long timestamp;
+public record ApiError(
+    String message,
+    int status,
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    Instant timestamp
+) {
+    // Factory-Methode für bequeme Erstellung
+    public static ApiError of(String message, int status) {
+        return new ApiError(message, status, Instant.now());
+    }
 }

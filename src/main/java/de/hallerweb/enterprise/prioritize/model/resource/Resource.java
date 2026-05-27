@@ -146,7 +146,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
 
     @Override
     public int compareTo(Resource other) {
-        return Integer.compare(this.id, other.id);
+        return Long.compare(this.id, other.id);
     }
 
     public Boolean isFull() {

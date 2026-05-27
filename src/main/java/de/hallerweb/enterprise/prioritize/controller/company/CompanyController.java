@@ -24,7 +24,7 @@ public class CompanyController {
     }
 
     @GetMapping("/{id}")
-    public Company get(@PathVariable Integer id) {
+    public Company get(@PathVariable Long id) {
         return companyService.findById(id);
     }
 
@@ -40,7 +40,7 @@ public class CompanyController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<String> update(@RequestBody Company company, @PathVariable Integer id) {
+    public ResponseEntity<String> update(@RequestBody Company company, @PathVariable Long id) {
         if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
             return ResponseEntity.badRequest()
                     .body("Manuelle ID-Vergabe für Adressen ist nicht erlaubt.");
@@ -50,7 +50,7 @@ public class CompanyController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public void delete(@PathVariable Long id) {
         companyService.deleteCompany(id);
     }
 }

@@ -78,7 +78,7 @@ public class UserService implements UserDetailsService {
     }
 
     @Transactional(readOnly = true)
-    public PUser getUserById(int id) {
+    public PUser getUserById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
     }

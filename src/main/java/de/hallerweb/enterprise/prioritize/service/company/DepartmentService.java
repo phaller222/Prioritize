@@ -23,7 +23,7 @@ public class DepartmentService {
     /**
      * Erstellt eine neue Abteilung oder aktualisiert eine bestehende.
      */
-    public Department saveDepartment(Department department, Integer companyId) {
+    public Department saveDepartment(Department department, Long companyId) {
         Company company = companyRepository.findById(companyId).orElseThrow(() -> new EntityNotFoundException("Company with id " + companyId + " not found."));
         department.setCompany(company);
         company.addDepartment(department);
@@ -31,7 +31,7 @@ public class DepartmentService {
     }
 
 
-    public Department updateDepartment(Integer id, Department departmentDetails) {
+    public Department updateDepartment(Long id, Department departmentDetails) {
         Department existingDept = getDepartmentById(id);
 
         // Nur die Felder aktualisieren, die geändert werden dürfen
@@ -62,7 +62,7 @@ public class DepartmentService {
      * Findet eine Abteilung anhand der ID.
      */
     @Transactional(readOnly = true)
-    public Department getDepartmentById(Integer id) {
+    public Department getDepartmentById(Long id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Department mit ID " + id + " nicht gefunden."));
     }
@@ -71,7 +71,7 @@ public class DepartmentService {
      * Liefert alle Abteilungen einer Firma zurück.
      */
     @Transactional(readOnly = true)
-    public List<Department> getDepartmentsByCompany(Integer companyId) {
+    public List<Department> getDepartmentsByCompany(Long companyId) {
         return departmentRepository.findByCompany_Id(companyId);
     }
 
@@ -96,7 +96,7 @@ public class DepartmentService {
      * Löscht eine Abteilung anhand der ID.
      * Durch cascade=ALL und orphanRemoval in der Entity werden DocumentGroups etc. mitgelöscht.
      */
-    public void deleteDepartment(Integer id) {
+    public void deleteDepartment(Long id) {
         if (!departmentRepository.existsById(id)) {
             throw new EntityNotFoundException("Löschen fehlgeschlagen: Department " + id + " existiert nicht.");
         }
@@ -106,7 +106,7 @@ public class DepartmentService {
     /**
      * Beispiel für eine gezielte Namensänderung.
      */
-    public void renameDepartment(Integer id, String newName) {
+    public void renameDepartment(Long id, String newName) {
         Department dept = getDepartmentById(id);
         dept.setName(newName);
         // departmentRepository.save(dept); // Optional, da @Transactional Änderungen am Managed Object automatisch speichert

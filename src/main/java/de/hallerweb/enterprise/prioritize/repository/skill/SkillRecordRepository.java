@@ -7,6 +7,6 @@ import java.util.Set;
 
 @Repository
 public interface SkillRecordRepository extends JpaRepository<SkillRecord, Integer> {
-    Set<SkillRecord> findByUserId(int userId);
-    Set<SkillRecord> findByResourceId(int resourceId);
+    Set<SkillRecord> findByUserId(Long userId);
+    Set<SkillRecord> findByResourceId(Long resourceId);
 }

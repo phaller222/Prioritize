@@ -53,9 +53,9 @@ class SkillServiceTest {
         javaSkill.setCategory(subCat);
         javaSkill = skillRepository.save(javaSkill);
 
-        int mainCatId = mainCat.getId();
-        int subCatId = subCat.getId();
-        int skillId = javaSkill.getId();
+        Long mainCatId = mainCat.getId();
+        Long subCatId = subCat.getId();
+        Long skillId = javaSkill.getId();
 
         // 2. ACT: Die eigentliche Löschlogik triggern
         assertDoesNotThrow(() -> skillService.deleteCategory(mainCatId));

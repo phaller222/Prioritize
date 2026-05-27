@@ -10,13 +10,13 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Integer> {
+public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Long> {
 
     /**
      * Finds all DocumentInfo-Objects (logical document entities referencing the current document),
      * which belong to the given group.
      */
-    List<DocumentInfo> findByDocumentGroup_Id(int groupId);
+    List<DocumentInfo> findByDocumentGroup_Id(Long groupId);
 
     @Query("SELECT d FROM DocumentInfo d LEFT JOIN FETCH d.lockedBy WHERE d.id = :id")
     Optional<DocumentInfo> findByIdWithLockedBy(@Param("id") int id);

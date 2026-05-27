@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DocumentRepository extends JpaRepository<Document, Integer> {
+public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     // Loads the document and the group in a single SQL join for better performance.
     @EntityGraph(attributePaths = {"documentGroup"})
-    Optional<Document> findById(Integer id);
+    Optional<Document> findById(Long id);
 
     List<Document> findByNameContaining(String name);
 

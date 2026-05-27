@@ -11,14 +11,14 @@ import java.util.Optional;
  * Repository für DocumentGroup Entitäten (Verzeichnisse).
  */
 @Repository
-public interface DocumentGroupRepository extends JpaRepository<DocumentGroup, Integer> {
+public interface DocumentGroupRepository extends JpaRepository<DocumentGroup, Long> {
 
     // Findet alle Dokumentengruppen einer bestimmten Abteilung
-    List<DocumentGroup> findByDepartment_Id(int departmentId);
+    List<DocumentGroup> findByDepartment_Id(Long departmentId);
 
     // Findet eine spezifische Gruppe nach Namen innerhalb einer Abteilung
     // Essenziell für den Check auf die "Default"-Gruppe im DataInitializer
-    Optional<DocumentGroup> findByNameAndDepartment_Id(String name, int departmentId);
+    Optional<DocumentGroup> findByNameAndDepartment_Id(String name, Long departmentId);
 
     // Findet Gruppen nach Namen (Global, ignoriert Groß-/Kleinschreibung)
     List<DocumentGroup> findByNameContainingIgnoreCase(String name);

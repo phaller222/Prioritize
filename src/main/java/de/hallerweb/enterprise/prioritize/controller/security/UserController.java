@@ -21,13 +21,13 @@ public class UserController {
     // ==========================================
 
     @GetMapping("/{userId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForUser(@PathVariable int userId) {
+    public ResponseEntity<Set<SkillRecord>> getSkillsForUser(@PathVariable Long userId) {
         return ResponseEntity.ok(skillService.getSkillsForUser(userId));
     }
 
     @PostMapping("/{userId}/skills")
     public ResponseEntity<SkillRecord> assignSkillToUser(
-            @PathVariable int userId,
+            @PathVariable Long userId,
             @RequestBody SkillRecord record) {
         SkillRecord assignedRecord = skillService.assignSkillToUser(userId, record);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignedRecord);

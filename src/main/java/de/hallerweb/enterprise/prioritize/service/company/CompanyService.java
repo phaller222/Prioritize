@@ -26,7 +26,7 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
-    public Company findById(Integer id) {
+    public Company findById(Long id) {
         return companyRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Company not found with id: " + id));
     }
@@ -58,7 +58,7 @@ public class CompanyService {
         return  companyRepository.save(company);
     }
 
-    public void updateCompany(Integer id, Company companyDetails) {
+    public void updateCompany(Long id, Company companyDetails) {
         Company company = findById(id);
 
         // Nur Basis-Daten aktualisieren, um Beziehungen nicht versehentlich zu killen
@@ -71,14 +71,14 @@ public class CompanyService {
         // companyRepository.save(company); // Oft unnötig wegen Dirty Checking innerhalb von @Transactional
     }
 
-    public void deleteCompany(Integer id) {
+    public void deleteCompany(Long id) {
         if (!companyRepository.existsById(id)) {
             throw new EntityNotFoundException("Cannot delete. Company not found.");
         }
         companyRepository.deleteById(id);
     }
 
-    public void updateCompanyAddress(Integer companyId, Integer newAddressId) {
+    public void updateCompanyAddress(Long companyId, Long newAddressId) {
         Company company = findById(companyId);
         Address newAddress = addressRepository.findById(newAddressId)
                 .orElseThrow(() -> new EntityNotFoundException("Address not found"));

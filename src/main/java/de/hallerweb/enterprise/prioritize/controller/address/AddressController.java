@@ -21,7 +21,7 @@ public class AddressController {
     }
 
     @GetMapping("/{id}")
-    public Address get(@PathVariable Integer id) {
+    public Address get(@PathVariable Long id) {
         return addressService.findById(id);
     }
 
@@ -41,14 +41,14 @@ public class AddressController {
     }
 
     @PutMapping("/{id}")
-    public void update(@RequestBody Address address, @PathVariable Integer id) {
+    public void update(@RequestBody Address address, @PathVariable Long id) {
         addressService.updateAddress(id, address);
         Address testAddress = new Address();
         testAddress.setCity("Stuttgart"); // Erkennt die IDE das?
         System.out.println(testAddress.getCity());
     }
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    public void delete(@PathVariable Long id) {
         addressService.deleteAddress(id);
     }
 }

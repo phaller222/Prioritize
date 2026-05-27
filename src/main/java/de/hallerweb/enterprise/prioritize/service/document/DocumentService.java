@@ -39,7 +39,7 @@ public class DocumentService {
      * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
-    public DocumentInfo createDocument(String name, int groupId, PUser user, byte[] content, String mimeType) {
+    public DocumentInfo createDocument(String name, Long groupId, PUser user, byte[] content, String mimeType) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
@@ -82,7 +82,7 @@ public class DocumentService {
      * ---------------------------------------------------------------------
      */
     @Transactional
-    public Document addNewVersion(int documentInfoId, PUser user, byte[] content, String mimeType, String comment) {
+    public Document addNewVersion(Long documentInfoId, PUser user, byte[] content, String mimeType, String comment) {
         {
             DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                     .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
@@ -127,7 +127,7 @@ public class DocumentService {
      * @param user
      * @return documents
      */
-    public List<Document> getDocumentHistory(int documentInfoId, PUser user) {
+    public List<Document> getDocumentHistory(Long documentInfoId, PUser user) {
         DocumentInfo info = getDocument(documentInfoId, user);
         // returns all versions, newest first
         return info.getRecentDocuments().stream()
@@ -135,7 +135,7 @@ public class DocumentService {
                 .toList();
     }
 
-    public Document getSpecificVersion(int documentInfoId, int version, PUser user) {
+    public Document getSpecificVersion(Long documentInfoId, Long version, PUser user) {
         DocumentInfo info = getDocument(documentInfoId, user);
         return info.getRecentDocuments().stream()
                 .filter(d -> d.getVersion() == version)
@@ -149,7 +149,7 @@ public class DocumentService {
      * <p>
      * -----------------------------------------------------------------------------------------------------
      */
-    public List<DocumentInfo> getDocumentsInGroup(int groupId, PUser user) {
+    public List<DocumentInfo> getDocumentsInGroup(Long groupId, PUser user) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
@@ -160,7 +160,7 @@ public class DocumentService {
         return documentInfoRepository.findByDocumentGroup_Id(groupId);
     }
 
-    public DocumentInfo getDocument(int documentInfoId, PUser user) {
+    public DocumentInfo getDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument mit ID " + documentInfoId + " nicht gefunden."));
 
@@ -209,7 +209,7 @@ public class DocumentService {
      * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
-    public Document checkIn(int documentInfoId, byte[] content, String mimeType, String comment, PUser user) {
+    public Document checkIn(Long documentInfoId, byte[] content, String mimeType, String comment, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
@@ -246,7 +246,7 @@ public class DocumentService {
      * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
-    public void cancelCheckOut(int documentInfoId, PUser user) {
+    public void cancelCheckOut(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
@@ -276,7 +276,7 @@ public class DocumentService {
     }
 
     @Transactional
-    public void deleteDocument(int documentInfoId, PUser user) {
+    public void deleteDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
                 .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 

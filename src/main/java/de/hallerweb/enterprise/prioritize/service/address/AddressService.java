@@ -24,7 +24,7 @@ public class AddressService {
     }
 
     @Transactional(readOnly = true)
-    public Address findById(Integer id) {
+    public Address findById(Long id) {
         return addressRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Address not found with id: " + id));
     }
@@ -54,7 +54,7 @@ public class AddressService {
         return addressRepository.save(address);
     }
 
-    public void updateAddress(Integer id, Address addressDetails) {
+    public void updateAddress(Long id, Address addressDetails) {
         // Erst laden, dann ändern -> Schützt vor Datenverlust bei Teil-Updates
         Optional<Address> foundAddress = addressRepository.findById(id);
         Address address = foundAddress.orElseThrow(() -> new EntityNotFoundException("Address not found with id: " + id));
@@ -72,7 +72,7 @@ public class AddressService {
         // save() ist hier dank @Transactional und Dirty Checking optional
     }
 
-    public void deleteAddress(Integer id) {
+    public void deleteAddress(Long id) {
         if (!addressRepository.existsById(id)) {
             throw new EntityNotFoundException("Address not found with id: " + id);
         }

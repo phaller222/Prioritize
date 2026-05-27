@@ -31,7 +31,7 @@ public interface ResourceReservationRepository extends JpaRepository<ResourceRes
     @Query("SELECT r FROM ResourceReservation r WHERE r.resource.id = :resId " +
             "AND r.timespan.dateFrom < :until AND r.timespan.dateUntil > :from")
     List<ResourceReservation> findOverlappingReservations(
-            @Param("resId") int resourceId,
+            @Param("resId") Long resourceId,
             @Param("from") Instant from,
             @Param("until") Instant until);
 }

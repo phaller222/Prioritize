@@ -48,13 +48,13 @@ public class SkillController {
     // ==========================================
 
     @DeleteMapping("/skills/{skillId}")
-    public ResponseEntity<Void> deleteSkill(@PathVariable int skillId) {
+    public ResponseEntity<Void> deleteSkill(@PathVariable Long skillId) {
         skillService.deleteSkill(skillId);
         return ResponseEntity.noContent().build(); // 204 No Content ist Standard bei erfolgreichem Delete
     }
 
     @DeleteMapping("skills/categories/{categoryId}")
-    public ResponseEntity<Void> deleteCategory(@PathVariable int categoryId) {
+    public ResponseEntity<Void> deleteCategory(@PathVariable Long categoryId) {
         skillService.deleteCategory(categoryId);
         return ResponseEntity.noContent().build();
     }

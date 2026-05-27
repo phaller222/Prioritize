@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<PUser, Integer> {
+public interface UserRepository extends JpaRepository<PUser, Long> {
     @QueryHints({@QueryHint(name = "org.hibernate.flushMode", value = "MANUAL")})
     Optional<PUser> findByUsername(String username);
 }

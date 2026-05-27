@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 @Repository
-public interface CompanyRepository extends JpaRepository<Company, Integer> {
+public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     @EntityGraph(attributePaths = {"departments", "departments.resourceGroups"})
     List<Company> findAll();

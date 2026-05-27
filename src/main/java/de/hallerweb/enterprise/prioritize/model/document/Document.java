@@ -56,7 +56,7 @@ public class Document extends PObject {
 
     @EqualsAndHashCode.Include // We include the ID, even if it is null.
     @Override
-    public Integer getId() {
+    public Long getId() {
         return super.getId();
     }
 

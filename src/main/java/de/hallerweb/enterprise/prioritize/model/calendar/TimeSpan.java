@@ -27,7 +27,7 @@ public class TimeSpan implements PAuthorizedObject {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id; // Implementiert PAuthorizedObject.getId() via Lombok @Getter
+    private Long id; // Implementiert PAuthorizedObject.getId() via Lombok @Getter
 
     private String title;
     private String description;
@@ -72,7 +72,7 @@ public class TimeSpan implements PAuthorizedObject {
     }
 
     @Override
-    public Integer getId() {
+    public Long getId() {
         return this.id;
     }
 }

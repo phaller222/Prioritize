@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface DepartmentRepository extends JpaRepository<Department, Integer> {
+public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
     // Überschreibt das normale findAll und lädt die Company und die Resource-Gruppen sofort mit
     @EntityGraph(attributePaths = {"company", "resourceGroups"})
@@ -23,7 +23,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Integer>
     Optional<Department> findByToken(String token);
 
     // Findet alle Abteilungen einer bestimmten Firma
-    List<Department> findByCompany_Id(int companyId);
+    List<Department> findByCompany_Id(Long companyId);
 
     // Ermöglicht eine Suche nach Abteilungsnamen (Case Insensitive)
     List<Department> findByNameContainingIgnoreCase(String name);

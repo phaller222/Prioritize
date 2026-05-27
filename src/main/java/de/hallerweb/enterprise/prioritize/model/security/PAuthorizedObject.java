@@ -26,7 +26,7 @@ package de.hallerweb.enterprise.prioritize.model.security;
 
 public interface PAuthorizedObject {
 
-    public Integer getId();
+    public Long getId();
 
 
 }

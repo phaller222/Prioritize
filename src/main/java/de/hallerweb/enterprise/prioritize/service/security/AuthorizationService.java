@@ -30,7 +30,7 @@ public class AuthorizationService {
     /**
      * ÜBERLADUNG FÜR CONTROLLER: Erlaubt den Aufruf mit Klassenname und ID direkt aus dem API-Pfad.
      */
-    public boolean hasPermission(PUser user, String absoluteObjectType, int objectId, Action action) {
+    public boolean hasPermission(PUser user, String absoluteObjectType, Long objectId, Action action) {
 
         if (user == null) {
             return false; // Wer nicht eingeloggt ist, hat keine Rechte!
@@ -96,7 +96,7 @@ public class AuthorizationService {
     /**
      * Interne Prüfung für die String-basierte Controller-Methode
      */
-    private boolean checkDirectWithStrings(PUser user, String type, int id, Action action) {
+    private boolean checkDirectWithStrings(PUser user, String type, Long id, Action action) {
         return Stream.concat(
                 user.getRoles().stream().flatMap(role -> role.getPermissions().stream()),
                 user.getPersonalPermissions().stream()

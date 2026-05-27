@@ -63,12 +63,12 @@ public class SkillService {
     // --- SKILL RECORDS (USER ZUORDNUNG) ---
 
     @Transactional(readOnly = true)
-    public Set<SkillRecord> getSkillsForUser(int userId) {
+    public Set<SkillRecord> getSkillsForUser(Long userId) {
         return skillRecordRepository.findByUserId(userId);
     }
 
     @Transactional
-    public SkillRecord assignSkillToUser(int userId, SkillRecord record) {
+    public SkillRecord assignSkillToUser(Long userId, SkillRecord record) {
         // 1. Den echten User über deinen UserService laden
         PUser user = userService.getUserById(userId);
         record.setUser(user);
@@ -100,12 +100,12 @@ public class SkillService {
     // --- SKILL RECORDS (RESSOURCEN ZUORDNUNG) ---
 
     @Transactional(readOnly = true)
-    public Set<SkillRecord> getSkillsForResource(int resourceId) {
+    public Set<SkillRecord> getSkillsForResource(Long resourceId) {
         return skillRecordRepository.findByResourceId(resourceId);
     }
 
     @Transactional
-    public SkillRecord assignSkillToResource(int resourceId, SkillRecord record) {
+    public SkillRecord assignSkillToResource(Long resourceId, SkillRecord record) {
         // 1. Ressource laden
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new EntityNotFoundException("Resource mit ID " + resourceId + " nicht gefunden"));
@@ -125,7 +125,7 @@ public class SkillService {
     }
 
     @Transactional
-    public void deleteSkill(int skillId) {
+    public void deleteSkill(Long skillId) {
         if (!skillRepository.existsById(skillId)) {
             throw new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden");
         }
@@ -133,7 +133,7 @@ public class SkillService {
     }
 
     @Transactional
-    public void deleteCategory(int categoryId) {
+    public void deleteCategory(Long categoryId) {
         // 1. Prüfen, ob die zu löschende Kategorie überhaupt existiert
         if (!skillCategoryRepository.existsById(categoryId)) {
             throw new EntityNotFoundException("Kategorie mit ID " + categoryId + " nicht gefunden");
@@ -149,7 +149,7 @@ public class SkillService {
                         ") SELECT id FROM subcategories";
 
         @SuppressWarnings("unchecked")
-        List<Integer> allCategoryIdsToDelete = entityManager.createNativeQuery(cteQuery)
+        List<Long> allCategoryIdsToDelete = entityManager.createNativeQuery(cteQuery)
                 .setParameter("rootId", categoryId)
                 .getResultList();
 
@@ -195,7 +195,7 @@ public class SkillService {
     }
 
 
-    private void collectCategoryIdsInMemoryRecursive(SkillCategory category, Set<Integer> ids) {
+    private void collectCategoryIdsInMemoryRecursive(SkillCategory category, Set<Long> ids) {
         if (category == null) {
             return;
         }

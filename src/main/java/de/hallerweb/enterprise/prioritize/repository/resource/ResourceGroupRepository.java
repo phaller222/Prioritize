@@ -11,10 +11,10 @@ import java.util.Optional;
  * Repository für ResourceGroup Entitäten.
  */
 @Repository
-public interface ResourceGroupRepository extends JpaRepository<ResourceGroup, Integer> {
+public interface ResourceGroupRepository extends JpaRepository<ResourceGroup, Long> {
 
     // Findet alle Gruppen einer bestimmten Abteilung
-    List<ResourceGroup> findByDepartment_Id(int departmentId);
+    List<ResourceGroup> findByDepartment_Id(Long departmentId);
 
     // Findet eine spezifische Gruppe nach Namen innerhalb einer Abteilung
     // Wichtig für den Check auf die "Default"-Gruppe

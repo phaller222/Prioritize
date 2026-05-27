@@ -24,6 +24,6 @@ public abstract class PObject implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
-    protected Integer id;
+    protected Long id;
 
 }

@@ -23,7 +23,7 @@ public class PermissionRecord extends PObject implements PAuthorizedObject {
 
     private String absoluteObjectType;
     private String objectName;
-    private int objectId;
+    private Long objectId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore

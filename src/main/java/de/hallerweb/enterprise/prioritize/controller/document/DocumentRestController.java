@@ -40,7 +40,7 @@ public class DocumentRestController {
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
-            @PathVariable int groupId,
+            @PathVariable Long groupId,
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name) throws IOException {
 
@@ -76,7 +76,7 @@ public class DocumentRestController {
      * ------------------------------------------------------------------------
      */
     @GetMapping("/download/{documentInfoId}")
-    public ResponseEntity<byte[]> downloadDocument(@PathVariable int documentInfoId) {
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentInfoId) {
         PUser currentUser = userService.getCurrentUser();
         Document doc = documentService.getDocument(documentInfoId, currentUser).getCurrentDocument();
 
@@ -101,7 +101,7 @@ public class DocumentRestController {
      */
     @GetMapping("/group/{groupId}")
     @Transactional(readOnly = true)
-    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable int groupId) {
+    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId) {
         PUser currentUser = userService.getCurrentUser();
         List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
 
@@ -129,7 +129,7 @@ public class DocumentRestController {
      * -----------------------------------------------------------------------------------
      */
     @GetMapping("/{id}/history")
-    public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable int id) {
+    public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable Long id) {
         PUser currentUser = userService.getCurrentUser();
         List<Document> history = documentService.getDocumentHistory(id, currentUser);
 
@@ -155,7 +155,7 @@ public class DocumentRestController {
      * ------------------------------------------------------------------------------------
      */
     @GetMapping("/{id}/version/{versionNumber}")
-    public ResponseEntity<byte[]> downloadSpecificVersion(@PathVariable int id, @PathVariable int versionNumber) {
+    public ResponseEntity<byte[]> downloadSpecificVersion(@PathVariable Long id, @PathVariable Long versionNumber) {
         PUser currentUser = userService.getCurrentUser();
         Document doc = documentService.getSpecificVersion(id, versionNumber, currentUser);
 
@@ -175,7 +175,7 @@ public class DocumentRestController {
      * ------------------------------------------------------------------------
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable int id) {
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         log.info("Delete request for document: {}", id);
         PUser currentUser = userService.getCurrentUser();
 
@@ -218,7 +218,7 @@ public class DocumentRestController {
      */
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
-            @PathVariable int id,
+            @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "comment", required = false) String comment) throws IOException {
 

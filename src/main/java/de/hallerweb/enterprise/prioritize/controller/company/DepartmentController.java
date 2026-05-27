@@ -22,7 +22,7 @@ public class DepartmentController {
 
     @PostMapping("/companies/{companyId}/departments")
     public ResponseEntity<Department> create(
-            @PathVariable int companyId,
+            @PathVariable Long companyId,
             @RequestBody Department department) {
 
         PUser currentUser = userService.getCurrentUser();
@@ -36,7 +36,7 @@ public class DepartmentController {
     }
 
     @GetMapping("/companies/{companyId}/departments")
-    public ResponseEntity<Iterable<Department>> getDepartmentsByCompany(@PathVariable int companyId) {
+    public ResponseEntity<Iterable<Department>> getDepartmentsByCompany(@PathVariable Long companyId) {
 
         PUser currentUser = userService.getCurrentUser();
 
@@ -48,7 +48,7 @@ public class DepartmentController {
     }
 
     @PutMapping("/departments/{id}")
-    public ResponseEntity<Department> update(@PathVariable int id, @RequestBody Department department) {
+    public ResponseEntity<Department> update(@PathVariable Long id, @RequestBody Department department) {
         PUser currentUser = userService.getCurrentUser();
 
         if (!authService.hasPermission(currentUser, "de.hallerweb.enterprise.prioritize.model.company.Department", id, Action.UPDATE)) {
@@ -60,7 +60,7 @@ public class DepartmentController {
     }
 
     @GetMapping("/departments/{id}")
-    public ResponseEntity<Department> getById(@PathVariable int id) {
+    public ResponseEntity<Department> getById(@PathVariable Long id) {
         PUser currentUser = userService.getCurrentUser();
 
         if (!authService.hasPermission(currentUser, "de.hallerweb.enterprise.prioritize.model.company.Department", id, Action.READ)) {
@@ -71,7 +71,7 @@ public class DepartmentController {
     }
 
     @DeleteMapping("/departments/{id}")
-    public ResponseEntity<Void> delete(@PathVariable int id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         PUser currentUser = userService.getCurrentUser();
 
         if (!authService.hasPermission(currentUser, "de.hallerweb.enterprise.prioritize.model.company.Department", id, Action.DELETE)) {

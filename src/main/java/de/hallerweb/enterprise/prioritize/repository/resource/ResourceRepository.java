@@ -10,13 +10,13 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ResourceRepository extends JpaRepository<Resource, Integer> {
+public interface ResourceRepository extends JpaRepository<Resource, Long> {
 
     // Standard-Suche nach Namen
     List<Resource> findByNameContainingIgnoreCase(String name);
 
     // Findet alle Ressourcen einer bestimmten Abteilung
-    List<Resource> findByDepartment_Id(Integer departmentId);
+    List<Resource> findByDepartment_Id(Long departmentId);
 
     // Findet Ressourcen, die aktuell nicht belegt sind (busy = false)
     List<Resource> findByBusyFalse();

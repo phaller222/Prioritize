@@ -9,7 +9,7 @@ import lombok.Data;
  * DTO für eine Zusammenfassung eines Dokuments, enthält ID, Name, aktuelle Version, Sperre und Benutzer, der die Sperre aufgehoben hat.
  */
 public class DocumentSummaryDTO {
-    private int id;
+    private Long id;
     private String name;
     private int currentVersion;
     private boolean locked;

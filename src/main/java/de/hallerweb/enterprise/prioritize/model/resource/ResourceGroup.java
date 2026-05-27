@@ -38,7 +38,7 @@ public class ResourceGroup extends PObject implements PAuthorizedObject {
 
     @EqualsAndHashCode.Include
     @Override
-    public Integer getId() {
+    public Long getId() {
         return super.getId();
     }
 

@@ -101,11 +101,11 @@ public class InitializationService {
 
     private void ensureGeneralResourcePermissions(PUser admin) {
         // ID 0 bedeutet laut unserem AuthService "alle Instanzen dieses Typs"
-        grantFullAccess(admin, Resource.class, 0);
-        grantFullAccess(admin, ResourceReservation.class, 0);
+        grantFullAccess(admin, Resource.class, 0L);
+        grantFullAccess(admin, ResourceReservation.class, 0L);
     }
 
-    private void grantFullAccess(PUser user, Class<?> clazz, int objectId) {
+    private void grantFullAccess(PUser user, Class<?> clazz, Long objectId) {
         PermissionRecord perm = PermissionRecord.builder()
                 .absoluteObjectType(clazz.getCanonicalName())
                 .objectId(objectId)
