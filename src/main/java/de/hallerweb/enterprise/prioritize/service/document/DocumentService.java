@@ -41,7 +41,7 @@ public class DocumentService {
     @Transactional
     public DocumentInfo createDocument(String name, Long groupId, PUser user, byte[] content, String mimeType) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
-                .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
         // 1. Create and save the document wrapper so that docInfo gets an ID.
         DocumentInfo docInfo = new DocumentInfo();
@@ -58,13 +58,13 @@ public class DocumentService {
         }
 
         Document firstVersion = Document.builder()
-                .name(finalName)
-                .data(content)
-                .mimeType(mimeType)
-                .version(1)
-                .documentInfo(docInfo)
-                .lastModifiedBy(user)
-                .build();
+            .name(finalName)
+            .data(content)
+            .mimeType(mimeType)
+            .version(1)
+            .documentInfo(docInfo)
+            .lastModifiedBy(user)
+            .build();
 
         // 3. Link now; both now have IDs or are stable.
         docInfo.setCurrentDocument(firstVersion);
@@ -85,7 +85,7 @@ public class DocumentService {
     public Document addNewVersion(Long documentInfoId, PUser user, byte[] content, String mimeType, String comment) {
         {
             DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                    .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
 
             // Check authorization on the logical document.
             if (!authService.hasPermission(user, info, Action.UPDATE)) {
@@ -105,13 +105,13 @@ public class DocumentService {
             int nextVersion = info.getCurrentDocument().getVersion() + 1;
 
             Document newVersion = Document.builder()
-                    .name(info.getCurrentDocument().getName())
-                    .data(content)
-                    .mimeType(mimeType)
-                    .version(nextVersion)
-                    .changes(comment)
-                    .documentInfo(info)
-                    .build();
+                .name(info.getCurrentDocument().getName())
+                .data(content)
+                .mimeType(mimeType)
+                .version(nextVersion)
+                .changes(comment)
+                .documentInfo(info)
+                .build();
 
             info.setCurrentDocument(newVersion);
             info.getRecentDocuments().add(newVersion);
@@ -123,6 +123,7 @@ public class DocumentService {
 
     /**
      * Returns all versions, newest first
+     *
      * @param documentInfoId
      * @param user
      * @return documents
@@ -131,16 +132,16 @@ public class DocumentService {
         DocumentInfo info = getDocument(documentInfoId, user);
         // returns all versions, newest first
         return info.getRecentDocuments().stream()
-                .sorted((a, b) -> Integer.compare(b.getVersion(), a.getVersion()))
-                .toList();
+            .sorted((a, b) -> Integer.compare(b.getVersion(), a.getVersion()))
+            .toList();
     }
 
     public Document getSpecificVersion(Long documentInfoId, Long version, PUser user) {
         DocumentInfo info = getDocument(documentInfoId, user);
         return info.getRecentDocuments().stream()
-                .filter(d -> d.getVersion() == version)
-                .findFirst()
-                .orElseThrow(() -> new NoSuchElementException("Version not found."));
+            .filter(d -> d.getVersion() == version)
+            .findFirst()
+            .orElseThrow(() -> new NoSuchElementException("Version not found."));
     }
 
 
@@ -151,7 +152,7 @@ public class DocumentService {
      */
     public List<DocumentInfo> getDocumentsInGroup(Long groupId, PUser user) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
-                .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
 
         if (!authService.hasPermission(user, group, Action.READ)) {
             throw new AccessDeniedException("Keine Leseberechtigung für diese Gruppe.");
@@ -162,7 +163,7 @@ public class DocumentService {
 
     public DocumentInfo getDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument mit ID " + documentInfoId + " nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Dokument mit ID " + documentInfoId + " nicht gefunden."));
 
         if (!authService.hasPermission(user, info, Action.READ)) {
             throw new AccessDeniedException("Keine Leseberechtigung für dieses Dokument.");
@@ -180,9 +181,9 @@ public class DocumentService {
      * -----------------------------------------------------------------------------------------------------
      */
     @Transactional
-    public void checkOut(int documentInfoId, PUser user) {
+    public void checkOut(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findByIdWithLockedBy(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         if (info.isLocked()) {
             // make sure info is not null
@@ -211,7 +212,7 @@ public class DocumentService {
     @Transactional
     public Document checkIn(Long documentInfoId, byte[] content, String mimeType, String comment, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         if (!info.isLocked()) {
             throw new IllegalStateException("Dokument ist nicht gesperrt.");
@@ -248,7 +249,7 @@ public class DocumentService {
     @Transactional
     public void cancelCheckOut(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         if (!info.isLocked()) {
             return; // Nothing to do.
@@ -278,7 +279,7 @@ public class DocumentService {
     @Transactional
     public void deleteDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
 
         // check for Action.DELETE
         if (!authService.hasPermission(user, info, Action.DELETE)) {
@@ -296,30 +297,71 @@ public class DocumentService {
 
     public List<DocumentSummaryDTO> searchDocumentsByName(String name, PUser user) {
         return documentInfoRepository.findByCurrentDocument_NameContainingIgnoreCase(name).stream()
-                .filter(info -> authService.hasPermission(user, info, Action.READ))
-                .map(this::convertToDTO)
-                .toList();
+            .filter(info -> authService.hasPermission(user, info, Action.READ))
+            .map(this::convertToDTO)
+            .toList();
     }
 
     @Transactional(readOnly = true)
     public List<DocumentSummaryDTO> getRecentDocuments(PUser user) {
         return documentInfoRepository.findTop10ByOrderByCurrentDocument_LastModifiedDesc()
-                .stream()
-                // Nur Dokumente zeigen, für die der User Leserechte hat
-                .filter(info -> authService.hasPermission(user, info, Action.READ))
-                .map(this::convertToDTO)
-                .toList();
+            .stream()
+            // Nur Dokumente zeigen, für die der User Leserechte hat
+            .filter(info -> authService.hasPermission(user, info, Action.READ))
+            .map(this::convertToDTO)
+            .toList();
     }
 
 
     private DocumentSummaryDTO convertToDTO(DocumentInfo info) {
         return new DocumentSummaryDTO(
-                info.getId(),
-                info.getCurrentDocument().getName(),
-                info.getCurrentDocument().getVersion(),
-                info.isLocked(),
-                info.getLockedBy() != null ? info.getLockedBy().getUsername() : null
+            info.getId(),
+            info.getCurrentDocument().getName(),
+            info.getCurrentDocument().getVersion(),
+            info.isLocked(),
+            info.getLockedBy() != null ? info.getLockedBy().getUsername() : null
         );
+    }
+
+    // ==========================================
+    // DOCUMENT GROUP MANAGEMENT
+    // ==========================================
+
+    public DocumentGroup createDocumentGroup(DocumentGroup group) {
+        // Schutz: Default-Gruppe darf nicht manuell angelegt werden
+        if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
+            throw new IllegalArgumentException("Eine Gruppe mit dem Namen 'Default' kann nicht manuell angelegt werden.");
+        }
+        return documentGroupRepository.save(group);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentGroup> getAllDocumentGroups() {
+        return documentGroupRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentSummaryDTO> getDocumentsInGroupAsDTO(Long groupId, PUser user) {
+        return getDocumentsInGroup(groupId, user).stream()
+            .map(this::convertToDTO)
+            .toList();
+    }
+
+    public void deleteDocumentGroup(Long groupId, PUser user) {
+        DocumentGroup group = documentGroupRepository.findById(groupId)
+            .orElseThrow(() -> new NoSuchElementException("Dokumentengruppe mit ID " + groupId + " nicht gefunden."));
+
+        if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
+            throw new IllegalStateException("Die Default-Gruppe kann nicht gelöscht werden.");
+        }
+
+        if (!authService.hasPermission(user, group, Action.DELETE)) {
+            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Gruppe.");
+        }
+
+        documentGroupRepository.delete(group);
+        log.info("Dokumentengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
+            group.getName(), groupId, user.getUsername());
     }
 
 

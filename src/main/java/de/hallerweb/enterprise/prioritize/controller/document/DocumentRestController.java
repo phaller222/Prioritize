@@ -6,14 +6,13 @@ import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
-import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,246 +26,161 @@ import java.util.List;
 public class DocumentRestController {
 
     private final DocumentService documentService;
-    private final UserService userService; // To determine the current user
-    private final AuthorizationService authorizationService;
+    private final UserService userService;
 
     /**
-     * ---------- Upload document to a DocumentGroup. ----------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/upload/[GROUP_ID]
-     * <p>
-     * The group is identified by the groupId
-     * -------------------------------------------------------
+     * Upload eines neuen Dokuments in eine DocumentGroup.
+     * POST /api/v1/documents/upload/{groupId}
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
-            @PathVariable Long groupId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("name") String name) throws IOException {
+        @PathVariable Long groupId,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("name") String name) throws IOException {
 
         log.info("Upload request received: Name={}, Group={}, Size={}", name, groupId, file.getSize());
-
-        try {
-            // In a real API we would get the user from the SecurityContext
-            PUser currentUser = userService.getCurrentUser();
-            log.info("User identified for upload: {}", currentUser.getUsername());
-            DocumentInfo info = documentService.createDocument(
-                    name,
-                    groupId,
-                    currentUser,
-                    file.getBytes(),
-                    file.getContentType()
-            );
-            log.info("Document successfully created.");
-
-            return ResponseEntity.ok(info);
-        } catch (Exception e) {
-            log.error("Error during upload: ", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        PUser currentUser = userService.getCurrentUser();
+        DocumentInfo info = documentService.createDocument(
+            name, groupId, currentUser, file.getBytes(), file.getContentType());
+        log.info("Document successfully created by user '{}'.", currentUser.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED).body(info);
     }
 
-
     /**
-     * ---------- Download document contents of most recent document. ----------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/download/[DOCUMENT_INFO_ID]
-     * <p>
-     * The DocumentInfo is identified by the documentInfoId
-     * ------------------------------------------------------------------------
+     * Download der aktuellen Version eines Dokuments.
+     * GET /api/v1/documents/download/{documentInfoId}
      */
     @GetMapping("/download/{documentInfoId}")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentInfoId) {
         PUser currentUser = userService.getCurrentUser();
         Document doc = documentService.getDocument(documentInfoId, currentUser).getCurrentDocument();
-
-        String filename = doc.getName();
-
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(doc.getMimeType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
-                .body(doc.getData());
+            .contentType(MediaType.parseMediaType(doc.getMimeType()))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getName() + "\"")
+            .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+            .body(doc.getData());
     }
 
+    /**
+     * Download einer spezifischen Version eines Dokuments.
+     * GET /api/v1/documents/{id}/version/{versionNumber}
+     */
+    @GetMapping("/{id}/version/{versionNumber}")
+    public ResponseEntity<byte[]> downloadSpecificVersion(
+        @PathVariable Long id,
+        @PathVariable Long versionNumber) {
+        PUser currentUser = userService.getCurrentUser();
+        Document doc = documentService.getSpecificVersion(id, versionNumber, currentUser);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(doc.getMimeType()))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getName() + "\"")
+            .body(doc.getData());
+    }
 
     /**
-     * ---------- List all documents of a DocumentGroup. ----------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/group/[DOCUMENT_GROUP_ID]
-     * <p>
-     * The group is identified by the groupId. Returns a DocumentSummaryDTO
-     * containing  the id of the documents.
-     * ------------------------------------------------------------------------
+     * Alle Dokumente einer DocumentGroup als DTO-Liste.
+     * GET /api/v1/documents/group/{groupId}
      */
     @GetMapping("/group/{groupId}")
-    @Transactional(readOnly = true)
     public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId) {
         PUser currentUser = userService.getCurrentUser();
         List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
-
-        // Mapping auf das schlanke DTO
         List<DocumentSummaryDTO> summary = documents.stream()
-                .map(doc -> new DocumentSummaryDTO(
-                        doc.getId(),
-                        doc.getCurrentDocument().getName(),
-                        doc.getCurrentDocument().getVersion(),
-                        doc.isLocked(),
-                        doc.getLockedBy() != null ? doc.getLockedBy().getUsername() : null
-                ))
-                .toList();
+            .map(doc -> new DocumentSummaryDTO(
+                doc.getId(),
+                doc.getCurrentDocument().getName(),
+                doc.getCurrentDocument().getVersion(),
+                doc.isLocked(),
+                doc.getLockedBy() != null ? doc.getLockedBy().getUsername() : null
+            ))
+            .toList();
         return ResponseEntity.ok(summary);
     }
 
-
     /**
-     * ---------- Retrieves the history of a document ------------------------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/history
-     * <p>
-     * Retrieves a list with all changes on the document with the given id
-     * containing name,version,lastModifiedBy, lastModifiedDate and comment (if present)
-     * -----------------------------------------------------------------------------------
+     * Versionshistorie eines Dokuments.
+     * GET /api/v1/documents/{id}/history
      */
     @GetMapping("/{id}/history")
     public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable Long id) {
         PUser currentUser = userService.getCurrentUser();
         List<Document> history = documentService.getDocumentHistory(id, currentUser);
-
         List<DocumentHistoryDTO> dtos = history.stream()
-                .map(d -> new DocumentHistoryDTO(
-                        d.getVersion(),
-                        d.getName(),
-                        d.getLastModifiedBy().getUsername(),
-                        d.getChanges(),
-                        d.getLastModified()
-                )).toList();
-
+            .map(d -> new DocumentHistoryDTO(
+                d.getVersion(),
+                d.getName(),
+                d.getLastModifiedBy().getUsername(),
+                d.getChanges(),
+                d.getLastModified()
+            ))
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
-
     /**
-     * ---------- Download a specific document version ------------------------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/version/[VERSION_NUMBER]
-     * <p>
-     * Downloads a specific version of a document indicated by the version number.
-     * ------------------------------------------------------------------------------------
-     */
-    @GetMapping("/{id}/version/{versionNumber}")
-    public ResponseEntity<byte[]> downloadSpecificVersion(@PathVariable Long id, @PathVariable Long versionNumber) {
-        PUser currentUser = userService.getCurrentUser();
-        Document doc = documentService.getSpecificVersion(id, versionNumber, currentUser);
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(doc.getMimeType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getName() + "\"")
-                .body(doc.getData());
-    }
-
-
-    /**
-     * ---------- Delete a document-------------------------------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]
-     * <p>
-     * Deletes the document with the given ID.
-     * ------------------------------------------------------------------------
+     * Dokument löschen.
+     * DELETE /api/v1/documents/{id}
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         log.info("Delete request for document: {}", id);
         PUser currentUser = userService.getCurrentUser();
-
-        try {
-            documentService.deleteDocument(id, currentUser);
-            return ResponseEntity.noContent().build(); // 204 No Content is default
-        } catch (Exception e) {
-            log.error("Error deleting document {}: ", id, e);
-            return ResponseEntity.internalServerError().build();
-        }
+        documentService.deleteDocument(id, currentUser);
+        return ResponseEntity.noContent().build();
     }
 
-
     /**
-     * ---------- Explicitly Lock a Document on the server for edits----------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/check-out
-     * <p>
-     * Call this method if a Document shall be edited by a user and during
-     * that time no other user shall edit the Document.
-     * ------------------------------------------------------------------------
+     * Dokument auschecken (sperren).
+     * POST /api/v1/documents/{id}/check-out
      */
     @PostMapping("/{id}/check-out")
-    public ResponseEntity<String> checkOut(@PathVariable int id) {
+    public ResponseEntity<Void> checkOut(@PathVariable Long id) {
         log.info("Checking out document: {}", id);
-        PUser currentUser = userService.getCurrentUser();
-        documentService.checkOut(id, currentUser);
-        return ResponseEntity.ok("Document successfully locked.");
+        documentService.checkOut(id, userService.getCurrentUser());
+        return ResponseEntity.noContent().build();
     }
 
-
     /**
-     * ---------- Unlock a Document locked by the user on the server----------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/[DOCUMENT_INFO_ID]/check-in
-     * <p>
-     * Call this method after a document has been updated on the server by the user
-     * to unlock the document for further editing by other users.
-     * ------------------------------------------------------------------------
+     * Dokument einchecken (neue Version hochladen + entsperren).
+     * POST /api/v1/documents/{id}/check-in
      */
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "comment", required = false) String comment) throws IOException {
+        @PathVariable Long id,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "comment", required = false) String comment) throws IOException {
 
-        String currentUsername = org.springframework.security.core.context.SecurityContextHolder
-                .getContext().getAuthentication().getName();
-
-        // 2. Get the user "cleanly" (without Hibernate doing an auto-flush)
-        PUser currentUser = userService.findUserByUsername(currentUsername);
+        PUser currentUser = userService.getCurrentUser();
         Document newVersion = documentService.checkIn(
-                id,
-                file.getBytes(),
-                file.getContentType(),
-                comment,
-                currentUser
-        );
+            id, file.getBytes(), file.getContentType(), comment, currentUser);
         return ResponseEntity.ok(newVersion.getDocumentInfo());
     }
 
+    /**
+     * Checkout abbrechen (entsperren ohne neue Version).
+     * POST /api/v1/documents/{id}/cancel-check-out
+     */
+    @PostMapping("/{id}/cancel-check-out")
+    public ResponseEntity<Void> cancelCheckOut(@PathVariable Long id) {
+        documentService.cancelCheckOut(id, userService.getCurrentUser());
+        return ResponseEntity.noContent().build();
+    }
 
     /**
-     * ---------- search for a Document --------------------------------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/search
-     * <p>
-     * Call this method to search a document by a part of the name.
-     * effectively it is a like search : WHERE name LIKE %searchterm% .
-     * ------------------------------------------------------------------------
+     * Dokumente nach Name suchen.
+     * GET /api/v1/documents/search?name=...
      */
     @GetMapping("/search")
     public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name) {
-        PUser currentUser = userService.getCurrentUser();
-        // Der Service gibt direkt die Liste der DTOs zurück
-        return ResponseEntity.ok(documentService.searchDocumentsByName(name, currentUser));
+        return ResponseEntity.ok(documentService.searchDocumentsByName(name, userService.getCurrentUser()));
     }
 
-
     /**
-     * ---------- Show the latest 10 documents created -----------------------
-     * <p>
-     * http://[HOST]:[PORT]/api/v1/documents/recent
-     * <p>
-     * Call this method to show the latest doocuments added.
-     * ------------------------------------------------------------------------
+     * Die 10 zuletzt geänderten Dokumente.
+     * GET /api/v1/documents/recent
      */
     @GetMapping("/recent")
     public ResponseEntity<List<DocumentSummaryDTO>> getRecent() {
-        PUser currentUser = userService.getCurrentUser();
-        return ResponseEntity.ok(documentService.getRecentDocuments(currentUser));
+        return ResponseEntity.ok(documentService.getRecentDocuments(userService.getCurrentUser()));
     }
-
 }

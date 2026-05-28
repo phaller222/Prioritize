@@ -19,7 +19,7 @@ public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Long
     List<DocumentInfo> findByDocumentGroup_Id(Long groupId);
 
     @Query("SELECT d FROM DocumentInfo d LEFT JOIN FETCH d.lockedBy WHERE d.id = :id")
-    Optional<DocumentInfo> findByIdWithLockedBy(@Param("id") int id);
+    Optional<DocumentInfo> findByIdWithLockedBy(@Param("id") Long id);
 
     // Suche über die Beziehung "currentDocument" nach dem Feld "name"
     List<DocumentInfo> findByCurrentDocument_NameContainingIgnoreCase(String name);

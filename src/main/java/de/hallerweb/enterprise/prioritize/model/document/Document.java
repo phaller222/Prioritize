@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.model.document;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import jakarta.persistence.*;
@@ -84,5 +85,6 @@ public class Document extends PObject {
     private DocumentInfo documentInfo;
 
     @Column(name = "data", columnDefinition = "bytea")
+    @JsonIgnore
     private byte[] data; // Document data, for example binary MS Word data.
 }
