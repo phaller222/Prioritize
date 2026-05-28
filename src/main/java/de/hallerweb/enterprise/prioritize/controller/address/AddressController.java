@@ -2,7 +2,9 @@ package de.hallerweb.enterprise.prioritize.controller.address;
 
 import de.hallerweb.enterprise.prioritize.model.company.Address;
 import de.hallerweb.enterprise.prioritize.service.address.AddressService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
@@ -10,45 +12,45 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/addresses")
+@RequiredArgsConstructor
 public class AddressController {
 
-    @Autowired
-    AddressService addressService;
+    private final AddressService addressService;
 
     @GetMapping
-    public List<Address> getAllAdresses() {
-        return addressService.findAll();
+    public ResponseEntity<List<Address>> getAllAddresses() {
+        return ResponseEntity.ok(addressService.findAll());
     }
 
     @GetMapping("/{id}")
-    public Address get(@PathVariable Long id) {
-        return addressService.findById(id);
+    public ResponseEntity<Address> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(addressService.findById(id));
     }
 
-    @GetMapping("/{city}/")
-    public List<Address> getByCity(@PathVariable String city) {
-        return addressService.findByCity(city);
+    @PostMapping("/filter")
+    public ResponseEntity<Collection<Address>> findByFilter(@RequestBody Address filter) {
+        return ResponseEntity.ok(addressService.findByFilter(filter));
     }
 
-    @GetMapping("/filter")
-    public Collection<Address> findByAddress(@RequestBody Address address) {
-       return addressService.findByFilter(address);
-    }
-
-    @PostMapping("/")
-    public void create(@RequestBody Address address) {
-        addressService.createAddress(address);
+    @PostMapping
+    public ResponseEntity<Address> create(@RequestBody Address address) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(addressService.createAddress(address));
     }
 
     @PutMapping("/{id}")
-    public void update(@RequestBody Address address, @PathVariable Long id) {
+    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Address address) {
         addressService.updateAddress(id, address);
-        Address testAddress = new Address();
-        testAddress.setCity("Stuttgart"); // Erkennt die IDE das?
-        System.out.println(testAddress.getCity());
+        return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<Address> partialUpdate(@PathVariable Long id, @RequestBody Address patch) {
+        return ResponseEntity.ok(addressService.partialUpdateAddress(id, patch));
+    }
+
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         addressService.deleteAddress(id);
+        return ResponseEntity.noContent().build();
     }
 }

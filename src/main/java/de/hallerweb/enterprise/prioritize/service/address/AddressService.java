@@ -72,6 +72,25 @@ public class AddressService {
         // save() ist hier dank @Transactional und Dirty Checking optional
     }
 
+    public Address partialUpdateAddress(Long id, Address patch) {
+        Address existing = addressRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Address not found with id: " + id));
+
+        // Nur Felder überschreiben, die im Patch-Request nicht null sind
+        if (patch.getStreet() != null)      existing.setStreet(patch.getStreet());
+        if (patch.getHousenumber() != null) existing.setHousenumber(patch.getHousenumber());
+        if (patch.getFloor() != null)       existing.setFloor(patch.getFloor());
+        if (patch.getZipCode() != null)     existing.setZipCode(patch.getZipCode());
+        if (patch.getCity() != null)        existing.setCity(patch.getCity());
+        if (patch.getCountry() != null)     existing.setCountry(patch.getCountry());
+        if (patch.getPhone() != null)       existing.setPhone(patch.getPhone());
+        if (patch.getFax() != null)         existing.setFax(patch.getFax());
+        if (patch.getMobile() != null)      existing.setMobile(patch.getMobile());
+
+        return addressRepository.save(existing);
+    }
+
+
     public void deleteAddress(Long id) {
         if (!addressRepository.existsById(id)) {
             throw new EntityNotFoundException("Address not found with id: " + id);
