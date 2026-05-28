@@ -34,7 +34,7 @@ public class UserService implements UserDetailsService {
         }
         String currentPrincipalName = authentication.getName();
         return userRepository.findByUsername(currentPrincipalName).orElseThrow(() ->
-                new NoSuchElementException("Benutzer nicht gefunden."));
+            new NoSuchElementException("Benutzer nicht gefunden."));
     }
 
     public List<PUser> getAllUsers() {
@@ -53,20 +53,20 @@ public class UserService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // Sucht den PUser in deiner Datenbank
         PUser pUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
+            .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
 
         // Changes PUser to a Spring-Security-UserDetails Object
         return org.springframework.security.core.userdetails.User.builder()
-                .username(pUser.getUsername())
-                .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
-                .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
-                .build();
+            .username(pUser.getUsername())
+            .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
+            .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
+            .build();
     }
 
 
     public PUser findUserByUsername(String username) {
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
+            .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
     }
 
     @Transactional
@@ -80,7 +80,31 @@ public class UserService implements UserDetailsService {
     @Transactional(readOnly = true)
     public PUser getUserById(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+            .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+    }
+
+    @Transactional
+    public PUser partialUpdateUser(Long id, PUser patch) {
+        PUser existing = getUserById(id);
+
+        // Nur unkritische Felder per PATCH änderbar
+        if (patch.getName() != null) existing.setName(patch.getName());
+        if (patch.getFirstname() != null) existing.setFirstname(patch.getFirstname());
+        if (patch.getEmail() != null) existing.setEmail(patch.getEmail());
+        if (patch.getOccupation() != null) existing.setOccupation(patch.getOccupation());
+        if (patch.getGender() != null) existing.setGender(patch.getGender());
+        if (patch.getDateOfBirth() != null) existing.setDateOfBirth(patch.getDateOfBirth());
+        if (patch.getAddress() != null) existing.setAddress(patch.getAddress());
+
+        // Passwort nur ändern wenn explizit mitgeschickt – und dann verschlüsseln
+        if (patch.getPassword() != null && !patch.getPassword().isBlank()) {
+            existing.setPassword(passwordEncoder.encode(patch.getPassword()));
+        }
+
+        // Rollen, Berechtigungen und admin-Flag niemals per PATCH änderbar!
+        // Dafür braucht es dedizierte Endpoints mit erhöhter Autorisierung.
+
+        return userRepository.save(existing);
     }
 
 }
