@@ -209,4 +209,30 @@ public class SkillService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public Skill getSkillById(Long skillId) {
+        return skillRepository.findById(skillId)
+            .orElseThrow(() -> new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden"));
+    }
+
+    @Transactional
+    public Skill updateSkill(Long skillId, Skill skillDetails) {
+        Skill existing = getSkillById(skillId);
+        existing.setName(skillDetails.getName());
+
+        if (skillDetails.getCategory() != null && skillDetails.getCategory().getId() != null) {
+            SkillCategory category = skillCategoryRepository.findById(skillDetails.getCategory().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skillDetails.getCategory().getId() + " nicht gefunden"));
+            existing.setCategory(category);
+        }
+
+        if (skillDetails.getSkillProperties() != null) {
+            existing.getSkillProperties().clear();
+            skillDetails.getSkillProperties().forEach(prop -> prop.setSkill(existing));
+            existing.getSkillProperties().addAll(skillDetails.getSkillProperties());
+        }
+
+        return skillRepository.save(existing);
+    }
+
 }

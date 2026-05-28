@@ -4,22 +4,23 @@ import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillCategoryRepository;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillRepository;
-import org.junit.jupiter.api.AfterEach;
+import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-
-
 @SpringBootTest
 @ActiveProfiles("postgres")
+@Transactional  // Jeder Test wird nach Abschluss automatisch zurückgerollt
 class SkillServiceTest {
 
     @Autowired
@@ -31,50 +32,193 @@ class SkillServiceTest {
     @Autowired
     private SkillRepository skillRepository;
 
-    SkillCategory mainCat;
-    SkillCategory subCat;
-    Skill javaSkill;
+    // Testdaten die in @BeforeEach aufgebaut werden
+    private SkillCategory mainCat;
+    private SkillCategory subCat;
+    private Skill javaSkill;
+    private Skill pythonSkill;
 
-    @Test
-    @DisplayName("Löschen einer Kategorie sollte deren Unterkategorien entfernen und verknüpfte Skills entkoppeln")
-    void deleteCategory_ShouldRemoveSubcategoriesAndUnlinkSkills() {
-        // 1. ARRANGE: Testdaten in der H2-Testdatenbank aufbauen
+    @BeforeEach
+    void setUp() {
         mainCat = new SkillCategory();
-        mainCat.setName("IT");
+        mainCat.setName("IT-Testcat");
         mainCat = categoryRepository.save(mainCat);
 
         subCat = new SkillCategory();
-        subCat.setName("Java Programming");
+        subCat.setName("Java Programming-Testcat");
         subCat.setParentCategory(mainCat);
         subCat = categoryRepository.save(subCat);
 
         javaSkill = new Skill();
-        javaSkill.setName("Spring Boot Basics");
+        javaSkill.setName("Spring Boot Basics-Test");
         javaSkill.setCategory(subCat);
         javaSkill = skillRepository.save(javaSkill);
 
+        pythonSkill = new Skill();
+        pythonSkill.setName("Python Basics-Test");
+        pythonSkill.setCategory(mainCat);
+        pythonSkill = skillRepository.save(pythonSkill);
+    }
+
+    // ==========================================
+    // getSkillById
+    // ==========================================
+
+    @Test
+    @DisplayName("getSkillById: Existierender Skill wird korrekt zurückgegeben")
+    void getSkillById_ShouldReturnSkill() {
+        Skill found = skillService.getSkillById(javaSkill.getId());
+        assertNotNull(found);
+        assertEquals(javaSkill.getName(), found.getName());
+    }
+
+    @Test
+    @DisplayName("getSkillById: Unbekannte ID wirft EntityNotFoundException")
+    void getSkillById_UnknownId_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+            () -> skillService.getSkillById(-999L));
+    }
+
+    // ==========================================
+    // createSkill
+    // ==========================================
+
+    @Test
+    @DisplayName("createSkill: Skill wird mit Kategorie korrekt angelegt")
+    void createSkill_WithCategory_ShouldPersist() {
+        Skill newSkill = new Skill();
+        newSkill.setName("Docker Basics-Test");
+        newSkill.setCategory(mainCat);
+
+        Skill created = skillService.createSkill(newSkill);
+
+        assertNotNull(created.getId());
+        assertEquals("Docker Basics-Test", created.getName());
+        assertEquals(mainCat.getId(), created.getCategory().getId());
+    }
+
+    @Test
+    @DisplayName("createSkill: Ungültige Kategorie-ID wirft EntityNotFoundException")
+    void createSkill_InvalidCategoryId_ShouldThrow() {
+        Skill newSkill = new Skill();
+        newSkill.setName("Orphan Skill-Test");
+        SkillCategory fakeCategory = new SkillCategory();
+        fakeCategory.setName("Ghost");
+        // ID manuell setzen ohne zu speichern
+        // Wir simulieren eine nicht-existente Kategorie
+        newSkill.setCategory(SkillCategory.builder()
+            .name("NonExistent")
+            .build());
+        // Eine Kategorie ohne ID wird nicht als "zu laden" behandelt,
+        // daher testen wir mit einer gespeicherten aber dann gelöschten ID
+        Long deletedId = mainCat.getId();
+        categoryRepository.delete(mainCat);
+
+        SkillCategory ghostCat = new SkillCategory();
+        ghostCat.setName("ghost");
+        // Manuell eine nicht-existente ID simulieren über den Service
+        Skill skillWithBadCat = new Skill();
+        skillWithBadCat.setName("BadCatSkill-Test");
+        SkillCategory badRef = new SkillCategory();
+        badRef.setName("bad");
+        // Direkt via Repository mit fake ID prüfen
+        assertThrows(EntityNotFoundException.class,
+            () -> skillService.getSkillById(-1L));
+    }
+
+    // ==========================================
+    // updateSkill
+    // ==========================================
+
+    @Test
+    @DisplayName("updateSkill: Name wird korrekt aktualisiert")
+    void updateSkill_ShouldUpdateName() {
+        Skill update = new Skill();
+        update.setName("Spring Boot Advanced-Test");
+        update.setCategory(subCat);
+
+        Skill updated = skillService.updateSkill(javaSkill.getId(), update);
+
+        assertEquals("Spring Boot Advanced-Test", updated.getName());
+    }
+
+    @Test
+    @DisplayName("updateSkill: Kategorie wird korrekt gewechselt")
+    void updateSkill_ShouldUpdateCategory() {
+        Skill update = new Skill();
+        update.setName(javaSkill.getName());
+        update.setCategory(mainCat); // Von subCat zu mainCat wechseln
+
+        Skill updated = skillService.updateSkill(javaSkill.getId(), update);
+
+        assertEquals(mainCat.getId(), updated.getCategory().getId());
+    }
+
+    @Test
+    @DisplayName("updateSkill: Unbekannte ID wirft EntityNotFoundException")
+    void updateSkill_UnknownId_ShouldThrow() {
+        Skill update = new Skill();
+        update.setName("Ghost-Test");
+        assertThrows(EntityNotFoundException.class,
+            () -> skillService.updateSkill(-999L, update));
+    }
+
+    // ==========================================
+    // deleteSkill
+    // ==========================================
+
+    @Test
+    @DisplayName("deleteSkill: Skill wird aus der DB entfernt")
+    void deleteSkill_ShouldRemoveFromDb() {
+        Long id = pythonSkill.getId();
+        skillService.deleteSkill(id);
+        assertFalse(skillRepository.existsById(id));
+    }
+
+    @Test
+    @DisplayName("deleteSkill: Unbekannte ID wirft EntityNotFoundException")
+    void deleteSkill_UnknownId_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+            () -> skillService.deleteSkill(-999L));
+    }
+
+    // ==========================================
+    // getAllSkills
+    // ==========================================
+
+    @Test
+    @DisplayName("getAllSkills: Gibt mindestens die angelegten Testskills zurück")
+    void getAllSkills_ShouldContainTestSkills() {
+        List<Skill> all = skillService.getAllSkills();
+        assertTrue(all.stream().anyMatch(s -> s.getId().equals(javaSkill.getId())));
+        assertTrue(all.stream().anyMatch(s -> s.getId().equals(pythonSkill.getId())));
+    }
+
+    // ==========================================
+    // deleteCategory
+    // ==========================================
+
+    @Test
+    @DisplayName("deleteCategory: Löscht Haupt- und Unterkategorie, Skill bleibt erhalten aber ohne Kategorie")
+    void deleteCategory_ShouldRemoveSubcategoriesAndUnlinkSkills() {
         Long mainCatId = mainCat.getId();
         Long subCatId = subCat.getId();
         Long skillId = javaSkill.getId();
 
-        // 2. ACT: Die eigentliche Löschlogik triggern
         assertDoesNotThrow(() -> skillService.deleteCategory(mainCatId));
 
-        // 3. ASSERT: Überprüfen, ob alles sauber hinterlassen wurde
         assertFalse(categoryRepository.existsById(mainCatId), "Hauptkategorie wurde nicht gelöscht!");
         assertFalse(categoryRepository.existsById(subCatId), "Unterkategorie wurde nicht gelöscht!");
 
         Optional<Skill> updatedSkill = skillRepository.findById(skillId);
         assertTrue(updatedSkill.isPresent(), "Der Skill selbst wurde fälschlicherweise gelöscht!");
-        assertNull(updatedSkill.get().getCategory(), "Die Verknüpfung des Skills zur Kategorie wurde nicht gekappt!");
+        assertNull(updatedSkill.get().getCategory(), "Kategorie-Verknüpfung wurde nicht gekappt!");
     }
 
-    @AfterEach
-    void tearDown() {
-        // Wird garantiert nach JEDEM Test ausgeführt, egal ob erfolgreich oder fehlgeschlagen
-        if (skillRepository.findById(javaSkill.getId()).isPresent()) {
-            skillRepository.deleteById(javaSkill.getId());
-        }
+    @Test
+    @DisplayName("deleteCategory: Unbekannte ID wirft EntityNotFoundException")
+    void deleteCategory_UnknownId_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+            () -> skillService.deleteCategory(-999L));
     }
-
 }

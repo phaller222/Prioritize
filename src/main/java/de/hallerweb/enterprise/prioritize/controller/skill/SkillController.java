@@ -32,6 +32,18 @@ public class SkillController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdSkill);
     }
 
+    @GetMapping("/{skillId}")
+    public ResponseEntity<Skill> getSkillById(@PathVariable Long skillId) {
+        return ResponseEntity.ok(skillService.getSkillById(skillId));
+    }
+
+    @PutMapping("/{skillId}")
+    public ResponseEntity<Skill> updateSkill(
+        @PathVariable Long skillId,
+        @RequestBody Skill skill) {
+        return ResponseEntity.ok(skillService.updateSkill(skillId, skill));
+    }
+
     @GetMapping("/skills/categories")
     public ResponseEntity<List<SkillCategory>> getAllCategories() {
         return ResponseEntity.ok(skillService.getAllCategories());
