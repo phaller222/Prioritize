@@ -121,7 +121,30 @@ public class SkillService {
 
     @Transactional(readOnly = true)
     public List<SkillCategory> getAllCategories() {
-        return skillRepository.findAllWithSubCategories();
+        return skillCategoryRepository.findAllWithSubCategories();
+    }
+
+    @Transactional(readOnly = true)
+    public SkillCategory getCategoryById(Long categoryId) {
+        return skillCategoryRepository.findById(categoryId)
+                .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + categoryId + " nicht gefunden"));
+    }
+
+    @Transactional
+    public SkillCategory updateCategory(Long categoryId, SkillCategory categoryDetails) {
+        SkillCategory existing = getCategoryById(categoryId);
+        existing.setName(categoryDetails.getName());
+        existing.setDescription(categoryDetails.getDescription());
+
+        if (categoryDetails.getParentCategory() != null && categoryDetails.getParentCategory().getId() != null) {
+            SkillCategory parent = skillCategoryRepository.findById(categoryDetails.getParentCategory().getId())
+                    .orElseThrow(() -> new EntityNotFoundException("Parent-Kategorie mit ID " + categoryDetails.getParentCategory().getId() + " nicht gefunden"));
+            existing.setParentCategory(parent);
+        } else {
+            existing.setParentCategory(null);
+        }
+
+        return skillCategoryRepository.save(existing);
     }
 
     @Transactional
@@ -212,7 +235,7 @@ public class SkillService {
     @Transactional(readOnly = true)
     public Skill getSkillById(Long skillId) {
         return skillRepository.findById(skillId)
-            .orElseThrow(() -> new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden"));
     }
 
     @Transactional
@@ -222,7 +245,7 @@ public class SkillService {
 
         if (skillDetails.getCategory() != null && skillDetails.getCategory().getId() != null) {
             SkillCategory category = skillCategoryRepository.findById(skillDetails.getCategory().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skillDetails.getCategory().getId() + " nicht gefunden"));
+                    .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skillDetails.getCategory().getId() + " nicht gefunden"));
             existing.setCategory(category);
         }
 

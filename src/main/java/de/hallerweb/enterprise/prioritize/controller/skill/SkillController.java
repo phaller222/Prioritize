@@ -32,15 +32,15 @@ public class SkillController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdSkill);
     }
 
-    @GetMapping("/{skillId}")
+    @GetMapping("/skills/{skillId}")
     public ResponseEntity<Skill> getSkillById(@PathVariable Long skillId) {
         return ResponseEntity.ok(skillService.getSkillById(skillId));
     }
 
-    @PutMapping("/{skillId}")
+    @PutMapping("/skills/{skillId}")
     public ResponseEntity<Skill> updateSkill(
-        @PathVariable Long skillId,
-        @RequestBody Skill skill) {
+            @PathVariable Long skillId,
+            @RequestBody Skill skill) {
         return ResponseEntity.ok(skillService.updateSkill(skillId, skill));
     }
 
@@ -55,6 +55,18 @@ public class SkillController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdCategory);
     }
 
+    @GetMapping("/skills/categories/{categoryId}")
+    public ResponseEntity<SkillCategory> getCategoryById(@PathVariable Long categoryId) {
+        return ResponseEntity.ok(skillService.getCategoryById(categoryId));
+    }
+
+    @PutMapping("/skills/categories/{categoryId}")
+    public ResponseEntity<SkillCategory> updateCategory(
+            @PathVariable Long categoryId,
+            @RequestBody SkillCategory category) {
+        return ResponseEntity.ok(skillService.updateCategory(categoryId, category));
+    }
+
     // ==========================================
     // LÖSCH-ENDPUNKTE
     // ==========================================
@@ -65,7 +77,7 @@ public class SkillController {
         return ResponseEntity.noContent().build(); // 204 No Content ist Standard bei erfolgreichem Delete
     }
 
-    @DeleteMapping("skills/categories/{categoryId}")
+    @DeleteMapping("/skills/categories/{categoryId}")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long categoryId) {
         skillService.deleteCategory(categoryId);
         return ResponseEntity.noContent().build();

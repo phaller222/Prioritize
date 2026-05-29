@@ -76,7 +76,7 @@ class SkillServiceTest {
     @DisplayName("getSkillById: Unbekannte ID wirft EntityNotFoundException")
     void getSkillById_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-            () -> skillService.getSkillById(-999L));
+                () -> skillService.getSkillById(-999L));
     }
 
     // ==========================================
@@ -107,8 +107,8 @@ class SkillServiceTest {
         // ID manuell setzen ohne zu speichern
         // Wir simulieren eine nicht-existente Kategorie
         newSkill.setCategory(SkillCategory.builder()
-            .name("NonExistent")
-            .build());
+                .name("NonExistent")
+                .build());
         // Eine Kategorie ohne ID wird nicht als "zu laden" behandelt,
         // daher testen wir mit einer gespeicherten aber dann gelöschten ID
         Long deletedId = mainCat.getId();
@@ -123,7 +123,7 @@ class SkillServiceTest {
         badRef.setName("bad");
         // Direkt via Repository mit fake ID prüfen
         assertThrows(EntityNotFoundException.class,
-            () -> skillService.getSkillById(-1L));
+                () -> skillService.getSkillById(-1L));
     }
 
     // ==========================================
@@ -160,7 +160,7 @@ class SkillServiceTest {
         Skill update = new Skill();
         update.setName("Ghost-Test");
         assertThrows(EntityNotFoundException.class,
-            () -> skillService.updateSkill(-999L, update));
+                () -> skillService.updateSkill(-999L, update));
     }
 
     // ==========================================
@@ -179,7 +179,7 @@ class SkillServiceTest {
     @DisplayName("deleteSkill: Unbekannte ID wirft EntityNotFoundException")
     void deleteSkill_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-            () -> skillService.deleteSkill(-999L));
+                () -> skillService.deleteSkill(-999L));
     }
 
     // ==========================================
@@ -192,6 +192,67 @@ class SkillServiceTest {
         List<Skill> all = skillService.getAllSkills();
         assertTrue(all.stream().anyMatch(s -> s.getId().equals(javaSkill.getId())));
         assertTrue(all.stream().anyMatch(s -> s.getId().equals(pythonSkill.getId())));
+    }
+
+    // ==========================================
+    // getCategoryById
+    // ==========================================
+
+    @Test
+    @DisplayName("getCategoryById: Existierende Kategorie wird korrekt zurückgegeben")
+    void getCategoryById_ShouldReturnCategory() {
+        SkillCategory found = skillService.getCategoryById(mainCat.getId());
+        assertNotNull(found);
+        assertEquals(mainCat.getName(), found.getName());
+    }
+
+    @Test
+    @DisplayName("getCategoryById: Unbekannte ID wirft EntityNotFoundException")
+    void getCategoryById_UnknownId_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+                () -> skillService.getCategoryById(-999L));
+    }
+
+    // ==========================================
+    // updateCategory
+    // ==========================================
+
+    @Test
+    @DisplayName("updateCategory: Name und Description werden korrekt aktualisiert")
+    void updateCategory_ShouldUpdateFields() {
+        SkillCategory update = new SkillCategory();
+        update.setName("IT-Testcat-Updated");
+        update.setDescription("Neue Beschreibung");
+
+        SkillCategory updated = skillService.updateCategory(mainCat.getId(), update);
+
+        assertEquals("IT-Testcat-Updated", updated.getName());
+        assertEquals("Neue Beschreibung", updated.getDescription());
+    }
+
+    @Test
+    @DisplayName("updateCategory: ParentCategory wird korrekt gewechselt")
+    void updateCategory_ShouldUpdateParentCategory() {
+        SkillCategory newParent = new SkillCategory();
+        newParent.setName("NewParent-Testcat");
+        newParent = categoryRepository.save(newParent);
+
+        SkillCategory update = new SkillCategory();
+        update.setName(subCat.getName());
+        update.setParentCategory(newParent);
+
+        SkillCategory updated = skillService.updateCategory(subCat.getId(), update);
+
+        assertEquals(newParent.getId(), updated.getParentCategory().getId());
+    }
+
+    @Test
+    @DisplayName("updateCategory: Unbekannte ID wirft EntityNotFoundException")
+    void updateCategory_UnknownId_ShouldThrow() {
+        SkillCategory update = new SkillCategory();
+        update.setName("Ghost-Testcat");
+        assertThrows(EntityNotFoundException.class,
+                () -> skillService.updateCategory(-999L, update));
     }
 
     // ==========================================
@@ -219,6 +280,6 @@ class SkillServiceTest {
     @DisplayName("deleteCategory: Unbekannte ID wirft EntityNotFoundException")
     void deleteCategory_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-            () -> skillService.deleteCategory(-999L));
+                () -> skillService.deleteCategory(-999L));
     }
 }
