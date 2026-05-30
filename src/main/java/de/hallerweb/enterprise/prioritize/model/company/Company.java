@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.model.company;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import jakarta.persistence.*;
 import lombok.*;

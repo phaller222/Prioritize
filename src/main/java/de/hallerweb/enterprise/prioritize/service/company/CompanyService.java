@@ -1,7 +1,7 @@
 package de.hallerweb.enterprise.prioritize.service.company;
 
 import de.hallerweb.enterprise.prioritize.model.company.Company;
-import de.hallerweb.enterprise.prioritize.model.company.Address;
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.repository.company.CompanyRepository;
 import de.hallerweb.enterprise.prioritize.repository.address.AddressRepository;
 import jakarta.persistence.EntityNotFoundException;

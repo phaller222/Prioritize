@@ -2,7 +2,7 @@ package de.hallerweb.enterprise.prioritize.model.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
-import de.hallerweb.enterprise.prioritize.model.company.Address;
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
@@ -40,7 +40,7 @@ public class PUser extends PActor implements PAuthorizedObject {
     }
 
 
-    public enum Gender { MALE, FEMALE, OTHER, TECHNICAL_USER }
+    public enum Gender {MALE, FEMALE, OTHER, TECHNICAL_USER}
 
     @ToString.Include
     @EqualsAndHashCode.Include
@@ -98,6 +98,9 @@ public class PUser extends PActor implements PAuthorizedObject {
     private Set<SkillRecord> skills = new HashSet<>();
 
     private boolean admin;
+
+    @Builder.Default
+    private boolean active = true;
 
     public boolean isAdmin() {
         return admin;

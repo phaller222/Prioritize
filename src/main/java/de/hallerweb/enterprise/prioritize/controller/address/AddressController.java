@@ -1,6 +1,6 @@
 package de.hallerweb.enterprise.prioritize.controller.address;
 
-import de.hallerweb.enterprise.prioritize.model.company.Address;
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.service.address.AddressService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

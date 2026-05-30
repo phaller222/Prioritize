@@ -46,9 +46,9 @@ public class ResourceService {
         }
 
         ResourceGroup group = ResourceGroup.builder()
-            .name(name)
-            .department(dept)
-            .build();
+                .name(name)
+                .department(dept)
+                .build();
         return resourceGroupRepository.save(group);
     }
 
@@ -57,7 +57,7 @@ public class ResourceService {
 
     public Resource createResource(Resource resource, Long groupId, PUser user) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-            .orElseThrow(() -> new NoSuchElementException("Zielgruppe nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Zielgruppe nicht gefunden"));
 
         // Darf der User Ressourcen in dieser Gruppe erstellen?
         if (!authService.hasPermission(user, group, Action.UPDATE)) {
@@ -97,7 +97,7 @@ public class ResourceService {
 
     public Resource getResource(Long resourceId, PUser user) {
         Resource res = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
 
         if (!authService.hasPermission(user, res, Action.READ)) {
             throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
@@ -105,19 +105,17 @@ public class ResourceService {
 
         Instant now = Instant.now();
         long occupied = reservationRepository.findOverlappingReservations(resourceId, now, now.plusMillis(1))
-            .size();
+                .size();
         res.setCurrentOccupiedSlots((int) occupied);
         return res;
     }
 
     @Transactional(readOnly = true)
     public Set<Resource> getResourcesByGroupId(Long groupId) {
-        // Holt die ResourceGroup aus der DB oder wirft eine Exception, wenn nicht gefunden
-        ResourceGroup group = resourceGroupRepository.findById(groupId)
-            .orElseThrow(() -> new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden"));
-
-        // Gibt das Set der Ressourcen zurück (Hibernate lädt das jetzt sicher nach)
-        return group.getResources();
+        if (!resourceGroupRepository.existsById(groupId)) {
+            throw new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden");
+        }
+        return new java.util.HashSet<>(resourceRepository.findByResourceGroup_Id(groupId));
     }
 
 
@@ -125,7 +123,7 @@ public class ResourceService {
 
     public ResourceReservation reserveResource(Long resourceId, PUser user, Instant from, Instant until) {
         Resource resource = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
 
         // 1. Rechte prüfen
         if (!authService.hasPermission(user, resource, Action.READ)) {
@@ -134,7 +132,7 @@ public class ResourceService {
 
         // 2. Überschneidungen für den Zeitraum finden
         List<ResourceReservation> overlaps = reservationRepository
-            .findOverlappingReservations(resourceId, from, until);
+                .findOverlappingReservations(resourceId, from, until);
 
         // 3. Freien Slot berechnen
         int assignedSlot = findFirstAvailableSlot(resource.getMaxSlots(), overlaps);
@@ -144,17 +142,17 @@ public class ResourceService {
 
         // 4. Reservierung inkl. TimeSpan speichern
         TimeSpan ts = TimeSpan.builder()
-            .dateFrom(from)
-            .dateUntil(until)
-            .type(TimeSpan.TimeSpanType.RESOURCE_RESERVATION)
-            .build();
+                .dateFrom(from)
+                .dateUntil(until)
+                .type(TimeSpan.TimeSpanType.RESOURCE_RESERVATION)
+                .build();
 
         ResourceReservation reservation = ResourceReservation.builder()
-            .resource(resource)
-            .reservedBy(user)
-            .timespan(ts)
-            .slotNumber(assignedSlot)
-            .build();
+                .resource(resource)
+                .reservedBy(user)
+                .timespan(ts)
+                .slotNumber(assignedSlot)
+                .build();
 
         return reservationRepository.save(reservation);
     }
@@ -166,8 +164,8 @@ public class ResourceService {
      */
     private int findFirstAvailableSlot(int maxSlots, List<ResourceReservation> overlaps) {
         Set<Integer> occupied = overlaps.stream()
-            .map(ResourceReservation::getSlotNumber)
-            .collect(Collectors.toSet());
+                .map(ResourceReservation::getSlotNumber)
+                .collect(Collectors.toSet());
 
         for (int i = 1; i <= maxSlots; i++) {
             if (!occupied.contains(i)) return i;
@@ -191,7 +189,7 @@ public class ResourceService {
      */
     public void deleteResourceGroup(Long groupId, PUser user) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-            .orElseThrow(() -> new NoSuchElementException("Ressourcengruppe nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Ressourcengruppe nicht gefunden."));
 
         // 1. Schutz der Default-Gruppe (System-Invariant)
         if (ResourceGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
@@ -208,7 +206,7 @@ public class ResourceService {
         // ob diese mitgelöscht werden oder das Löschen verhindert wird.
         resourceGroupRepository.delete(group);
         log.info("Ressourcengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
-            group.getName(), groupId, user.getUsername());
+                group.getName(), groupId, user.getUsername());
     }
 
     /**
@@ -219,7 +217,7 @@ public class ResourceService {
      */
     public void deleteResource(Long resourceId, PUser user) {
         Resource resource = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden."));
 
         // 1. Rechteprüfung
         if (!authService.hasPermission(user, resource, Action.DELETE)) {
@@ -229,7 +227,7 @@ public class ResourceService {
         // 2. Optional: Check auf aktive Reservierungen
         // Hier könntest du entscheiden, ob Löschen verboten ist, wenn noch jemand die Ressource nutzt.
         List<ResourceReservation> activeReservations = reservationRepository.findOverlappingReservations(
-            resourceId, Instant.now(), Instant.now().plus(Duration.ofDays(365)));
+                resourceId, Instant.now(), Instant.now().plus(Duration.ofDays(365)));
 
         if (!activeReservations.isEmpty()) {
             log.warn("Löschen der Ressource {} trotz {} zukünftiger Reservierungen.", resourceId, activeReservations.size());
@@ -251,14 +249,16 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public void validateResourceInGroup(Long resourceId, Long groupId) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-            .orElseThrow(() -> new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden"));
 
         Resource resource = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new EntityNotFoundException("Ressource mit ID " + resourceId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Ressource mit ID " + resourceId + " nicht gefunden"));
 
-        if (!group.getResources().contains(resource)) {
+        boolean belongs = resourceRepository.findByResourceGroup_Id(groupId)
+                .stream().anyMatch(r -> r.getId().equals(resourceId));
+        if (!belongs) {
             throw new IllegalArgumentException(
-                "Ressource " + resourceId + " gehört nicht zu Gruppe " + groupId + ".");
+                    "Ressource " + resourceId + " gehört nicht zu Gruppe " + groupId + ".");
         }
     }
 

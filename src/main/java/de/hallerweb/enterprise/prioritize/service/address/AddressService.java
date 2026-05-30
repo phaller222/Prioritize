@@ -1,6 +1,6 @@
 package de.hallerweb.enterprise.prioritize.service.address;
 
-import de.hallerweb.enterprise.prioritize.model.company.Address;
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.repository.address.AddressRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +27,6 @@ public class AddressService {
     public Address findById(Long id) {
         return addressRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Address not found with id: " + id));
-    }
-
-    @Transactional(readOnly = true)
-    public List<Address> findByCity(String city) {
-        return addressRepository.findByCityEqualsIgnoreCase(city);
     }
 
     @Transactional(readOnly = true)

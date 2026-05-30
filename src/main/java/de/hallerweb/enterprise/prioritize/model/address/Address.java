@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.model.company;
+package de.hallerweb.enterprise.prioritize.model.address;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import de.hallerweb.enterprise.prioritize.model.PObject;

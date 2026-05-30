@@ -65,9 +65,15 @@ public class UserController {
      */
     @PatchMapping("/{id}")
     public ResponseEntity<PUser> partialUpdate(
-        @PathVariable Long id,
-        @RequestBody PUser patch) {
+            @PathVariable Long id,
+            @RequestBody PUser patch) {
         return ResponseEntity.ok(userService.partialUpdateUser(id, patch));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
+        userService.deactivateUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================
@@ -81,9 +87,9 @@ public class UserController {
 
     @PostMapping("/{userId}/skills")
     public ResponseEntity<SkillRecord> assignSkillToUser(
-        @PathVariable Long userId,
-        @RequestBody SkillRecord record) {
+            @PathVariable Long userId,
+            @RequestBody SkillRecord record) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(skillService.assignSkillToUser(userId, record));
+                .body(skillService.assignSkillToUser(userId, record));
     }
 }

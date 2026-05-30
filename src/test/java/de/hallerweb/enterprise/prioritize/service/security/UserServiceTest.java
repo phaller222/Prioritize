@@ -27,13 +27,13 @@ class UserServiceTest {
     @BeforeEach
     void setUp() {
         testUser = PUser.builder()
-            .username("test-user-" + System.currentTimeMillis()) // eindeutig
-            .name("Testmann")
-            .firstname("Max")
-            .email("max.test@example.com")
-            .password("plaintext123") // wird in createUser verschlüsselt
-            .admin(false)
-            .build();
+                .username("test-user-" + System.currentTimeMillis()) // eindeutig
+                .name("Testmann")
+                .firstname("Max")
+                .email("max.test@example.com")
+                .password("plaintext123") // wird in createUser verschlüsselt
+                .admin(false)
+                .build();
         testUser = userService.createUser(testUser);
     }
 
@@ -71,7 +71,7 @@ class UserServiceTest {
     @DisplayName("getUserById: Unbekannte ID wirft NoSuchElementException")
     void getUserById_UnknownId_ShouldThrow() {
         assertThrows(NoSuchElementException.class,
-            () -> userService.getUserById(-999L));
+                () -> userService.getUserById(-999L));
     }
 
     // ==========================================
@@ -89,7 +89,7 @@ class UserServiceTest {
     @DisplayName("findUserByUsername: Unbekannter Username wirft NoSuchElementException")
     void findUserByUsername_Unknown_ShouldThrow() {
         assertThrows(NoSuchElementException.class,
-            () -> userService.findUserByUsername("ghost-user-xyz"));
+                () -> userService.findUserByUsername("ghost-user-xyz"));
     }
 
     // ==========================================
@@ -134,5 +134,60 @@ class UserServiceTest {
         PUser updated = userService.partialUpdateUser(testUser.getId(), patch);
 
         assertFalse(updated.isAdmin()); // muss false bleiben
+    }
+
+    // ==========================================
+    // deactivateUser
+    // ==========================================
+
+    @Test
+    @DisplayName("deactivateUser: User wird deaktiviert")
+    void deactivateUser_ShouldSetActiveFalse() {
+        userService.deactivateUser(testUser.getId());
+        PUser raw = userRepository.findById(testUser.getId()).orElseThrow();
+        assertFalse(raw.isActive());
+    }
+
+    @Test
+    @DisplayName("deactivateUser: Admin-User kann nicht deaktiviert werden")
+    void deactivateUser_Admin_ShouldThrow() {
+        PUser adminUser = userService.findUserByUsername("admin");
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.deactivateUser(adminUser.getId()));
+    }
+
+    @Test
+    @DisplayName("deactivateUser: Unbekannte ID wirft NoSuchElementException")
+    void deactivateUser_UnknownId_ShouldThrow() {
+        assertThrows(NoSuchElementException.class,
+                () -> userService.deactivateUser(-999L));
+    }
+
+    // ==========================================
+    // active-Flag: Absicherung aller Ladepfade
+    // ==========================================
+
+    @Test
+    @DisplayName("getUserById: Deaktivierter User wirft NoSuchElementException")
+    void getUserById_InactiveUser_ShouldThrow() {
+        userService.deactivateUser(testUser.getId());
+        assertThrows(NoSuchElementException.class,
+                () -> userService.getUserById(testUser.getId()));
+    }
+
+    @Test
+    @DisplayName("findUserByUsername: Deaktivierter User wirft NoSuchElementException")
+    void findUserByUsername_InactiveUser_ShouldThrow() {
+        userService.deactivateUser(testUser.getId());
+        assertThrows(NoSuchElementException.class,
+                () -> userService.findUserByUsername(testUser.getUsername()));
+    }
+
+    @Test
+    @DisplayName("getAllUsers: Deaktivierter User erscheint nicht in der Liste")
+    void getAllUsers_ShouldNotContainInactiveUser() {
+        userService.deactivateUser(testUser.getId());
+        assertFalse(userService.getAllUsers().stream()
+                .anyMatch(u -> u.getId().equals(testUser.getId())));
     }
 }

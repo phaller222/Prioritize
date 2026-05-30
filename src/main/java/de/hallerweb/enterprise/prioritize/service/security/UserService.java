@@ -33,12 +33,18 @@ public class UserService implements UserDetailsService {
             throw new AccessDeniedException("Kein Benutzer angemeldet.");
         }
         String currentPrincipalName = authentication.getName();
-        return userRepository.findByUsername(currentPrincipalName).orElseThrow(() ->
-            new NoSuchElementException("Benutzer nicht gefunden."));
+        PUser user = userRepository.findByUsername(currentPrincipalName).orElseThrow(() ->
+                new NoSuchElementException("Benutzer nicht gefunden."));
+        if (!user.isActive()) {
+            throw new AccessDeniedException("Benutzer ist deaktiviert.");
+        }
+        return user;
     }
 
     public List<PUser> getAllUsers() {
-        return userRepository.findAll();
+        return userRepository.findAll().stream()
+                .filter(PUser::isActive)
+                .toList();
     }
 
     public PUser createUser(PUser user) {
@@ -53,20 +59,25 @@ public class UserService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // Sucht den PUser in deiner Datenbank
         PUser pUser = userRepository.findByUsername(username)
-            .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
+                .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
 
         // Changes PUser to a Spring-Security-UserDetails Object
         return org.springframework.security.core.userdetails.User.builder()
-            .username(pUser.getUsername())
-            .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
-            .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
-            .build();
+                .username(pUser.getUsername())
+                .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
+                .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
+                .disabled(!pUser.isActive()) // Inaktive User werden von Spring Security blockiert
+                .build();
     }
 
 
     public PUser findUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-            .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
+        PUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
+        if (!user.isActive()) {
+            throw new NoSuchElementException("User " + username + " nicht gefunden");
+        }
+        return user;
     }
 
     @Transactional
@@ -79,8 +90,12 @@ public class UserService implements UserDetailsService {
 
     @Transactional(readOnly = true)
     public PUser getUserById(Long id) {
-        return userRepository.findById(id)
-            .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+        PUser user = userRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+        if (!user.isActive()) {
+            throw new NoSuchElementException("User mit ID " + id + " nicht gefunden");
+        }
+        return user;
     }
 
     @Transactional
@@ -107,4 +122,13 @@ public class UserService implements UserDetailsService {
         return userRepository.save(existing);
     }
 
+    @Transactional
+    public void deactivateUser(Long id) {
+        PUser user = userRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+        if (user.isAdmin()) {
+            throw new IllegalArgumentException("Admin-User können nicht deaktiviert werden.");
+        }
+        user.setActive(false);
+    }
 }

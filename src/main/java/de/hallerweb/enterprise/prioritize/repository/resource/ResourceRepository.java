@@ -37,6 +37,9 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
             @Param("mqttResource") Boolean mqttResource
     );
 
+    // Findet alle Ressourcen einer bestimmten Gruppe
+    List<Resource> findByResourceGroup_Id(Long groupId);
+
     // Hilfreich für MQTT-Updates
     Optional<Resource> findByMqttUUID(String mqttUUID);
 }
