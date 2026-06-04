@@ -3,7 +3,6 @@ package de.hallerweb.enterprise.prioritize.service.company;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.repository.company.CompanyRepository;
-import de.hallerweb.enterprise.prioritize.repository.address.AddressRepository;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
@@ -22,7 +21,6 @@ import java.util.List;
 public class CompanyService {
 
     private final CompanyRepository companyRepository;
-    private final AddressRepository addressRepository;
     private final AuthorizationService authService;
 
     // TODO Mandantenfähigkeit: später auf die für 'user' sichtbaren Firmen filtern
@@ -95,6 +93,27 @@ public class CompanyService {
         company.setVatNumber(companyDetails.getVatNumber());
         company.setTaxId(companyDetails.getTaxId());
 
+        // Adresse eingebettet behandeln (null = unverändert lassen).
+        // Mitgeschickte Adresse aktualisiert die bestehende bzw. legt eine neue an;
+        // Persistierung erfolgt per Cascade über die Company.
+        if (companyDetails.getMainAddress() != null) {
+            Address newAddr = companyDetails.getMainAddress();
+            Address existingAddr = company.getMainAddress();
+            if (existingAddr != null) {
+                existingAddr.setStreet(newAddr.getStreet());
+                existingAddr.setHousenumber(newAddr.getHousenumber());
+                existingAddr.setFloor(newAddr.getFloor());
+                existingAddr.setZipCode(newAddr.getZipCode());
+                existingAddr.setCity(newAddr.getCity());
+                existingAddr.setCountry(newAddr.getCountry());
+                existingAddr.setPhone(newAddr.getPhone());
+                existingAddr.setFax(newAddr.getFax());
+                existingAddr.setMobile(newAddr.getMobile());
+            } else {
+                company.setMainAddress(newAddr);
+            }
+        }
+
         // companyRepository.save(company); // Oft unnötig wegen Dirty Checking innerhalb von @Transactional
     }
 
@@ -104,16 +123,5 @@ public class CompanyService {
             throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Firma.");
         }
         companyRepository.deleteById(id);
-    }
-
-    public void updateCompanyAddress(Long companyId, Long newAddressId, PUser user) {
-        Company company = findByIdInternal(companyId);
-        if (!authService.hasPermission(user, company, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Ändern dieser Firma.");
-        }
-        Address newAddress = addressRepository.findById(newAddressId)
-                .orElseThrow(() -> new EntityNotFoundException("Address not found"));
-
-        company.setMainAddress(newAddress);
     }
 }

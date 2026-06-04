@@ -190,39 +190,63 @@ class CompanyServiceTest {
     }
 
     // ==========================================
-    // updateCompanyAddress
+    // updateCompany: eingebettete Adresse (B1)
     // ==========================================
 
     @Test
-    @DisplayName("updateCompanyAddress: Adresse wird korrekt gewechselt")
-    void updateCompanyAddress_ShouldUpdateAddress() {
-        Address newAddress = Address.builder()
-                .street("Reeperbahn")
-                .housenumber("1")
-                .zipCode("20359")
-                .city("Hamburg")
-                .country("Deutschland")
+    @DisplayName("updateCompany: bestehende eingebettete Adresse wird aktualisiert")
+    void updateCompany_ShouldUpdateEmbeddedAddress() {
+        Company update = Company.builder()
+                .name(acme.getName())
+                .mainAddress(Address.builder()
+                        .street("Reeperbahn")
+                        .housenumber("1")
+                        .zipCode("20359")
+                        .city("Hamburg")
+                        .country("Deutschland")
+                        .build())
                 .build();
-        newAddress = addressRepository.save(newAddress);
 
-        companyService.updateCompanyAddress(acme.getId(), newAddress.getId(), adminUser);
+        companyService.updateCompany(acme.getId(), update, adminUser);
 
         Company updated = companyRepository.findById(acme.getId()).orElseThrow();
         assertEquals("Hamburg", updated.getMainAddress().getCity());
+        assertEquals("Reeperbahn", updated.getMainAddress().getStreet());
     }
 
     @Test
-    @DisplayName("updateCompanyAddress: Unbekannte Company-ID wirft EntityNotFoundException")
-    void updateCompanyAddress_UnknownCompany_ShouldThrow() {
-        assertThrows(EntityNotFoundException.class,
-                () -> companyService.updateCompanyAddress(-999L, acmeAddress.getId(), adminUser));
+    @DisplayName("updateCompany: neue Adresse wird angelegt, wenn vorher keine existierte")
+    void updateCompany_ShouldCreateEmbeddedAddress() {
+        Company update = Company.builder()
+                .name(globex.getName())
+                .mainAddress(Address.builder()
+                        .street("Domplatz")
+                        .housenumber("5")
+                        .zipCode("20095")
+                        .city("Hamburg")
+                        .country("Deutschland")
+                        .build())
+                .build();
+
+        companyService.updateCompany(globex.getId(), update, adminUser);
+
+        Company updated = companyRepository.findById(globex.getId()).orElseThrow();
+        assertNotNull(updated.getMainAddress());
+        assertEquals("Domplatz", updated.getMainAddress().getStreet());
     }
 
     @Test
-    @DisplayName("updateCompanyAddress: Unbekannte Address-ID wirft EntityNotFoundException")
-    void updateCompanyAddress_UnknownAddress_ShouldThrow() {
-        assertThrows(EntityNotFoundException.class,
-                () -> companyService.updateCompanyAddress(acme.getId(), -999L, adminUser));
+    @DisplayName("updateCompany: null-Adresse lässt bestehende Adresse unverändert")
+    void updateCompany_NullAddress_ShouldKeepExisting() {
+        Company update = Company.builder()
+                .name("Acme umbenannt")
+                .build(); // keine Adresse mitgeschickt
+
+        companyService.updateCompany(acme.getId(), update, adminUser);
+
+        Company updated = companyRepository.findById(acme.getId()).orElseThrow();
+        assertNotNull(updated.getMainAddress());
+        assertEquals("Berlin", updated.getMainAddress().getCity());
     }
 
     // ==========================================

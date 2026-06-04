@@ -52,15 +52,6 @@ public class CompanyController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{id}/address/{addressId}")
-    public ResponseEntity<Void> updateAddress(
-            @PathVariable Long id,
-            @PathVariable Long addressId,
-            Authentication auth) {
-        companyService.updateCompanyAddress(id, addressId, currentUserResolver.resolve(auth));
-        return ResponseEntity.noContent().build();
-    }
-
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         companyService.deleteCompany(id, currentUserResolver.resolve(auth));
