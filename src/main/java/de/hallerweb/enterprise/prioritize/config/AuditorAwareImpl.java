@@ -38,6 +38,6 @@ public class AuditorAwareImpl implements AuditorAware<PUser> {
         }
 
         // 2. Die echte Entity aus der DB laden
-        return userRepository.findByUsername("admin");
+        return userRepository.findByUsername(username);
     }
 }

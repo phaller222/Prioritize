@@ -2,6 +2,7 @@ package de.hallerweb.enterprise.prioritize.service.skill;
 
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
@@ -9,10 +10,12 @@ import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillCategoryRepository;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillRecordRepository;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillRepository;
+import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService; // Import deines UserServices
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +32,7 @@ public class SkillService {
     private final SkillRecordRepository skillRecordRepository;
     private final ResourceRepository resourceRepository;
     private final UserService userService;
+    private final AuthorizationService authService;
 
 
     private final EntityManager entityManager;
@@ -41,7 +45,10 @@ public class SkillService {
     }
 
     @Transactional
-    public Skill createSkill(Skill skill) {
+    public Skill createSkill(Skill skill, PUser user) {
+        if (!authService.hasPermission(user, skill, Action.CREATE)) {
+            throw new AccessDeniedException("Keine Berechtigung zum Anlegen eines Skills.");
+        }
         if (skill.getCategory() != null && skill.getCategory().getId() != null) {
             SkillCategory category = skillCategoryRepository.findById(skill.getCategory().getId())
                     .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skill.getCategory().getId() + " nicht gefunden"));
@@ -148,9 +155,10 @@ public class SkillService {
     }
 
     @Transactional
-    public void deleteSkill(Long skillId) {
-        if (!skillRepository.existsById(skillId)) {
-            throw new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden");
+    public void deleteSkill(Long skillId, PUser user) {
+        Skill skill = getSkillByIdInternal(skillId);
+        if (!authService.hasPermission(user, skill, Action.DELETE)) {
+            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieses Skills.");
         }
         skillRepository.deleteById(skillId);
     }
@@ -233,14 +241,30 @@ public class SkillService {
     }
 
     @Transactional(readOnly = true)
-    public Skill getSkillById(Long skillId) {
+    public Skill getSkillById(Long skillId, PUser user) {
+        Skill skill = getSkillByIdInternal(skillId);
+        if (!authService.hasPermission(user, skill, Action.READ)) {
+            throw new AccessDeniedException("Keine Leseberechtigung für diesen Skill.");
+        }
+        return skill;
+    }
+
+    /**
+     * Interne Variante ohne Berechtigungsprüfung – nur für andere Service-Methoden,
+     * die bereits eine eigene Prüfung durchgeführt haben.
+     */
+    @Transactional(readOnly = true)
+    Skill getSkillByIdInternal(Long skillId) {
         return skillRepository.findById(skillId)
                 .orElseThrow(() -> new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden"));
     }
 
     @Transactional
-    public Skill updateSkill(Long skillId, Skill skillDetails) {
-        Skill existing = getSkillById(skillId);
+    public Skill updateSkill(Long skillId, Skill skillDetails, PUser user) {
+        Skill existing = getSkillByIdInternal(skillId);
+        if (!authService.hasPermission(user, existing, Action.UPDATE)) {
+            throw new AccessDeniedException("Keine Berechtigung zum Ändern dieses Skills.");
+        }
         existing.setName(skillDetails.getName());
 
         if (skillDetails.getCategory() != null && skillDetails.getCategory().getId() != null) {

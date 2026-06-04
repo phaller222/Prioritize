@@ -1,12 +1,13 @@
 package de.hallerweb.enterprise.prioritize.controller.document;
 
+import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentGroup;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
-import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,12 +18,12 @@ import java.util.List;
 public class DocumentGroupRestController {
 
     private final DocumentService documentService;
-    private final UserService userService;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<DocumentGroup> createGroup(@RequestBody DocumentGroup group) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(documentService.createDocumentGroup(group));
+                .body(documentService.createDocumentGroup(group));
     }
 
     @GetMapping
@@ -31,14 +32,14 @@ public class DocumentGroupRestController {
     }
 
     @GetMapping("/{groupId}/documents")
-    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId) {
+    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId, Authentication auth) {
         return ResponseEntity.ok(
-            documentService.getDocumentsInGroupAsDTO(groupId, userService.getCurrentUser()));
+                documentService.getDocumentsInGroupAsDTO(groupId, currentUserResolver.resolve(auth)));
     }
 
     @DeleteMapping("/{groupId}")
-    public ResponseEntity<Void> deleteGroup(@PathVariable Long groupId) {
-        documentService.deleteDocumentGroup(groupId, userService.getCurrentUser());
+    public ResponseEntity<Void> deleteGroup(@PathVariable Long groupId, Authentication auth) {
+        documentService.deleteDocumentGroup(groupId, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();
     }
 }

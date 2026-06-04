@@ -1,11 +1,13 @@
 package de.hallerweb.enterprise.prioritize.controller.company;
 
+import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.service.company.CompanyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
@@ -18,6 +20,7 @@ import java.util.List;
 public class CompanyController {
 
     private final CompanyService companyService;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<Company>> getAllCompanies() {
@@ -25,8 +28,8 @@ public class CompanyController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Company> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(companyService.findById(id));
+    public ResponseEntity<Company> getById(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(companyService.findById(id, currentUserResolver.resolve(auth)));
     }
 
     @PostMapping("/filter")
@@ -35,30 +38,32 @@ public class CompanyController {
     }
 
     @PostMapping
-    public ResponseEntity<Company> create(@RequestBody Company company) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(companyService.createCompany(company));
+    public ResponseEntity<Company> create(@RequestBody Company company, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(companyService.createCompany(company, currentUserResolver.resolve(auth)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Company company) {
+    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Company company, Authentication auth) {
         if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
             throw new IllegalArgumentException("Manuelle ID-Vergabe für Adressen ist nicht erlaubt.");
         }
-        companyService.updateCompany(id, company);
+        companyService.updateCompany(id, company, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/address/{addressId}")
     public ResponseEntity<Void> updateAddress(
-        @PathVariable Long id,
-        @PathVariable Long addressId) {
-        companyService.updateCompanyAddress(id, addressId);
+            @PathVariable Long id,
+            @PathVariable Long addressId,
+            Authentication auth) {
+        companyService.updateCompanyAddress(id, addressId, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        companyService.deleteCompany(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
+        companyService.deleteCompany(id, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();
     }
 }

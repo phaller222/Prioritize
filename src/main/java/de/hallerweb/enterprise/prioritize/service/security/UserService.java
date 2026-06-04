@@ -3,10 +3,6 @@ package de.hallerweb.enterprise.prioritize.service.security;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.security.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -23,23 +19,6 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
-    /**
-     * Ermittelt den aktuell angemeldeten Benutzer aus dem Spring Security Context.
-     */
-    public PUser getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            throw new AccessDeniedException("Kein Benutzer angemeldet.");
-        }
-        String currentPrincipalName = authentication.getName();
-        PUser user = userRepository.findByUsername(currentPrincipalName).orElseThrow(() ->
-                new NoSuchElementException("Benutzer nicht gefunden."));
-        if (!user.isActive()) {
-            throw new AccessDeniedException("Benutzer ist deaktiviert.");
-        }
-        return user;
-    }
 
     public List<PUser> getAllUsers() {
         return userRepository.findAll().stream()

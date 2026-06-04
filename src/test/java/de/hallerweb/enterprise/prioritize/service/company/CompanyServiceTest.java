@@ -2,8 +2,10 @@ package de.hallerweb.enterprise.prioritize.service.company;
 
 import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.address.AddressRepository;
 import de.hallerweb.enterprise.prioritize.repository.company.CompanyRepository;
+import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,12 +34,20 @@ class CompanyServiceTest {
     @Autowired
     private AddressRepository addressRepository;
 
+    @Autowired
+    private UserService userService;
+
     private Company acme;
     private Company globex;
     private Address acmeAddress;
+    private PUser adminUser;
 
     @BeforeEach
     void setUp() {
+        // Admin-User aus der DB holen (wird vom InitializationService angelegt);
+        // passiert dank isAdmin() alle Berechtigungs-Guards.
+        adminUser = userService.findUserByUsername("admin");
+
         acmeAddress = Address.builder()
                 .street("Hauptstraße")
                 .housenumber("1")
@@ -84,7 +94,7 @@ class CompanyServiceTest {
     @Test
     @DisplayName("findById: Existierende Company wird korrekt zurückgegeben")
     void findById_ShouldReturnCompany() {
-        Company found = companyService.findById(acme.getId());
+        Company found = companyService.findById(acme.getId(), adminUser);
         assertNotNull(found);
         assertEquals("Acme-Test GmbH", found.getName());
     }
@@ -93,7 +103,7 @@ class CompanyServiceTest {
     @DisplayName("findById: Unbekannte ID wirft EntityNotFoundException")
     void findById_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> companyService.findById(-999L));
+                () -> companyService.findById(-999L, adminUser));
     }
 
     // ==========================================
@@ -139,7 +149,7 @@ class CompanyServiceTest {
                 .vatNumber("DE111222333")
                 .build();
 
-        Company created = companyService.createCompany(newCompany);
+        Company created = companyService.createCompany(newCompany, adminUser);
 
         assertNotNull(created.getId());
         assertEquals("Initech-Test GmbH", created.getName());
@@ -161,7 +171,7 @@ class CompanyServiceTest {
                 .taxId("TAX-999")
                 .build();
 
-        companyService.updateCompany(acme.getId(), update);
+        companyService.updateCompany(acme.getId(), update, adminUser);
 
         Company updated = companyRepository.findById(acme.getId()).orElseThrow();
         assertEquals("Acme-Test GmbH (neu)", updated.getName());
@@ -176,7 +186,7 @@ class CompanyServiceTest {
     void updateCompany_UnknownId_ShouldThrow() {
         Company update = Company.builder().name("Ghost-Test").build();
         assertThrows(EntityNotFoundException.class,
-                () -> companyService.updateCompany(-999L, update));
+                () -> companyService.updateCompany(-999L, update, adminUser));
     }
 
     // ==========================================
@@ -195,7 +205,7 @@ class CompanyServiceTest {
                 .build();
         newAddress = addressRepository.save(newAddress);
 
-        companyService.updateCompanyAddress(acme.getId(), newAddress.getId());
+        companyService.updateCompanyAddress(acme.getId(), newAddress.getId(), adminUser);
 
         Company updated = companyRepository.findById(acme.getId()).orElseThrow();
         assertEquals("Hamburg", updated.getMainAddress().getCity());
@@ -205,14 +215,14 @@ class CompanyServiceTest {
     @DisplayName("updateCompanyAddress: Unbekannte Company-ID wirft EntityNotFoundException")
     void updateCompanyAddress_UnknownCompany_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> companyService.updateCompanyAddress(-999L, acmeAddress.getId()));
+                () -> companyService.updateCompanyAddress(-999L, acmeAddress.getId(), adminUser));
     }
 
     @Test
     @DisplayName("updateCompanyAddress: Unbekannte Address-ID wirft EntityNotFoundException")
     void updateCompanyAddress_UnknownAddress_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> companyService.updateCompanyAddress(acme.getId(), -999L));
+                () -> companyService.updateCompanyAddress(acme.getId(), -999L, adminUser));
     }
 
     // ==========================================
@@ -223,7 +233,7 @@ class CompanyServiceTest {
     @DisplayName("deleteCompany: Company wird aus der DB entfernt")
     void deleteCompany_ShouldRemoveFromDb() {
         Long id = globex.getId();
-        companyService.deleteCompany(id);
+        companyService.deleteCompany(id, adminUser);
         assertFalse(companyRepository.existsById(id));
     }
 
@@ -231,6 +241,6 @@ class CompanyServiceTest {
     @DisplayName("deleteCompany: Unbekannte ID wirft EntityNotFoundException")
     void deleteCompany_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> companyService.deleteCompany(-999L));
+                () -> companyService.deleteCompany(-999L, adminUser));
     }
 }

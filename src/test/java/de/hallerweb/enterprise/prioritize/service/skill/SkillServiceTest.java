@@ -2,8 +2,10 @@ package de.hallerweb.enterprise.prioritize.service.skill;
 
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillCategoryRepository;
 import de.hallerweb.enterprise.prioritize.repository.skill.SkillRepository;
+import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,14 +34,22 @@ class SkillServiceTest {
     @Autowired
     private SkillRepository skillRepository;
 
+    @Autowired
+    private UserService userService;
+
     // Testdaten die in @BeforeEach aufgebaut werden
     private SkillCategory mainCat;
     private SkillCategory subCat;
     private Skill javaSkill;
     private Skill pythonSkill;
+    private PUser adminUser;
 
     @BeforeEach
     void setUp() {
+        // Admin-User aus der DB holen (vom InitializationService angelegt);
+        // passiert dank isAdmin() alle Berechtigungs-Guards.
+        adminUser = userService.findUserByUsername("admin");
+
         mainCat = new SkillCategory();
         mainCat.setName("IT-Testcat");
         mainCat = categoryRepository.save(mainCat);
@@ -67,7 +77,7 @@ class SkillServiceTest {
     @Test
     @DisplayName("getSkillById: Existierender Skill wird korrekt zurückgegeben")
     void getSkillById_ShouldReturnSkill() {
-        Skill found = skillService.getSkillById(javaSkill.getId());
+        Skill found = skillService.getSkillById(javaSkill.getId(), adminUser);
         assertNotNull(found);
         assertEquals(javaSkill.getName(), found.getName());
     }
@@ -76,7 +86,7 @@ class SkillServiceTest {
     @DisplayName("getSkillById: Unbekannte ID wirft EntityNotFoundException")
     void getSkillById_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> skillService.getSkillById(-999L));
+                () -> skillService.getSkillById(-999L, adminUser));
     }
 
     // ==========================================
@@ -90,7 +100,7 @@ class SkillServiceTest {
         newSkill.setName("Docker Basics-Test");
         newSkill.setCategory(mainCat);
 
-        Skill created = skillService.createSkill(newSkill);
+        Skill created = skillService.createSkill(newSkill, adminUser);
 
         assertNotNull(created.getId());
         assertEquals("Docker Basics-Test", created.getName());
@@ -123,7 +133,7 @@ class SkillServiceTest {
         badRef.setName("bad");
         // Direkt via Repository mit fake ID prüfen
         assertThrows(EntityNotFoundException.class,
-                () -> skillService.getSkillById(-1L));
+                () -> skillService.getSkillById(-1L, adminUser));
     }
 
     // ==========================================
@@ -137,7 +147,7 @@ class SkillServiceTest {
         update.setName("Spring Boot Advanced-Test");
         update.setCategory(subCat);
 
-        Skill updated = skillService.updateSkill(javaSkill.getId(), update);
+        Skill updated = skillService.updateSkill(javaSkill.getId(), update, adminUser);
 
         assertEquals("Spring Boot Advanced-Test", updated.getName());
     }
@@ -149,7 +159,7 @@ class SkillServiceTest {
         update.setName(javaSkill.getName());
         update.setCategory(mainCat); // Von subCat zu mainCat wechseln
 
-        Skill updated = skillService.updateSkill(javaSkill.getId(), update);
+        Skill updated = skillService.updateSkill(javaSkill.getId(), update, adminUser);
 
         assertEquals(mainCat.getId(), updated.getCategory().getId());
     }
@@ -160,7 +170,7 @@ class SkillServiceTest {
         Skill update = new Skill();
         update.setName("Ghost-Test");
         assertThrows(EntityNotFoundException.class,
-                () -> skillService.updateSkill(-999L, update));
+                () -> skillService.updateSkill(-999L, update, adminUser));
     }
 
     // ==========================================
@@ -171,7 +181,7 @@ class SkillServiceTest {
     @DisplayName("deleteSkill: Skill wird aus der DB entfernt")
     void deleteSkill_ShouldRemoveFromDb() {
         Long id = pythonSkill.getId();
-        skillService.deleteSkill(id);
+        skillService.deleteSkill(id, adminUser);
         assertFalse(skillRepository.existsById(id));
     }
 
@@ -179,7 +189,7 @@ class SkillServiceTest {
     @DisplayName("deleteSkill: Unbekannte ID wirft EntityNotFoundException")
     void deleteSkill_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
-                () -> skillService.deleteSkill(-999L));
+                () -> skillService.deleteSkill(-999L, adminUser));
     }
 
     // ==========================================
