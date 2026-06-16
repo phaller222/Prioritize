@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,10 +32,19 @@ public class CurrentUserResolver {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new AccessDeniedException("Kein Benutzer angemeldet.");
         }
-        // Basic Auth: Principal ist ein UserDetails, getName() liefert den Username.
-        // Keycloak (später): hier JwtAuthenticationToken behandeln und
-        // preferred_username aus den Claims lesen.
-        String username = auth.getName();
+
+        String username;
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+            username = jwt.getClaimAsString("preferred_username");
+            if (username == null || username.isBlank()) {
+                throw new AccessDeniedException("Kein preferred_username im Token.");
+            }
+        } else {
+            // Basic Auth: Principal ist UserDetails, getName() liefert den Username.
+            username = auth.getName();
+        }
+
         return userService.findUserByUsername(username);
     }
 }

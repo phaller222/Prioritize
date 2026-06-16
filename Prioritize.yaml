@@ -1,0 +1,637 @@
+openapi: "3.1.0"
+info:
+  title: "Prioritize API"
+  description: "Prioritize API"
+  version: "1.0.0"
+servers:
+  - url: "https://localhost:8080"
+paths:
+  /api/v1/companies:
+    get:
+      summary: "GET api/v1/companies"
+      operationId: "getAllCompanies"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      summary: "POST api/v1/companies"
+      operationId: "create"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Company"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Company"
+  /api/v1/companies/{id}:
+    get:
+      summary: "GET api/v1/companies/{id}"
+      operationId: "getById"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Company"
+    put:
+      summary: "PUT api/v1/companies/{id}"
+      operationId: "update"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Company"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Void"
+    delete:
+      summary: "DELETE api/v1/companies/{id}"
+      operationId: "delete"
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Void"
+  /api/v1/companies/filter:
+    post:
+      summary: "POST api/v1/companies/filter"
+      operationId: "findByFilter"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Company"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Company"
+components:
+  schemas:
+    Address:
+      type: "object"
+      properties:
+        street:
+          type: "string"
+          nullable: true
+        housenumber:
+          type: "string"
+          nullable: true
+        floor:
+          type: "string"
+          nullable: true
+        zipCode:
+          type: "string"
+          nullable: true
+        city:
+          type: "string"
+          nullable: true
+        country:
+          type: "string"
+          nullable: true
+        phone:
+          type: "string"
+          nullable: true
+        fax:
+          type: "string"
+          nullable: true
+        mobile:
+          type: "string"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    SkillCategory:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        parentCategory:
+          nullable: true
+          $ref: "#/components/schemas/SkillCategory"
+        subCategories:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/SkillCategory"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    SkillProperty:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        skill:
+          nullable: true
+          $ref: "#/components/schemas/Skill"
+    Skill:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        keywords:
+          type: "string"
+          nullable: true
+        category:
+          nullable: true
+          $ref: "#/components/schemas/SkillCategory"
+        skillProperties:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/SkillProperty"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    SkillRecordProperty:
+      type: "object"
+      properties:
+        property:
+          nullable: true
+          $ref: "#/components/schemas/SkillProperty"
+        valueNumeric:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        valueText:
+          type: "string"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    SkillRecord:
+      type: "object"
+      properties:
+        skill:
+          nullable: true
+          $ref: "#/components/schemas/Skill"
+        skillRecordProperties:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/SkillRecordProperty"
+          uniqueItems: true
+        enthusiasm:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    PUser:
+      type: "object"
+      properties:
+        username:
+          type: "string"
+          nullable: true
+        name:
+          type: "string"
+          nullable: true
+        firstname:
+          type: "string"
+          nullable: true
+        email:
+          type: "string"
+          nullable: true
+        occupation:
+          type: "string"
+          nullable: true
+        lastLogin:
+          type: "string"
+          format: "date-time"
+          nullable: true
+        dateOfBirth:
+          type: "string"
+          format: "date-time"
+          nullable: true
+        gender:
+          type: "string"
+          nullable: true
+          enum:
+            - "MALE"
+            - "FEMALE"
+            - "OTHER"
+            - "TECHNICAL_USER"
+        address:
+          nullable: true
+          $ref: "#/components/schemas/Address"
+        skills:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/SkillRecord"
+          uniqueItems: true
+        admin:
+          type: "boolean"
+          nullable: true
+        active:
+          type: "boolean"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    Document:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        version:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        mimeType:
+          type: "string"
+          nullable: true
+        tag:
+          type: "string"
+          nullable: true
+        lastModified:
+          type: "string"
+          format: "date-time"
+          nullable: true
+        changes:
+          type: "string"
+          nullable: true
+        lastModifiedBy:
+          nullable: true
+          $ref: "#/components/schemas/PUser"
+        documentInfo:
+          nullable: true
+          $ref: "#/components/schemas/DocumentInfo"
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    DocumentInfo:
+      type: "object"
+      properties:
+        currentDocument:
+          nullable: true
+          $ref: "#/components/schemas/Document"
+        documentGroup:
+          nullable: true
+          $ref: "#/components/schemas/DocumentGroup"
+        locked:
+          type: "boolean"
+          nullable: true
+        lockedBy:
+          nullable: true
+          $ref: "#/components/schemas/PUser"
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    DocumentGroup:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        department:
+          nullable: true
+          $ref: "#/components/schemas/Department"
+        documents:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/DocumentInfo"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    NameValueEntry:
+      type: "object"
+      properties:
+        mqttName:
+          type: "string"
+          nullable: true
+        mqttValues:
+          type: "string"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    Instant:
+      type: "object"
+      properties: { }
+    TimeSpan:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+        title:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        involvedResources:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Resource"
+          uniqueItems: true
+        involvedUsers:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/PUser"
+          uniqueItems: true
+        dateFrom:
+          nullable: true
+          $ref: "#/components/schemas/Instant"
+        dateUntil:
+          nullable: true
+          $ref: "#/components/schemas/Instant"
+        type:
+          type: "string"
+          nullable: true
+          enum:
+            - "RESOURCE_RESERVATION"
+            - "VACATION"
+            - "ILLNESS"
+            - "TIME_TRACKER"
+            - "OTHER"
+            - "ALL"
+    ResourceReservation:
+      type: "object"
+      properties:
+        id:
+          type: "integer"
+          format: "int32"
+          nullable: true
+        resource:
+          nullable: true
+          $ref: "#/components/schemas/Resource"
+        reservedBy:
+          nullable: true
+          $ref: "#/components/schemas/PUser"
+        timespan:
+          nullable: true
+          $ref: "#/components/schemas/TimeSpan"
+        slotNumber:
+          type: "integer"
+          format: "int32"
+          nullable: true
+    Resource:
+      type: "object"
+      properties:
+        currentOccupiedSlots:
+          type: "integer"
+          format: "int32"
+          nullable: true
+          default: "0"
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        stationary:
+          type: "boolean"
+          nullable: true
+        remote:
+          type: "boolean"
+          nullable: true
+        ip:
+          type: "string"
+          nullable: true
+        busy:
+          type: "boolean"
+          nullable: true
+        maxSlots:
+          type: "integer"
+          format: "int32"
+          nullable: true
+          default: "1"
+        latitude:
+          type: "string"
+          nullable: true
+        longitude:
+          type: "string"
+          nullable: true
+        mqttResource:
+          type: "boolean"
+          nullable: true
+        mqttUUID:
+          type: "string"
+          nullable: true
+        mqttDataSendTopic:
+          type: "string"
+          nullable: true
+        mqttDataReceiveTopic:
+          type: "string"
+          nullable: true
+        mqttOnline:
+          type: "boolean"
+          nullable: true
+        mqttLastPing:
+          type: "string"
+          format: "date-time"
+          nullable: true
+        agent:
+          type: "boolean"
+          nullable: true
+        mqttCommands:
+          type: "array"
+          nullable: true
+          items:
+            type: "string"
+          uniqueItems: true
+        mqttValues:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/NameValueEntry"
+          uniqueItems: true
+        mqttDataReceived:
+          type: "array"
+          nullable: true
+          items:
+            type: "string"
+            format: "byte"
+        mqttDataToSend:
+          type: "array"
+          nullable: true
+          items:
+            type: "string"
+            format: "byte"
+        department:
+          nullable: true
+          $ref: "#/components/schemas/Department"
+        busyBy:
+          nullable: true
+          $ref: "#/components/schemas/PUser"
+        resourceGroup:
+          nullable: true
+          $ref: "#/components/schemas/ResourceGroup"
+        reservations:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ResourceReservation"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    ResourceGroup:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        department:
+          nullable: true
+          $ref: "#/components/schemas/Department"
+        resources:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Resource"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    Department:
+      type: "object"
+      properties:
+        address:
+          nullable: true
+          $ref: "#/components/schemas/Address"
+        company:
+          nullable: true
+          $ref: "#/components/schemas/Company"
+        documentGroups:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/DocumentGroup"
+          uniqueItems: true
+        resourceGroups:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ResourceGroup"
+          uniqueItems: true
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    Company:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          nullable: true
+        description:
+          type: "string"
+          nullable: true
+        mainAddress:
+          nullable: true
+          $ref: "#/components/schemas/Address"
+        url:
+          type: "string"
+          nullable: true
+        vatNumber:
+          type: "string"
+          nullable: true
+        taxId:
+          type: "string"
+          nullable: true
+        departments:
+          type: "array"
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Department"
+          uniqueItems: true
+        id:
+          type: "integer"
+          format: "int64"
+          nullable: true
+    Void:
+      type: "object"
+      properties: { }

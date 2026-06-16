@@ -80,6 +80,11 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!--  Flowable BPMN Engine -->
         <dependency>
             <groupId>org.flowable</groupId>
@@ -104,6 +109,13 @@
             <version>3.3.0</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
 
     </dependencies>
 
