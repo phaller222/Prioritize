@@ -71,6 +71,8 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private Boolean remote = true;
     private String ip;
     @Builder.Default
+    private Integer port = 80;
+    @Builder.Default
     private Boolean busy = false;
     @Builder.Default
     private Integer maxSlots = 1;

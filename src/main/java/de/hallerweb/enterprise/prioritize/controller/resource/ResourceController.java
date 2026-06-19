@@ -9,6 +9,7 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ public class ResourceController {
     private final CurrentUserResolver currentUserResolver;
     private final DepartmentService departmentService;
     private final SkillService skillService;
+    private final ResourceControlService resourceControlService;
 
     /**
      * Hilfsmethode, um den aktuell authentifizierten Benutzer zu ermitteln.
@@ -117,6 +119,21 @@ public class ResourceController {
         return ResponseEntity.ok(resourceService.getResource(id, getCurrentUser(auth)));
     }
 
+    /**
+     * Aktualisiert einzelne Felder einer Resource (PATCH-Semantik: null = unverändert).
+     *
+     * @param id    ID der Resource
+     * @param patch Resource mit den zu ändernden Feldern
+     * @return die aktualisierte Resource
+     */
+    @PatchMapping("/resources/{id}")
+    public ResponseEntity<Resource> partialUpdateResource(
+            @PathVariable Long id,
+            @RequestBody Resource patch,
+            Authentication auth) {
+
+        return ResponseEntity.ok(resourceService.partialUpdateResource(id, patch, getCurrentUser(auth)));
+    }
 
     /**
      * Löscht eine Ressource, falls der aktuelle Benutzer berechtigt ist.
@@ -161,6 +178,32 @@ public class ResourceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(reservation);
     }
 
+// ==========================================
+    // RESSOURCEN-STEUERUNG (Command senden)
+    // ==========================================
+
+    /**
+     * Sendet ein Steuerkommando an eine Resource. Der Transport (MQTT/REST) wird
+     * automatisch gewählt (MQTT bevorzugt wenn online, sonst REST-Fallback).
+     *
+     * @param id      ID der Resource
+     * @param request Kommando und optionaler freier Parameter
+     * @return 202 Accepted, wenn das Kommando übergeben wurde
+     */
+    @PostMapping("/resources/{id}/command")
+    public ResponseEntity<Void> sendCommand(
+            @PathVariable Long id,
+            @RequestBody ResourceCommandRequest request,
+            Authentication auth) {
+
+        Resource resource = resourceService.getResource(id, getCurrentUser(auth));
+        resourceControlService.sendCommand(resource, request.command(), request.param(), getCurrentUser(auth));
+        return ResponseEntity.accepted().build();
+    }
+
+    /** Request-Body für ein Steuerkommando. {@code param} ist optional. */
+    public record ResourceCommandRequest(String command, String param) {
+    }
 
     // ==========================================
     // SKILL RECORDS - RESSOURCEN ZUORDNUNG

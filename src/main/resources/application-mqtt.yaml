@@ -1,0 +1,11 @@
+prioritize:
+  mqtt:
+    enabled: true
+    broker-url: tcp://memoryalpha:1883
+    client-id: prioritize-backend
+    #username: prioritize
+    #password: ${MQTT_PASSWORD:}
+    qos: 1
+    subscribe-topics:
+      - DISCOVERY
+      - "+/status"

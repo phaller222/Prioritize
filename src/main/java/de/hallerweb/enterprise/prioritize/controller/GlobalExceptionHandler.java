@@ -1,6 +1,7 @@
 package de.hallerweb.enterprise.prioritize.controller;
 
 import de.hallerweb.enterprise.prioritize.dto.ApiError;
+import de.hallerweb.enterprise.prioritize.exception.ResourceCommandFailedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,13 @@ public class GlobalExceptionHandler {
         log.warn("Conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of(ex.getMessage(), HttpStatus.CONFLICT.value()));
+    }
+
+    @ExceptionHandler(ResourceCommandFailedException.class)
+    public ResponseEntity<ApiError> handleCommandFailed(ResourceCommandFailedException ex) {
+        log.warn("Command an Gerät fehlgeschlagen: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiError.of(ex.getMessage(), HttpStatus.BAD_GATEWAY.value()));
     }
 
     //  vor Produktion einkommentieren!

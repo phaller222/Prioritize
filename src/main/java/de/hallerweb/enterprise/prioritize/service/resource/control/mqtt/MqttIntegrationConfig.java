@@ -1,0 +1,106 @@
+package de.hallerweb.enterprise.prioritize.service.resource.control.mqtt;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.log4j.Log4j2;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.channel.DirectChannel;
+import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
+import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
+import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
+import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageHandler;
+
+/**
+ * Deklarative Spring-Integration-Verdrahtung für MQTT. Kapselt den kompletten
+ * Paho-Lifecycle (Connect, Reconnect, Subscribe) — der Rest des Systems sieht nur
+ * Spring {@link MessageChannel}s.
+ * <p>
+ * Outbound: Nachrichten auf {@code mqttOutboundChannel} werden ans im Header
+ * {@code mqtt_topic} angegebene Topic publiziert.
+ * <p>
+ * Inbound: Eingehende Nachrichten der abonnierten Topics landen auf
+ * {@code mqttInboundChannel} und werden vom {@link InboundResourceEventHandler} verarbeitet.
+ * <p>
+ * Nur aktiv, wenn {@code prioritize.mqtt.enabled=true}.
+ *
+ * @author peter haller
+ */
+@Configuration
+@ConditionalOnProperty(name = "prioritize.mqtt.enabled", havingValue = "true")
+@Log4j2
+public class MqttIntegrationConfig {
+
+    private final MqttProperties props;
+
+    public MqttIntegrationConfig(MqttProperties props) {
+        this.props = props;
+    }
+
+    @Bean
+    public MqttPahoClientFactory mqttClientFactory() {
+        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setServerURIs(new String[]{props.getBrokerUrl()});
+        options.setKeepAliveInterval(60);
+        options.setCleanSession(true);
+        options.setAutomaticReconnect(true);
+        if (props.getUsername() != null && !props.getUsername().isBlank()) {
+            options.setUserName(props.getUsername());
+            options.setPassword(props.getPassword() == null ? new char[0] : props.getPassword().toCharArray());
+        }
+        factory.setConnectionOptions(options);
+        return factory;
+    }
+
+    // ---------------- Outbound (System → Gerät) ----------------
+
+    @Bean
+    public MessageChannel mqttOutboundChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttOutboundChannel")
+    public MessageHandler mqttOutboundHandler(MqttPahoClientFactory factory) {
+        MqttPahoMessageHandler handler =
+                new MqttPahoMessageHandler(props.getClientId() + "-pub", factory);
+        handler.setAsync(true);
+        handler.setDefaultQos(props.getQos());
+        // Topic kommt pro Nachricht aus dem Header mqtt_topic (siehe Adapter).
+        return handler;
+    }
+
+    // ---------------- Inbound (Gerät → System) ----------------
+
+    @Bean
+    public MessageChannel mqttInboundChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    public MqttPahoMessageDrivenChannelAdapter mqttInbound(MqttPahoClientFactory factory) {
+        String[] topics = props.getSubscribeTopics().toArray(new String[0]);
+        MqttPahoMessageDrivenChannelAdapter adapter =
+                new MqttPahoMessageDrivenChannelAdapter(
+                        props.getClientId() + "-sub", factory, topics);
+        adapter.setCompletionTimeout(5000);
+        adapter.setConverter(new DefaultPahoMessageConverter());
+        adapter.setQos(props.getQos());
+        adapter.setOutputChannel(mqttInboundChannel());
+        log.info("MQTT-Inbound-Adapter abonniert Topics: {}", props.getSubscribeTopics());
+        return adapter;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectMapper mqttObjectMapper() {
+        return new ObjectMapper();
+    }
+}

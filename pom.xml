@@ -116,6 +116,22 @@
             <version>3.0.1</version>
         </dependency>
 
+        <!-- MQTT-Resourcensteuerung via Spring Integration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-integration</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.integration</groupId>
+            <artifactId>spring-integration-mqtt</artifactId>
+        </dependency>
+        <!-- Paho v3 Client: nicht (mehr) transitiv, daher explizit -->
+        <dependency>
+            <groupId>org.eclipse.paho</groupId>
+            <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+            <version>1.2.5</version>
+        </dependency>
+
 
     </dependencies>
 

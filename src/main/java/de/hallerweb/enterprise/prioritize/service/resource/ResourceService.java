@@ -91,6 +91,9 @@ public class ResourceService {
         if (resource.getMaxSlots() == null) {
             resource.setMaxSlots(1);
         }
+        if (resource.getPort() == null) {
+            resource.setPort(80);
+        }
 
         return resourceRepository.save(resource);
     }
@@ -238,6 +241,37 @@ public class ResourceService {
         resourceRepository.delete(resource);
     }
 
+    public Resource partialUpdateResource(Long id, Resource patch, PUser user) {
+        Resource existing = resourceRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+
+        if (!authService.hasPermission(user, existing, Action.UPDATE)) {
+            throw new AccessDeniedException("Keine Berechtigung, diese Ressource zu ändern.");
+        }
+
+        // Nur unkritische Felder per PATCH änderbar (null = unverändert)
+        if (patch.getName() != null) existing.setName(patch.getName());
+        if (patch.getDescription() != null) existing.setDescription(patch.getDescription());
+        if (patch.getIp() != null) existing.setIp(patch.getIp());
+        if (patch.getIp() != null) existing.setIp(patch.getIp());
+        if (patch.getPort() != null) existing.setPort(patch.getPort());
+        if (patch.getMaxSlots() != null) existing.setMaxSlots(patch.getMaxSlots());
+        if (patch.getStationary() != null) existing.setStationary(patch.getStationary());
+        if (patch.getRemote() != null) existing.setRemote(patch.getRemote());
+
+        // MQTT-Felder
+        if (patch.getMqttResource() != null) existing.setMqttResource(patch.getMqttResource());
+        if (patch.getMqttOnline() != null) existing.setMqttOnline(patch.getMqttOnline());
+        if (patch.getMqttUUID() != null) existing.setMqttUUID(patch.getMqttUUID());
+        if (patch.getMqttDataReceiveTopic() != null) existing.setMqttDataReceiveTopic(patch.getMqttDataReceiveTopic());
+        if (patch.getMqttDataSendTopic() != null) existing.setMqttDataSendTopic(patch.getMqttDataSendTopic());
+
+        // Beziehungen (department, resourceGroup), reservations, skills NICHT per PATCH änderbar!
+        // Dafür gibt es dedizierte Endpoints (createResource, reserveResource, assignSkillToResource).
+
+        return resourceRepository.save(existing);
+    }
+
     /**
      * Validiert, ob eine Ressource zur angegebenen Ressourcengruppe gehört.
      * Wirft EntityNotFoundException wenn Ressource oder Gruppe nicht existieren,
@@ -260,6 +294,23 @@ public class ResourceService {
             throw new IllegalArgumentException(
                     "Ressource " + resourceId + " gehört nicht zu Gruppe " + groupId + ".");
         }
+    }
+
+    /**
+     * Setzt den Online-/Offline-Status einer MQTT-Resource anhand ihrer MQTT-UUID.
+     * Wird vom Inbound-Pfad (Gerät → System, STATUS-Meldung) aufgerufen. Aktualisiert
+     * zusätzlich den Last-Ping-Zeitstempel. Unbekannte UUIDs werden ignoriert (geloggt),
+     * da sich Geräte erst per Discovery registrieren.
+     *
+     * @param mqttUuid die MQTT-UUID des meldenden Geräts
+     * @param online   neuer Online-Zustand
+     */
+    public void setMqttResourceStatusByUuid(String mqttUuid, boolean online) {
+        resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {
+            resource.setMqttOnline(online);
+            resource.setMqttLastPing(java.time.LocalDateTime.now());
+            resourceRepository.save(resource);
+        }, () -> log.warn("STATUS für unbekannte MQTT-UUID '{}' ignoriert.", mqttUuid));
     }
 
 
