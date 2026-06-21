@@ -29,7 +29,7 @@ public class PermissionRecord extends PObject implements PAuthorizedObject {
     @JsonIgnore
     private Department department;
 
-    // Diese Methode wird automatisch vor jedem INSERT und UPDATE aufgerufen
+    // This method is called automatically before every INSERT and UPDATE
     @jakarta.persistence.PrePersist
     @jakarta.persistence.PreUpdate
     public void updateObjectName() {

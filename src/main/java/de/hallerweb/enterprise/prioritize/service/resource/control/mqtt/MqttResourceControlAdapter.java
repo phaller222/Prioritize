@@ -14,14 +14,14 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 
 /**
- * {@link ResourceControlAdapter}-Implementierung für MQTT-gesteuerte Resourcen.
+ * {@link ResourceControlAdapter} implementation for MQTT-controlled resources.
  * <p>
- * Publisht Kommandos als JSON auf das geräteseitige Receive-Topic der Resource.
- * Der eigentliche Paho-Lifecycle (connect/reconnect/subscribe) wird von Spring
- * Integration verwaltet (siehe {@code MqttIntegrationConfig}); dieser Adapter kennt
- * nur einen ausgehenden {@link MessageChannel} und nichts von Paho.
+ * Publishes commands as JSON to the resource's device-side receive topic.
+ * The actual Paho lifecycle (connect/reconnect/subscribe) is managed by Spring
+ * Integration (see {@code MqttIntegrationConfig}); this adapter knows
+ * only an outbound {@link MessageChannel} and nothing about Paho.
  * <p>
- * Nur aktiv, wenn {@code prioritize.mqtt.enabled=true} gesetzt ist.
+ * Only active when {@code prioritize.mqtt.enabled=true} is set.
  *
  * @author peter haller
  */
@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
 @Log4j2
 public class MqttResourceControlAdapter implements ResourceControlAdapter {
 
-    /** Ausgehender Channel; ein Handler in der Integration-Config publisht ans MQTT-Topic. */
+    /** Outbound channel; a handler in the integration config publishes to the MQTT topic. */
     private final MessageChannel mqttOutboundChannel;
     private final ObjectMapper objectMapper;
 
@@ -46,22 +46,22 @@ public class MqttResourceControlAdapter implements ResourceControlAdapter {
     }
 
     @Override
-    public void sendCommand(Resource resource, String command, String param) {
+    public void sendCommand(Resource resource, String command, String param, int slot) {
         String topic = resource.getMqttDataReceiveTopic();
         if (topic == null || topic.isBlank()) {
             throw new IllegalStateException(
-                    "MQTT-Resource " + resource.getId() + " hat kein Receive-Topic konfiguriert.");
+                "MQTT-Resource " + resource.getId() + " hat kein Receive-Topic konfiguriert.");
         }
 
-        ResourceCommandMessage payload = new ResourceCommandMessage(command, param, 0);
+        ResourceCommandMessage payload = new ResourceCommandMessage(command, param, slot);
         try {
             String json = objectMapper.writeValueAsString(payload);
             mqttOutboundChannel.send(MessageBuilder
-                    .withPayload(json)
-                    .setHeader(MqttHeaders.TOPIC, topic)
-                    .build());
-            log.debug("MQTT-Command '{}' an Resource {} (Topic {}) gesendet.",
-                    command, resource.getId(), topic);
+                .withPayload(json)
+                .setHeader(MqttHeaders.TOPIC, topic)
+                .build());
+            log.debug("MQTT-Command '{}' an Resource {} (Slot {}, Topic {}) gesendet.",
+                command, resource.getId(), slot, topic);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Command-Payload konnte nicht serialisiert werden.", e);
         }

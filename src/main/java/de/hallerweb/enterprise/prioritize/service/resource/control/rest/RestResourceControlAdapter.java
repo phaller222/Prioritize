@@ -1,7 +1,7 @@
 package de.hallerweb.enterprise.prioritize.service.resource.control.rest;
 
-import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.exception.ResourceCommandFailedException;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceCommandMessage;
 import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlAdapter;
 import lombok.extern.log4j.Log4j2;
@@ -10,13 +10,13 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * {@link ResourceControlAdapter}-Implementierung für REST-gesteuerte Resourcen.
+ * {@link ResourceControlAdapter} implementation for REST-controlled resources.
  * <p>
- * Dies ist der Standard-/Basis-Transport: jede Resource mit gesetzter {@code ip} ist
- * grundsätzlich per REST steuerbar. Sendet das Kommando als JSON-POST an
- * {@code http://<ip>/command}.
+ * This is the standard/base transport: every resource with a set {@code ip} is
+ * controllable via REST in principle. Sends the command as a JSON POST to
+ * {@code http://<ip>:<port>/command}.
  * <p>
- * Immer aktiv (kein Profil/Property-Gate), da REST der immer verfügbare Default ist.
+ * Always active (no profile/property gate), since REST is the always-available default.
  *
  * @author peter haller
  */
@@ -33,29 +33,29 @@ public class RestResourceControlAdapter implements ResourceControlAdapter {
 
     @Override
     public boolean isAvailable(Resource resource) {
-        // Erreichbarkeit wird hier optimistisch angenommen (IP gesetzt = ansprechbar).
-        // Ein echter Health-Check könnte später ergänzt werden.
+        // Reachability is assumed optimistically here (IP set = addressable).
+        // A real health check could be added later.
         return supports(resource);
     }
 
     @Override
-    public void sendCommand(Resource resource, String command, String param) {
+    public void sendCommand(Resource resource, String command, String param, int slot) {
         int port = resource.getPort() != null ? resource.getPort() : 80;
         String url = "http://" + resource.getIp() + ":" + port + "/command";
-        ResourceCommandMessage payload = new ResourceCommandMessage(command, param, 0);
+        ResourceCommandMessage payload = new ResourceCommandMessage(command, param, slot);
         try {
             restClient.post()
-                    .uri(url)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.debug("REST-Command '{}' an Resource {} ({}) gesendet.",
-                    command, resource.getId(), url);
+                .uri(url)
+                .body(payload)
+                .retrieve()
+                .toBodilessEntity();
+            log.debug("REST-Command '{}' an Resource {} (Slot {}, {}) gesendet.",
+                command, resource.getId(), slot, url);
         } catch (RestClientException ex) {
             log.warn("REST-Command '{}' an Resource {} ({}) fehlgeschlagen: {}",
-                    command, resource.getId(), url, ex.getMessage());
+                command, resource.getId(), url, ex.getMessage());
             throw new ResourceCommandFailedException(
-                    "Gerät unter " + url + " hat das Kommando nicht angenommen: " + ex.getMessage(), ex);
+                "Gerät unter " + url + " hat das Kommando nicht angenommen: " + ex.getMessage(), ex);
         }
     }
 

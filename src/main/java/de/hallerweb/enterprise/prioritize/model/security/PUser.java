@@ -50,7 +50,7 @@ public class PUser extends PActor implements PAuthorizedObject {
     private String firstname;
     private String email;
 
-    @Getter(AccessLevel.NONE) // Passwort sollte nicht einfach per getPassword() im JSON landen
+    @Getter(AccessLevel.NONE) // Password should not simply end up in the JSON via getPassword()
     @JsonIgnore
     private String password;
 
@@ -73,7 +73,7 @@ public class PUser extends PActor implements PAuthorizedObject {
     @JsonIgnore
     private Department department;
 
-    // --- Rollen & Berechtigungen ---
+    // --- Roles & permissions ---
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -81,7 +81,7 @@ public class PUser extends PActor implements PAuthorizedObject {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    @Builder.Default // Damit der Builder kein null-Set erzeugt
+    @Builder.Default // So that the builder does not create a null set
     @JsonIgnore
     private Set<Role> roles = new HashSet<>();
 
@@ -106,7 +106,7 @@ public class PUser extends PActor implements PAuthorizedObject {
         return admin;
     }
 
-    // --- Hilfsmethoden für bequemes Handling ---
+    // --- Helper methods for convenient handling ---
 
     public void addRole(Role role) {
         this.roles.add(role);
@@ -116,8 +116,8 @@ public class PUser extends PActor implements PAuthorizedObject {
         this.personalPermissions.add(record);
     }
 
-    // Manuelle Getter für das Passwort (falls gebraucht),
-    // aber wir verhindern das versehentliche Senden an Clients
+    // Manual getters for the password (if needed),
+    // but we prevent it from being sent to clients accidentally
     public String getPassword() {
         return this.password;
     }

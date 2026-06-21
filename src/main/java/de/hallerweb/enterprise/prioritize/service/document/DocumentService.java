@@ -306,7 +306,7 @@ public class DocumentService {
     public List<DocumentSummaryDTO> getRecentDocuments(PUser user) {
         return documentInfoRepository.findTop10ByOrderByCurrentDocument_LastModifiedDesc()
             .stream()
-            // Nur Dokumente zeigen, für die der User Leserechte hat
+            // Only show documents for which the user has read rights
             .filter(info -> authService.hasPermission(user, info, Action.READ))
             .map(this::convertToDTO)
             .toList();
@@ -328,7 +328,7 @@ public class DocumentService {
     // ==========================================
 
     public DocumentGroup createDocumentGroup(DocumentGroup group) {
-        // Schutz: Default-Gruppe darf nicht manuell angelegt werden
+        // Protection: the default group must not be created manually
         if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
             throw new IllegalArgumentException("Eine Gruppe mit dem Namen 'Default' kann nicht manuell angelegt werden.");
         }

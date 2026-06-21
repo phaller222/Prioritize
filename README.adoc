@@ -1,74 +1,260 @@
 # Prioritize
 
-image::http://www.prioritize-iot.de/logo.png[]
+> Open-source framework for organizing companies, employees, devices (IoT), and their tasks ? Spring Boot 4 / Java 21.
 
+Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, and controls IoT resources over MQTT and REST. The project is being migrated from Java EE to Spring Boot and exposes a REST API throughout, against which arbitrary clients can be built.
 
+---
 
+## Status
 
-## What it is:
+Active migration from Java EE to Spring Boot 4. The state documented here reflects the runnable Spring Boot core: company/user management, documents, skills, resource control (MQTT/REST), and Flowable processes. Some concepts from the original framework (projects, blackboard, calendar, time tracker) are conceptually planned but not yet fully ported to the Spring Boot codebase.
 
-Prioritize is an open source Spring-based Framework to accomplish basically the following tasks:
+---
 
-* Create and manage **companies** and different **departments** as basic structures.
-* Create and manage **users** and **roles** within that structures
-* Create and manage **documents** and **devices** (IOT) over MQTT
-* Create and manage **skills** for users and devices
-* Create and manage **projects**, **tasks** and project **blackboards**
-* **calendar** and scheduler to use with these objects
-* Store and display sensor data from different devices (e.G. temperature from a smartphone) via MQTT and REST interface.
-* Assign tasks from projects to users **and** devices!
-*
+## Technology stack
 
-It can be installed and run as a Spring-Application standalone or in a Docker container.
-It comes with a ready to use REST-API. You can perform different tasks by calling the REST-API Endpoint and provide the correct credentials (Department-Token, User-Token).
+| Area | Technology |
+|---|---|
+| Runtime | Java 21 |
+| Framework | Spring Boot 4.0.5 (Web, Data JPA, Security, Integration) |
+| Persistence | PostgreSQL (production), H2 (local/tests) |
+| Authentication | HTTP Basic Auth **or** OAuth2 Resource Server (Keycloak, JWT) |
+| IoT transport | MQTT (Spring Integration + Eclipse Paho v3) and REST |
+| Process engine | Flowable (BPMN) |
+| Document parsing | Apache Tika |
+| API docs | springdoc-openapi (Swagger UI) |
+| Build | Maven |
+| Boilerplate | Lombok |
 
+---
 
-## Getting started (Quickstart).... TODO...
+## Architecture
 
+### Layers
 
+The application follows a clear layering with a fixed convention for authorization:
 
-## Getting started
+- **Controllers** accept `Authentication`, resolve the `PUser` from it, and pass it **explicitly** to the service layer. Controllers contain no authorization logic.
+- **Services** hold all business logic **including authorization**. Permission checks happen exclusively here and are enforced via exceptions (not via return values).
+- **Repositories** (Spring Data JPA) encapsulate data access.
 
-### Technologie and structure
+Further conventions: constructor injection via Lombok `@RequiredArgsConstructor`; IDs consistently typed as `Long`; `CurrentUserResolver` as the central bridge between Spring Security's `Authentication` and the `PUser` model.
 
+### Resource control (hexagonal)
 
+Control of IoT resources is modeled as a hexagonal port. The rest of the system only knows the `ResourceControlAdapter` interface, not the concrete transport:
 
-**Company** - Defines a company. Prioritize can host more than one company.
+- **REST** (`RestResourceControlAdapter`) is the always-active base transport. Any resource with an IP set is controllable via REST (`POST http://<ip>:<port>/command`).
+- **MQTT** (`MqttResourceControlAdapter`) is an optional, additional capability. The entire MQTT branch is active only when `prioritize.mqtt.enabled=true` (`@ConditionalOnProperty`); otherwise it stays dormant.
 
-**Department** - Defines a department (e.G. sales) within a company.
+The `ResourceControlService` selects the transport per command following a capability-set strategy with fallback:
 
-**User** - As it states, a User of the system usually equipped with credentials to log in.
+1. MQTT capability present **and** online ? MQTT
+2. MQTT capability present but offline + REST endpoint (IP) set ? REST fallback
+3. No MQTT capability ? REST
+4. No reachable transport ? `ResourceOfflineException` (HTTP 503)
 
-**Role** - 					A role a user can be part of (eG. admin role).
+The inbound and outbound directions are deliberately separated: outbound commands go through the port; inbound device events (status, discovery, telemetry) are handled by a separate inbound path (`InboundResourceEventHandler`). The wire format is JSON (`ResourceCommandMessage` with `command` / `param` / `slot`).
 
-**PermissionRecord** - 		Important class to realize the prioritize permissionm model.
+### Slot-bound control via reservations
 
-**Resource** - 				A resource, or device can represents an IoT-device and communicate with the outside.
+Resources can have multiple **slots** (`maxSlots`). A control command always addresses a specific slot ? this slot is **not supplied by the client** but derived server-side from the calling user's active reservation:
 
-**Document** - 				A class representing a concrete document (e.G. a PowerPoint file uploaded by a user).
+- Exactly one active reservation by the user ? its slot is used.
+- No active reservation ? `SlotNotReservedException` (HTTP 409). A command requires an ongoing reservation.
+- Multiple active reservations ? slot is ambiguous ? `SlotNotReservedException` (HTTP 409).
 
-**Skill** - 					Users can have skills (e.G. selling). But skills can also be assigned to resources / devices!
+"Active" means the current point in time lies within the reserved window (`dateFrom <= now < dateUntil`). An expired reservation implicitly releases the slot; a command sent afterwards runs into the 409 case.
 
-**Calendar** - 				As it states a class to represent a calendar holding illness, vacation and other meeting data.
+---
 
-**Project** - 				Main class to represent projects in prioritize
+## Configuration (profiles)
 
-**Blackboard** -				Implements the concept of a blackboard. All tasks of a project can be picked by user or resources.
+Behavior is controlled via Spring profiles. The default profile is `postgres` (see `application.yaml`).
 
-**ActionBoard** - 			Ment to be a kind of message board with user defined data beeing displayed.
+| Profile | Purpose |
+|---|---|
+| `postgres` | PostgreSQL data source (production/NAS setup). **Default.** |
+| `h2` | Local H2 file database including H2 console at `/h2-console`. |
+| `keycloak` | Switches security from Basic Auth to OAuth2 Resource Server (JWT). |
+| `mqtt` | Enables the MQTT transport (`prioritize.mqtt.enabled=true`). |
 
-**Task** - 					Represents a task of a project.
+Profiles are combinable, e.g. `spring.profiles.active=postgres,keycloak,mqtt`.
 
-**TimeTracker**				An implementation of a simple timetracker functionality.
+### Authentication
 
-**ProjectGoal**				Class holding information about project goals, which can be determined automatically.
-...
+The security configuration is profile-dependent and mutually exclusive:
 
-You can completely use the REST interface of prioritize to write your own client (e.G. by using VuJS, angular or any other technology which is capable of communicating with the REST backend.
+- **Without** the `keycloak` profile, `SecurityConfig` (`@Profile("!keycloak")`) applies with **HTTP Basic Auth**.
+- **With** the `keycloak` profile, `KeycloakSecurityConfig` (`@Profile("keycloak")`) applies as an **OAuth2 Resource Server**. The `issuer-uri` is set in `application-keycloak.yaml`; it must exactly match the `iss` claim of the tokens.
 
+### MQTT
+
+Bound to the prefix `prioritize.mqtt` (`MqttProperties`):
+
+```yaml
+prioritize:
+  mqtt:
+    enabled: true
+    broker-url: tcp://memoryalpha:1883   # TLS later: ssl://...:8883
+    client-id: prioritize-backend
+    # username: prioritize
+    # password: ${MQTT_PASSWORD:}
+    qos: 1
+    subscribe-topics:
+      - DISCOVERY
+      - "+/status"
+```
+
+---
+
+## Quickstart (local)
+
+Prerequisites: JDK 21, Maven, a reachable database (or use the `h2` profile).
+
+```bash
+# Local with H2 (no external DB needed)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+
+# Against PostgreSQL (default) with Basic Auth
+./mvnw spring-boot:run
+
+# With Keycloak and MQTT
+./mvnw spring-boot:run -Dspring-boot.run.profiles=postgres,keycloak,mqtt
+```
+
+Tests:
+
+```bash
+./mvnw test
+```
+
+With the `h2` profile, the H2 console is available at `http://localhost:8080/h2-console`.
+
+### API documentation
+
+While the application is running, interactive OpenAPI documentation is served via springdoc (Swagger UI, typically at `/swagger-ui.html`). The `basicAuth` security scheme is registered, so endpoints can be tested authenticated directly from the UI.
+
+---
+
+## REST API (overview)
+
+All core endpoints live under `/api/v1`. Document endpoints are under `/api/v1/documents` and `/api/v1/document-groups`. The table below is an overview, not a complete reference ? the authoritative, always-current description is provided by the OpenAPI docs.
+
+### Resources & control
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/resourcegroups/{groupId}/resources` | Resources of a group |
+| `POST` | `/api/v1/resourcegroups/{groupId}/resources` | Create resource |
+| `GET` | `/api/v1/resources/{id}` | Get resource |
+| `PATCH` | `/api/v1/resources/{id}` | Partial update (null = unchanged) |
+| `DELETE` | `/api/v1/resources/{id}` | Delete resource |
+| `POST` | `/api/v1/resources/{id}/command` | Send control command (slot derived from reservation) |
+| `POST` | `/api/v1/resources/{id}/reserve` | Reserve resource for a time window |
+| `GET` | `/api/v1/resources/{id}/reservations` | All reservations of the resource |
+| `GET` | `/api/v1/resources/{id}/reservations/mine` | Own active reservations (slot preview) |
+| `DELETE` | `/api/v1/reservations/{reservationId}` | Cancel reservation / release slot |
+| `GET` | `/api/v1/resources/{resourceId}/skills` | Skills of a resource |
+| `POST` | `/api/v1/resources/{resourceId}/skills` | Assign skill |
+
+### Resource groups
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/departments/{deptId}/resourcegroups` | Create group |
+| `DELETE` | `/api/v1/resourcegroups/{groupId}` | Delete group |
+
+### Companies & departments
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/companies/{id}` | Get company |
+| `POST` | `/api/v1/companies/filter` | Filter companies |
+| `PUT` | `/api/v1/companies/{id}` | Update company |
+| `DELETE` | `/api/v1/companies/{id}` | Delete company |
+| `POST` | `/api/v1/companies/{companyId}/departments` | Create department |
+| `GET` | `/api/v1/companies/{companyId}/departments` | Departments of a company |
+| `GET` | `/api/v1/departments/{id}` | Get department |
+| `PUT` | `/api/v1/departments/{id}` | Update department |
+| `DELETE` | `/api/v1/departments/{id}` | Delete department |
+
+### Users
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/users/{id}` | Get user |
+| `PUT` | `/api/v1/users/{id}` | Update user |
+| `PATCH` | `/api/v1/users/{id}` | Partial update |
+| `DELETE` | `/api/v1/users/{id}` | Delete user |
+| `GET` | `/api/v1/users/{userId}/skills` | Skills of a user |
+| `POST` | `/api/v1/users/{userId}/skills` | Assign skill |
+
+### Skills
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` / `POST` | `/api/v1/skills` | List / create skills |
+| `GET` / `PUT` / `DELETE` | `/api/v1/skills/{skillId}` | Get / update / delete skill |
+| `GET` / `POST` | `/api/v1/skills/categories` | List / create categories |
+| `GET` / `PUT` / `DELETE` | `/api/v1/skills/categories/{categoryId}` | Get / update / delete category |
+
+### Documents
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/documents/download/{documentInfoId}` | Download document |
+| `GET` | `/api/v1/documents/{id}/version/{versionNumber}` | Get a specific version |
+| `GET` | `/api/v1/documents/{id}/history` | Version history |
+| `POST` | `/api/v1/documents/{id}/check-out` | Check out (lock) |
+| `POST` | `/api/v1/documents/{id}/check-in` | Check in (new version) |
+| `POST` | `/api/v1/documents/{id}/cancel-check-out` | Cancel check-out |
+| `GET` | `/api/v1/documents/search` | Full-text / metadata search |
+| `GET` | `/api/v1/documents/recent` | Recently changed documents |
+| `DELETE` | `/api/v1/documents/{id}` | Delete document |
+| `GET` | `/api/v1/document-groups/{groupId}/documents` | Documents of a group |
+| `DELETE` | `/api/v1/document-groups/{groupId}` | Delete group |
+
+### Processes
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/run` | Start a Flowable process |
+
+---
+
+## Error semantics (HTTP status)
+
+Centralized in `GlobalExceptionHandler`:
+
+| Status | Trigger |
+|---|---|
+| `400 Bad Request` | `IllegalArgumentException` (e.g. invalid date format, end before start date) |
+| `403 Forbidden` | `AccessDeniedException` (missing permission) |
+| `404 Not Found` | `NoSuchElementException` / `EntityNotFoundException` |
+| `409 Conflict` | `IllegalStateException` (e.g. all slots occupied) and `SlotNotReservedException` (no / ambiguous active reservation) |
+| `502 Bad Gateway` | `ResourceCommandFailedException` (device rejected the command) |
+| `503 Service Unavailable` | `ResourceOfflineException` (no reachable control channel) |
+
+---
+
+## Domain model (brief overview)
+
+- **Company / Department** ? multi-tenant base structure; a single instance can host multiple companies.
+- **PUser / Role / PermissionRecord** ? users, roles, and the fine-grained permission model.
+- **Resource** ? a device / resource; can represent an IoT device and communicate externally (REST/MQTT). Has slots and reservations.
+- **ResourceReservation** ? time-bound occupancy of a resource slot by a user.
+- **Document / DocumentInfo / DocumentGroup** ? documents with versioning and check-in/check-out.
+- **Skill / SkillCategory / SkillRecord** ? capabilities; assignable to users **and** resources.
+- **Address** ? embedded value object, managed exclusively through its owners (Company, Department, PUser).
+
+---
 
 ## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+Pull requests are welcome. For major changes, please open an issue first to discuss the direction.
 
 ## License
-[Apache] (http://www.apache.org/licenses/LICENSE-2.0)
+
+Apache License 2.0 ? see [LICENSE](LICENSE). Source files carry the corresponding Apache 2.0 headers.

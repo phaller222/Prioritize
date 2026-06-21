@@ -18,9 +18,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
 //        http
-//                .csrf(csrf -> csrf.disable()) // Deaktivieren für einfache REST-Tests
+//                .csrf(csrf -> csrf.disable()) // Disable for simple REST tests
 //                .authorizeHttpRequests(auth -> auth
-//                        .anyRequest().permitAll() // Erlaubt vorerst alles ohne Login
+//                        .anyRequest().permitAll() // Allows everything without login for now
 //                );
 //        return http.build();
         http
@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .httpBasic(org.springframework.security.config.Customizer.withDefaults()) // Aktiviert Basic Auth
-                .headers(headers -> headers.frameOptions(f -> f.disable())); // Für H2 Konsole
+                .headers(headers -> headers.frameOptions(f -> f.disable())); // For the H2 console
 
         return http.build();
     }

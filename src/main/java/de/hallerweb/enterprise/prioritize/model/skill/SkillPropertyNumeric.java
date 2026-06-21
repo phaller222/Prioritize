@@ -9,7 +9,7 @@ import lombok.*;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor // Für Builder
+@AllArgsConstructor // For the builder
 @Builder
 public class SkillPropertyNumeric extends SkillProperty {
     private int minimum;

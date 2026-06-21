@@ -23,8 +23,8 @@ public class CompanyService {
     private final CompanyRepository companyRepository;
     private final AuthorizationService authService;
 
-    // TODO Mandantenfähigkeit: später auf die für 'user' sichtbaren Firmen filtern
-    // (statt findAll), sobald das Tenant-Konzept an Company steht.
+    // TODO multi-tenancy: later filter to the companies visible to 'user'
+    // (instead of findAll), once the tenant concept is in place on Company.
     @Transactional(readOnly = true)
     public List<Company> findAll() {
         return companyRepository.findAll();
@@ -41,8 +41,8 @@ public class CompanyService {
     }
 
     /**
-     * Interne Variante ohne Berechtigungsprüfung – nur für andere Service-Methoden,
-     * die bereits eine eigene Prüfung durchgeführt haben.
+     * Internal variant without permission check – only for other service methods
+     * that have already performed their own check.
      */
     @Transactional(readOnly = true)
     Company findByIdInternal(Long id) {
@@ -53,7 +53,7 @@ public class CompanyService {
     public Collection<Company> searchCompanies(Company filter) {
         if (filter == null) return companyRepository.findAll();
 
-        // Wir ziehen die Adressdaten sicher heraus
+        // We safely extract the address data
         Address addr = filter.getMainAddress();
         String country = (addr != null) ? addr.getCountry() : null;
         String city = (addr != null) ? addr.getCity() : null;
@@ -86,16 +86,16 @@ public class CompanyService {
             throw new AccessDeniedException("Keine Berechtigung zum Ändern dieser Firma.");
         }
 
-        // Nur Basis-Daten aktualisieren, um Beziehungen nicht versehentlich zu killen
+        // Only update base data, so as not to accidentally kill relationships
         company.setName(companyDetails.getName());
         company.setDescription(companyDetails.getDescription());
         company.setUrl(companyDetails.getUrl());
         company.setVatNumber(companyDetails.getVatNumber());
         company.setTaxId(companyDetails.getTaxId());
 
-        // Adresse eingebettet behandeln (null = unverändert lassen).
-        // Mitgeschickte Adresse aktualisiert die bestehende bzw. legt eine neue an;
-        // Persistierung erfolgt per Cascade über die Company.
+        // Treat the address as embedded (null = leave unchanged).
+        // A supplied address updates the existing one or creates a new one;
+        // persistence happens via cascade through the Company.
         if (companyDetails.getMainAddress() != null) {
             Address newAddr = companyDetails.getMainAddress();
             Address existingAddr = company.getMainAddress();
@@ -114,7 +114,7 @@ public class CompanyService {
             }
         }
 
-        // companyRepository.save(company); // Oft unnötig wegen Dirty Checking innerhalb von @Transactional
+        // companyRepository.save(company); // Often unnecessary due to dirty checking within @Transactional
     }
 
     public void deleteCompany(Long id, PUser user) {

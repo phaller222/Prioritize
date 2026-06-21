@@ -26,10 +26,10 @@ public class Role extends PObject implements PAuthorizedObject {
     @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PermissionRecord> permissions;
 
-    @ManyToMany(mappedBy = "roles") // Die Gegenseite liegt im PUser
+    @ManyToMany(mappedBy = "roles") // The opposite side resides in PUser
     private Set<PUser> users;
 
-    @ManyToOne // Geändert von OneToOne auf ManyToOne, falls eine Abteilung mehrere Rollen haben kann
+    @ManyToOne // Changed from OneToOne to ManyToOne, in case a department can have multiple roles
     private Department department;
 
     public void addPermission(PermissionRecord rec) {

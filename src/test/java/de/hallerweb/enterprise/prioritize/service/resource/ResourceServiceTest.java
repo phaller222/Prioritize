@@ -52,18 +52,18 @@ class ResourceServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Admin-User aus der DB holen (wird vom InitializationService angelegt)
+        // Fetch admin user from the DB (created by the InitializationService)
         adminUser = userService.findUserByUsername("admin");
 
-        // Department aus der DB holen (wird vom InitializationService angelegt)
+        // Fetch department from the DB (created by the InitializationService)
         testDept = departmentRepository.findAll().stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Kein Department gefunden - InitializationService nicht gelaufen?"));
 
-        // Eigene Testgruppe anlegen (nicht die Default-Gruppe)
+        // Create own test group (not the default group)
         testGroup = resourceService.createResourceGroup("Test-Ressourcengruppe", testDept, adminUser);
 
-        // Eine Testressource anlegen
+        // Create a test resource
         Resource resource = Resource.builder()
                 .name("Test-Ressource")
                 .description("Eine Ressource für Tests")
@@ -184,7 +184,7 @@ class ResourceServiceTest {
         resourceService.reserveResource(testResource.getId(), adminUser, from, until);
         resourceService.reserveResource(testResource.getId(), adminUser, from, until);
 
-        // Dritte Reservierung muss fehlschlagen
+        // Third reservation must fail
         assertThrows(IllegalStateException.class,
                 () -> resourceService.reserveResource(testResource.getId(), adminUser, from, until));
     }

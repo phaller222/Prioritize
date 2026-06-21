@@ -10,8 +10,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.io.Serializable;
 
 /**
- * Basisklasse für alle persistenten Objekte im System.
- * Liefert die technische ID und stellt sicher, dass alle Objekte serialisierbar sind.
+ * Base class for all persistent objects in the system.
+ * Provides the technical ID and ensures that all objects are serializable.
  */
 @MappedSuperclass
 @Getter

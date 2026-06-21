@@ -13,7 +13,7 @@ public interface RoleRepository extends JpaRepository<Role, Integer> {
 
     Optional<Role> findByName(String name);
 
-    // Hilfreich für die Suche (Case Insensitive)
+    // Helpful for the search (case insensitive)
     List<Role> findByNameContainingIgnoreCase(String query);
 
     List<Role> findByPermissions_Id(int permissionRecordId);

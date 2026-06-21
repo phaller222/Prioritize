@@ -12,26 +12,48 @@ import java.util.List;
 @Repository
 public interface ResourceReservationRepository extends JpaRepository<ResourceReservation, Integer> {
 
-    // Findet alle Reservierungen für eine bestimmte Ressource
+    // Finds all reservations for a specific resource
     List<ResourceReservation> findByResourceId(int resourceId);
 
     // Findet alle Reservierungen eines bestimmten Benutzers
     List<ResourceReservation> findByReservedBy_Id(int userId);
 
-    // Findet Reservierungen innerhalb einer Abteilung (über die Ressource)
+    // Finds reservations within a department (via the resource)
     List<ResourceReservation> findByResource_Department_Id(int departmentId);
 
-    // Findet alle Reservierungen, die in der Zukunft enden (aktive und kommende)
+    // Finds all reservations that end in the future (active and upcoming)
     List<ResourceReservation> findByTimespan_DateUntilAfter(Instant now);
 
     /**
-     * Findet alle Reservierungen einer Ressource, die sich mit einem Zeitraum überschneiden.
-     * Das ist die Datenbank-Entsprechung zu deiner intersects() Methode.
+     * Finds all reservations of a resource that overlap with a time span.
+     * This is the database equivalent of your intersects() method.
      */
     @Query("SELECT r FROM ResourceReservation r WHERE r.resource.id = :resId " +
-            "AND r.timespan.dateFrom < :until AND r.timespan.dateUntil > :from")
+        "AND r.timespan.dateFrom < :until AND r.timespan.dateUntil > :from")
     List<ResourceReservation> findOverlappingReservations(
-            @Param("resId") Long resourceId,
-            @Param("from") Instant from,
-            @Param("until") Instant until);
+        @Param("resId") Long resourceId,
+        @Param("from") Instant from,
+        @Param("until") Instant until);
+
+    /**
+     * Finds all reservations of a resource active at the point in time {@code now},
+     * held by the given user. "Active" = the point in time lies within the
+     * reserved window ({@code dateFrom <= now < dateUntil}).
+     * <p>
+     * Basis for slot derivation when sending control commands: the slot
+     * is not supplied by the client but determined from the user's own active
+     * reservation.
+     *
+     * @param resourceId resource the reservation refers to
+     * @param userId     the user holding the reservation
+     * @param now        reference point in time (usually {@code Instant.now()})
+     * @return active reservations of this user on this resource
+     */
+    @Query("SELECT r FROM ResourceReservation r WHERE r.resource.id = :resId " +
+        "AND r.reservedBy.id = :userId " +
+        "AND r.timespan.dateFrom <= :now AND r.timespan.dateUntil > :now")
+    List<ResourceReservation> findActiveReservationsByUser(
+        @Param("resId") Long resourceId,
+        @Param("userId") Long userId,
+        @Param("now") Instant now);
 }

@@ -44,8 +44,8 @@ class CompanyServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Admin-User aus der DB holen (wird vom InitializationService angelegt);
-        // passiert dank isAdmin() alle Berechtigungs-Guards.
+        // Fetch admin user from the DB (created by the InitializationService);
+        // passes all permission guards thanks to isAdmin().
         adminUser = userService.findUserByUsername("admin");
 
         acmeAddress = Address.builder()

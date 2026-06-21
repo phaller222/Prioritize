@@ -8,18 +8,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository für ResourceGroup Entitäten.
+ * Repository for ResourceGroup entities.
  */
 @Repository
 public interface ResourceGroupRepository extends JpaRepository<ResourceGroup, Long> {
 
-    // Findet alle Gruppen einer bestimmten Abteilung
+    // Finds all groups of a specific department
     List<ResourceGroup> findByDepartment_Id(Long departmentId);
 
-    // Findet eine spezifische Gruppe nach Namen innerhalb einer Abteilung
-    // Wichtig für den Check auf die "Default"-Gruppe
+    // Finds a specific group by name within a department
+    // Important for the check on the "default" group
     Optional<ResourceGroup> findByNameAndDepartment_Id(String name, int departmentId);
 
-    // Findet Gruppen nach Namen (Global)
+    // Finds groups by name (global)
     List<ResourceGroup> findByNameContainingIgnoreCase(String name);
 }

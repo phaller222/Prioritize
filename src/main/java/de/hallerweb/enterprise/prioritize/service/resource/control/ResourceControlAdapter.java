@@ -3,51 +3,52 @@ package de.hallerweb.enterprise.prioritize.service.resource.control;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 
 /**
- * Port (Hexagonal Architecture) für die ausgehende Steuerung einer {@link Resource}.
+ * Port (hexagonal architecture) for the outbound control of a {@link Resource}.
  * <p>
- * Der Rest des Systems steuert eine Resource ausschließlich über dieses Interface und
- * weiß nicht, <em>wie</em> (über welchen Transport) das Kommando das Gerät erreicht.
- * Konkrete Implementierungen kapseln den Transport (MQTT, REST, ...).
+ * The rest of the system controls a resource solely through this interface and
+ * does not know <em>how</em> (over which transport) the command reaches the device.
+ * Concrete implementations encapsulate the transport (MQTT, REST, ...).
  * <p>
- * Die <em>eingehende</em> Richtung (Gerät → System: Discovery, Status, Telemetrie) ist
- * bewusst NICHT Teil dieses Interfaces, da sie zu REST asymmetrisch ist und über einen
- * separaten Inbound-Pfad verarbeitet wird.
+ * The <em>inbound</em> direction (device → system: discovery, status, telemetry) is
+ * deliberately NOT part of this interface, since it is asymmetric to REST and is
+ * processed via a separate inbound path.
  *
  * @author peter haller
  */
 public interface ResourceControlAdapter {
 
     /**
-     * Gibt an, ob dieser Adapter die übergebene Resource grundsätzlich steuern kann
-     * (Capability-Check, unabhängig vom aktuellen Online-Zustand).
+     * Indicates whether this adapter can control the given resource in principle
+     * (capability check, independent of the current online state).
      *
-     * @param resource die zu prüfende Resource
-     * @return {@code true}, wenn dieser Adapter für die Resource zuständig ist
+     * @param resource the resource to check
+     * @return {@code true} if this adapter is responsible for the resource
      */
     boolean supports(Resource resource);
 
     /**
-     * Gibt an, ob die Resource über diesen Adapter aktuell erreichbar ist
-     * (z.B. MQTT: online; REST: IP gesetzt). Nur sinnvoll, wenn {@link #supports} true ist.
+     * Indicates whether the resource is currently reachable via this adapter
+     * (e.g. MQTT: online; REST: IP set). Only meaningful if {@link #supports} is true.
      *
-     * @param resource die zu prüfende Resource
-     * @return {@code true}, wenn die Resource über diesen Transport gerade steuerbar ist
+     * @param resource the resource to check
+     * @return {@code true} if the resource is currently controllable via this transport
      */
     boolean isAvailable(Resource resource);
 
     /**
-     * Sendet ein Steuerkommando mit optionalem freiem Parameter an die Resource.
+     * Sends a control command with an optional free parameter to the resource.
      *
-     * @param resource Ziel-Resource
-     * @param command  Kommando-Bezeichner (frei definiert)
-     * @param param    optionaler, frei definierter Parameterwert (darf {@code null} sein)
+     * @param resource target resource
+     * @param command  command identifier (freely defined)
+     * @param param    optional, freely defined parameter value (may be {@code null})
+     * @param slot     the addressed slot (derived from the user's active reservation)
      */
-    void sendCommand(Resource resource, String command, String param);
+    void sendCommand(Resource resource, String command, String param, int slot);
 
     /**
-     * Transport-Kennung für Logging/Diagnose (z.B. "MQTT", "REST").
+     * Transport identifier for logging/diagnostics (e.g. "MQTT", "REST").
      *
-     * @return kurzer Transport-Name
+     * @return short transport name
      */
     String getTransportName();
 }

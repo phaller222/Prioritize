@@ -18,17 +18,17 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageHandler;
 
 /**
- * Deklarative Spring-Integration-Verdrahtung für MQTT. Kapselt den kompletten
- * Paho-Lifecycle (Connect, Reconnect, Subscribe) — der Rest des Systems sieht nur
+ * Declarative Spring Integration wiring for MQTT. Encapsulates the entire
+ * Paho lifecycle (connect, reconnect, subscribe) — the rest of the system sees only
  * Spring {@link MessageChannel}s.
  * <p>
- * Outbound: Nachrichten auf {@code mqttOutboundChannel} werden ans im Header
- * {@code mqtt_topic} angegebene Topic publiziert.
+ * Outbound: messages on {@code mqttOutboundChannel} are published to the topic
+ * specified in the {@code mqtt_topic} header.
  * <p>
- * Inbound: Eingehende Nachrichten der abonnierten Topics landen auf
- * {@code mqttInboundChannel} und werden vom {@link InboundResourceEventHandler} verarbeitet.
+ * Inbound: incoming messages of the subscribed topics arrive on
+ * {@code mqttInboundChannel} and are processed by the {@link InboundResourceEventHandler}.
  * <p>
- * Nur aktiv, wenn {@code prioritize.mqtt.enabled=true}.
+ * Only active when {@code prioritize.mqtt.enabled=true}.
  *
  * @author peter haller
  */
@@ -59,7 +59,7 @@ public class MqttIntegrationConfig {
         return factory;
     }
 
-    // ---------------- Outbound (System → Gerät) ----------------
+    // ---------------- Outbound (system → device) ----------------
 
     @Bean
     public MessageChannel mqttOutboundChannel() {
@@ -73,11 +73,11 @@ public class MqttIntegrationConfig {
                 new MqttPahoMessageHandler(props.getClientId() + "-pub", factory);
         handler.setAsync(true);
         handler.setDefaultQos(props.getQos());
-        // Topic kommt pro Nachricht aus dem Header mqtt_topic (siehe Adapter).
+        // Topic comes per message from the mqtt_topic header (see adapter).
         return handler;
     }
 
-    // ---------------- Inbound (Gerät → System) ----------------
+    // ---------------- Inbound (device → system) ----------------
 
     @Bean
     public MessageChannel mqttInboundChannel() {

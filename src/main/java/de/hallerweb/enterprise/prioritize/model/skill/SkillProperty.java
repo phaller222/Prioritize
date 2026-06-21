@@ -11,17 +11,17 @@ import lombok.*;
 @DiscriminatorColumn(name = "property_type")
 @Getter
 @Setter
-@NoArgsConstructor // Für JPA
+@NoArgsConstructor // For JPA
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString(onlyExplicitlyIncluded = true)
 @JsonTypeInfo(
-        use = JsonTypeInfo.Id.NAME,          // Wir nutzen logische Namen zur Unterscheidung
-        include = JsonTypeInfo.As.PROPERTY,  // Der Typ-Indikator wird als Feld ins JSON gepackt
-        property = "type"                    // Das JSON-Feld heißt "type"
+        use = JsonTypeInfo.Id.NAME,          // We use logical names for differentiation
+        include = JsonTypeInfo.As.PROPERTY,  // The type indicator is embedded as a field in the JSON
+        property = "type"                    // The JSON field is called "type"
 )
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = SkillPropertyNumeric.class, name = "NUMERIC"), // Verknüpft den Namen "NUMERIC" mit der Klasse
-        @JsonSubTypes.Type(value = SkillPropertyText.class, name = "TEXT") // Verknüpft den Namen "TEXT" mit der Klasse
+        @JsonSubTypes.Type(value = SkillPropertyNumeric.class, name = "NUMERIC"), // Associates the name "NUMERIC" with the class
+        @JsonSubTypes.Type(value = SkillPropertyText.class, name = "TEXT") // Associates the name "TEXT" with the class
 })
 public abstract class SkillProperty {
 

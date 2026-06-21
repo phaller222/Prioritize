@@ -76,23 +76,23 @@ public class SkillService {
 
     @Transactional
     public SkillRecord assignSkillToUser(Long userId, SkillRecord record) {
-        // 1. Den echten User über deinen UserService laden
+        // 1. Load the actual user via your UserService
         PUser user = userService.getUserById(userId);
         record.setUser(user);
 
-        // 2. Den globalen Skill verifizieren
+        // 2. Verify the global skill
         Skill skill = skillRepository.findById(record.getSkill().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Skill nicht gefunden"));
         record.setSkill(skill);
 
-        // Wir prüfen, ob der User bereits einen Record für DIESEN spezifischen Skill hat
+        // We check whether the user already has a record for THIS specific skill
         if (user.getSkills() != null) {
             boolean skillAlreadyAssigned = user.getSkills().stream()
                     .anyMatch(existingRecord -> existingRecord.getSkill().getId().equals(skill.getId()));
 
             if (skillAlreadyAssigned) {
                 throw new IllegalArgumentException("Dieser Skill wurde dem Benutzer bereits zugewiesen!");
-                // Alternativ kannst du eine eigene Exception werfen, z.B. SkillAlreadyAssignedException
+                // Alternatively you can throw a custom exception, e.g. SkillAlreadyAssignedException
             }
         }
 
@@ -104,7 +104,7 @@ public class SkillService {
         return skillRecordRepository.save(record);
     }
 
-    // --- SKILL RECORDS (RESSOURCEN ZUORDNUNG) ---
+    // --- SKILL RECORDS (RESOURCE ASSIGNMENT) ---
 
     @Transactional(readOnly = true)
     public Set<SkillRecord> getSkillsForResource(Long resourceId) {
@@ -113,7 +113,7 @@ public class SkillService {
 
     @Transactional
     public SkillRecord assignSkillToResource(Long resourceId, SkillRecord record) {
-        // 1. Ressource laden
+        // 1. Load resource
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new EntityNotFoundException("Resource mit ID " + resourceId + " nicht gefunden"));
         record.setResource(resource);
@@ -165,14 +165,14 @@ public class SkillService {
 
     @Transactional
     public void deleteCategory(Long categoryId) {
-        // 1. Prüfen, ob die zu löschende Kategorie überhaupt existiert
+        // 1. Check whether the category to be deleted even exists
         if (!skillCategoryRepository.existsById(categoryId)) {
             throw new EntityNotFoundException("Kategorie mit ID " + categoryId + " nicht gefunden");
         }
 
-        // 2. SCHRITT 1: Finde alle IDs im Unterbaum direkt auf DB-Ebene mit einer rekursiven Abfrage (PostgreSQL CTE)
+        // 2. STEP 1: Find all IDs in the subtree directly at the DB level with a recursive query (PostgreSQL CTE)
         String cteQuery =
-                "WITH RECURSIVE subcategories(id) AS (" +  // <-- Hier das (id) für H2-Kompatibilität hinzugefügt!
+                "WITH RECURSIVE subcategories(id) AS (" +  // <-- Added the (id) here for H2 compatibility!
                         "    SELECT id FROM skill_category WHERE id = :rootId" +
                         "    UNION ALL" +
                         "    SELECT c.id FROM skill_category c" +
@@ -186,29 +186,29 @@ public class SkillService {
 
         if (!allCategoryIdsToDelete.isEmpty()) {
 
-            // 3. SCHRITT 2: Alle betroffenen Skills von diesen Kategorien lösen (Fremdschlüssel nullen)
+            // 3. STEP 2: Detach all affected skills from these categories (null the foreign keys)
             entityManager.createNativeQuery("UPDATE skill SET category_id = NULL WHERE category_id IN :ids")
                     .setParameter("ids", allCategoryIdsToDelete)
                     .executeUpdate();
 
-            // 4. SCHRITT 3: Die Eltern-Kind-Beziehungen innerhalb des Baums auflösen
+            // 4. STEP 3: Dissolve the parent-child relationships within the tree
             entityManager.createNativeQuery("UPDATE skill_category SET parent_category_id = NULL WHERE id IN :ids")
                     .setParameter("ids", allCategoryIdsToDelete)
                     .executeUpdate();
 
-            // 5. SCHRITT 4: Jetzt den gesamten Ast rückstandslos entfernen
+            // 5. STEP 4: Now remove the entire branch without residue
             entityManager.createNativeQuery("DELETE FROM skill_category WHERE id IN :ids")
                     .setParameter("ids", allCategoryIdsToDelete)
                     .executeUpdate();
         }
 
-        // 6. Hibernate-Cache komplett leeren, damit die gelöschten Entitäten im RAM nicht mehr existieren
+        // 6. Clear the Hibernate cache completely, so that the deleted entities no longer exist in RAM
         entityManager.clear();
     }
 
     /**
-     * Öffnet eine isolierte Transaktion, setzt alle Fremdschlüssel auf NULL,
-     * speichert dies persistent in der DB ab und schließt die Transaktion sofort wieder.
+     * Opens an isolated transaction, sets all foreign keys to NULL,
+     * persists this to the DB and closes the transaction again immediately.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void breakCategoryRelationships(Set<Integer> ids) {
@@ -232,8 +232,8 @@ public class SkillService {
         }
         ids.add(category.getId());
         if (category.getSubCategories() != null) {
-            // Da die Collection durch findAllWithSubCategories() bereits voll im RAM ist,
-            // triggert dieser Loop kein veränderndes DB-Nachladen mehr!
+            // Since the collection is already fully in RAM via findAllWithSubCategories(),
+            // this loop no longer triggers any mutating DB reloading!
             for (SkillCategory sub : category.getSubCategories()) {
                 collectCategoryIdsInMemoryRecursive(sub, ids);
             }
@@ -250,8 +250,8 @@ public class SkillService {
     }
 
     /**
-     * Interne Variante ohne Berechtigungsprüfung – nur für andere Service-Methoden,
-     * die bereits eine eigene Prüfung durchgeführt haben.
+     * Internal variant without permission check – only for other service methods
+     * that have already performed their own check.
      */
     @Transactional(readOnly = true)
     Skill getSkillByIdInternal(Long skillId) {

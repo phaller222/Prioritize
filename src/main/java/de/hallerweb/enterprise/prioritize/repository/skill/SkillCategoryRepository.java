@@ -12,9 +12,9 @@ public interface SkillCategoryRepository extends JpaRepository<SkillCategory, Lo
     SkillCategory findByName(String name);
 
     /**
-     * Lädt alle Skill-Kategorien und zieht deren Unterkategorien (subCategories)
-     * sofort in demselben DB-Abruf mit (Eager Loading per JOIN FETCH).
-     * Das verhindert eine ConcurrentModificationException im Service.
+     * Loads all skill categories and eagerly pulls their subcategories
+     * in the same DB call (eager loading via JOIN FETCH).
+     * This prevents a ConcurrentModificationException in the service.
      */
     @Query("SELECT DISTINCT c FROM SkillCategory c LEFT JOIN FETCH c.subCategories")
     List<SkillCategory> findAllWithSubCategories();

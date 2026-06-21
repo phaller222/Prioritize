@@ -33,7 +33,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             @Param("taxId") String taxId,
             @Param("country") String country,
             @Param("housenumber") String housenumber,
-            @Param("street") String street, // Parameter hinzufügen!
+            @Param("street") String street, // Add parameter!
             @Param("description") String description,
             @Param("city") String city);
 

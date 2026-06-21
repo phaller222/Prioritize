@@ -39,7 +39,7 @@ public class SkillRecord extends PObject {
 
     private Integer enthusiasm; // 0 bis 10
 
-    // Helper für Properties
+    // Helper for properties
     public void addSkillRecordProperty(SkillRecordProperty prop) {
         this.skillRecordProperties.add(prop);
     }

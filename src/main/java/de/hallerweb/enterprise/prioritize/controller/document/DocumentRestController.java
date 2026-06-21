@@ -34,7 +34,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Upload eines neuen Dokuments in eine DocumentGroup.
+     * Upload of a new document into a DocumentGroup.
      * POST /api/v1/documents/upload/{groupId}
      */
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -53,7 +53,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Download der aktuellen Version eines Dokuments.
+     * Download of the current version of a document.
      * GET /api/v1/documents/download/{documentInfoId}
      */
     @GetMapping("/download/{documentInfoId}")
@@ -68,7 +68,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Download einer spezifischen Version eines Dokuments.
+     * Download of a specific version of a document.
      * GET /api/v1/documents/{id}/version/{versionNumber}
      */
     @GetMapping("/{id}/version/{versionNumber}")
@@ -85,7 +85,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Alle Dokumente einer DocumentGroup als DTO-Liste.
+     * All documents of a DocumentGroup as a DTO list.
      * GET /api/v1/documents/group/{groupId}
      */
     @GetMapping("/group/{groupId}")
@@ -125,7 +125,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Dokument löschen.
+     * Delete document.
      * DELETE /api/v1/documents/{id}
      */
     @DeleteMapping("/{id}")
@@ -165,7 +165,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Checkout abbrechen (entsperren ohne neue Version).
+     * Cancel checkout (unlock without a new version).
      * POST /api/v1/documents/{id}/cancel-check-out
      */
     @PostMapping("/{id}/cancel-check-out")
@@ -175,7 +175,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Dokumente nach Name suchen.
+     * Search documents by name.
      * GET /api/v1/documents/search?name=...
      */
     @GetMapping("/search")
@@ -184,7 +184,7 @@ public class DocumentRestController {
     }
 
     /**
-     * Die 10 zuletzt geänderten Dokumente.
+     * The 10 most recently modified documents.
      * GET /api/v1/documents/recent
      */
     @GetMapping("/recent")

@@ -53,7 +53,7 @@ public class Address extends PObject {
     @EqualsAndHashCode.Include
     private String housenumber;
     @ToString.Include
-    private String floor; // Etage (bei Bedarf)
+    private String floor; // Floor (if needed)
     @ToString.Include
     @EqualsAndHashCode.Include
     private String zipCode;
@@ -63,7 +63,7 @@ public class Address extends PObject {
     @ToString.Include
     private String country;
 
-    // Kontaktinfos meist nicht im ToString nötig, um Logs kompakt zu halten
+    // Contact info usually not needed in toString, to keep logs compact
     private String phone;
     private String fax;
     private String mobile;

@@ -1,18 +1,18 @@
 package de.hallerweb.enterprise.prioritize.service.resource.control;
 
 /**
- * JSON-Wire-Format für ein an eine Resource gesendetes Steuerkommando.
+ * JSON wire format for a control command sent to a resource.
  * <p>
- * Ersetzt das alte Doppelpunkt-getrennte Textformat ({@code COMMAND;PARAM:SLOT}) durch
- * ein erweiterbares, selbstbeschreibendes JSON-Objekt. Neue Felder können ergänzt werden,
- * ohne bestehende Geräte-Parser zu brechen.
+ * Replaces the old colon-delimited text format ({@code COMMAND;PARAM:SLOT}) with
+ * an extensible, self-describing JSON object. New fields can be added
+ * without breaking existing device parsers.
  * <p>
- * Beispiel-Payload:
+ * Example payload:
  * <pre>{ "command": "SET_TEMP", "param": "21", "slot": 1 }</pre>
  *
- * @param command Kommando-Bezeichner
- * @param param   optionaler freier Parameterwert (kann {@code null} sein)
- * @param slot    reservierter Slot des Aufrufers (0, falls nicht slot-gebunden)
+ * @param command command identifier
+ * @param param   optional free parameter value (may be {@code null})
+ * @param slot    the caller's reserved slot (0 if not slot-bound)
  */
 public record ResourceCommandMessage(String command, String param, int slot) {
 }

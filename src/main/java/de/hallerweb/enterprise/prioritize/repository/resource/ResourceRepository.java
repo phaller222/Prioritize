@@ -12,19 +12,19 @@ import java.util.Optional;
 @Repository
 public interface ResourceRepository extends JpaRepository<Resource, Long> {
 
-    // Standard-Suche nach Namen
+    // Standard search by name
     List<Resource> findByNameContainingIgnoreCase(String name);
 
-    // Findet alle Ressourcen einer bestimmten Abteilung
+    // Finds all resources of a specific department
     List<Resource> findByDepartment_Id(Long departmentId);
 
-    // Findet Ressourcen, die aktuell nicht belegt sind (busy = false)
+    // Finds resources that are currently not occupied (busy = false)
     List<Resource> findByBusyFalse();
 
-    // Spezialsuche für MQTT-Geräte, die online sind
+    // Special search for MQTT devices that are online
     List<Resource> findByMqttResourceTrueAndMqttOnlineTrue();
 
-    // Die "große" Suche mit Filtern (ähnlich wie bei der Company)
+    // The "large" search with filters (similar to the one for Company)
     @Query("SELECT r FROM Resource r WHERE " +
             "(:name IS NULL OR LOWER(r.name) LIKE LOWER(CONCAT('%', :name, '%'))) AND " +
             "(:description IS NULL OR LOWER(r.description) LIKE LOWER(CONCAT('%', :description, '%'))) AND " +
@@ -37,9 +37,9 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
             @Param("mqttResource") Boolean mqttResource
     );
 
-    // Findet alle Ressourcen einer bestimmten Gruppe
+    // Finds all resources of a specific group
     List<Resource> findByResourceGroup_Id(Long groupId);
 
-    // Hilfreich für MQTT-Updates
+    // Helpful for MQTT updates
     Optional<Resource> findByMqttUUID(String mqttUUID);
 }

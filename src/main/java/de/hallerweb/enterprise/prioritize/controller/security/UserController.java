@@ -35,7 +35,7 @@ public class UserController {
     }
 
     /**
-     * Suche nach Username: GET /api/v1/users?username=peter
+     * Search by username: GET /api/v1/users?username=peter
      */
     @GetMapping(params = "username")
     public ResponseEntity<PUser> getByUsername(@RequestParam String username) {
@@ -48,9 +48,9 @@ public class UserController {
     }
 
     /**
-     * PUT: Vollständiges Update – ersetzt alle Felder.
-     * Achtung: Passwort, Rollen und Berechtigungen werden ignoriert.
-     * Dafür gibt es dedizierte Endpoints.
+     * PUT: Full update – replaces all fields.
+     * Note: password, roles and permissions are ignored.
+     * Dedicated endpoints exist for those.
      */
     @PutMapping("/{id}")
     public ResponseEntity<PUser> update(@PathVariable Long id, @RequestBody PUser user) {
@@ -59,9 +59,9 @@ public class UserController {
     }
 
     /**
-     * PATCH: Teilupdate – nur mitgeschickte Felder werden überschrieben.
-     * Passwort wird verschlüsselt falls mitgeschickt.
-     * Rollen und admin-Flag sind nicht änderbar.
+     * PATCH: Partial update – only supplied fields are overwritten.
+     * The password is encrypted if supplied.
+     * Roles and the admin flag are not modifiable.
      */
     @PatchMapping("/{id}")
     public ResponseEntity<PUser> partialUpdate(

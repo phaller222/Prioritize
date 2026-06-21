@@ -42,7 +42,7 @@ public class ResourceGroup extends PObject implements PAuthorizedObject {
         return super.getId();
     }
 
-    // Hilfsmethode für bidirektionale Konsistenz
+    // Helper method for bidirectional consistency
     public void addResource(Resource resource) {
         if (resources == null) {
             resources = new HashSet<>();

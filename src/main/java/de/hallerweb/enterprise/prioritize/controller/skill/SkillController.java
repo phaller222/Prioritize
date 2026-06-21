@@ -72,13 +72,13 @@ public class SkillController {
     }
 
     // ==========================================
-    // LÖSCH-ENDPUNKTE
+    // DELETE ENDPOINTS
     // ==========================================
 
     @DeleteMapping("/skills/{skillId}")
     public ResponseEntity<Void> deleteSkill(@PathVariable Long skillId, Authentication auth) {
         skillService.deleteSkill(skillId, currentUserResolver.resolve(auth));
-        return ResponseEntity.noContent().build(); // 204 No Content ist Standard bei erfolgreichem Delete
+        return ResponseEntity.noContent().build(); // 204 No Content is standard for a successful delete
     }
 
     @DeleteMapping("/skills/categories/{categoryId}")

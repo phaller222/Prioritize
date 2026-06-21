@@ -37,7 +37,7 @@ class DocumentServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Admin-User aus der DB holen (wird vom InitializationService angelegt)
+        // Fetch admin user from the DB (created by the InitializationService)
         adminUser = userService.findUserByUsername("admin");
 
         // Zweiten Testuser anlegen
@@ -172,7 +172,7 @@ class DocumentServiceTest {
 
         DocumentInfo doc = documentInfoRepository.findById(testDoc.getId()).orElseThrow();
         assertFalse(doc.isLocked());
-        assertEquals(1, doc.getCurrentDocument().getVersion()); // Version unverändert
+        assertEquals(1, doc.getCurrentDocument().getVersion()); // Version unchanged
     }
 
     // ==========================================
@@ -184,7 +184,7 @@ class DocumentServiceTest {
     void deleteDocument_Locked_NonAdmin_ShouldThrow() {
         documentService.checkOut(testDoc.getId(), adminUser);
 
-        // regularUser hat keine DELETE-Berechtigung -> AccessDeniedException
+        // regularUser has no DELETE permission -> AccessDeniedException
         assertThrows(AccessDeniedException.class,
             () -> documentService.deleteDocument(testDoc.getId(), regularUser));
     }
@@ -194,7 +194,7 @@ class DocumentServiceTest {
     void deleteDocument_Locked_AdminCanDelete() {
         documentService.checkOut(testDoc.getId(), adminUser);
 
-        // Admin darf auch gesperrte Dokumente loeschen
+        // Admin may also delete locked documents
         assertDoesNotThrow(() -> documentService.deleteDocument(testDoc.getId(), adminUser));
         assertFalse(documentInfoRepository.existsById(testDoc.getId()));
     }

@@ -1,9 +1,12 @@
 package de.hallerweb.enterprise.prioritize.service.resource.control;
 
 import de.hallerweb.enterprise.prioritize.exception.ResourceOfflineException;
+import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceReservationRepository;
 import de.hallerweb.enterprise.prioritize.service.resource.control.mqtt.MqttResourceControlAdapter;
 import de.hallerweb.enterprise.prioritize.service.resource.control.rest.RestResourceControlAdapter;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
@@ -12,23 +15,32 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.List;
+
 /**
- * Zentraler Einstiegspunkt für die Steuerung von Resourcen. Wählt pro Kommando den
- * passenden Transport und setzt die Berechtigungsprüfung durch (Konvention: Autorisierung
- * im Service-Layer per Exception).
+ * Central entry point for controlling resources. Selects the appropriate transport
+ * per command and enforces the permission check (convention: authorization
+ * in the service layer via exception).
  * <p>
- * <strong>Resolution-Strategie (Capability-Set mit Fallback):</strong>
+ * <strong>Slot derivation:</strong> The addressed slot is NOT supplied by the client,
+ * but determined from the user's active reservation on the resource. A command
+ * is therefore only possible while the user holds an ongoing reservation; the slot is
+ * always the reserved one. If the user (in the rare case) holds multiple active reservations
+ * on the same resource, the slot is ambiguous → {@link SlotNotReservedException} (409).
+ * <p>
+ * <strong>Resolution strategy (capability set with fallback):</strong>
  * <ol>
- *   <li>Resource hat MQTT-Capability und ist online → MQTT</li>
- *   <li>Resource hat MQTT-Capability, ist aber offline → REST-Fallback,
- *       sofern ein REST-Endpunkt (ip) existiert</li>
- *   <li>Keine MQTT-Capability → REST</li>
- *   <li>Kein erreichbarer Transport → {@link ResourceOfflineException}</li>
+ *   <li>Resource has MQTT capability and is online → MQTT</li>
+ *   <li>Resource has MQTT capability but is offline → REST fallback,
+ *       provided a REST endpoint (ip) exists</li>
+ *   <li>No MQTT capability → REST</li>
+ *   <li>No reachable transport → {@link ResourceOfflineException}</li>
  * </ol>
  * <p>
- * REST ist die immer aktive Basis; MQTT ist eine optionale, zusätzliche Capability.
- * Der MQTT-Adapter ist nur vorhanden, wenn {@code prioritize.mqtt.enabled=true} —
- * daher wird er über einen {@link ObjectProvider} optional aufgelöst.
+ * REST is the always-active base; MQTT is an optional, additional capability.
+ * The MQTT adapter is only present when {@code prioritize.mqtt.enabled=true} —
+ * therefore it is resolved optionally via an {@link ObjectProvider}.
  *
  * @author peter haller
  */
@@ -39,45 +51,77 @@ public class ResourceControlService {
     private final AuthorizationService authService;
     private final RestResourceControlAdapter restAdapter;
     private final ObjectProvider<MqttResourceControlAdapter> mqttAdapterProvider;
+    private final ResourceReservationRepository reservationRepository;
 
     public ResourceControlService(AuthorizationService authService,
                                   RestResourceControlAdapter restAdapter,
-                                  ObjectProvider<MqttResourceControlAdapter> mqttAdapterProvider) {
+                                  ObjectProvider<MqttResourceControlAdapter> mqttAdapterProvider,
+                                  ResourceReservationRepository reservationRepository) {
         this.authService = authService;
         this.restAdapter = restAdapter;
         this.mqttAdapterProvider = mqttAdapterProvider;
+        this.reservationRepository = reservationRepository;
     }
 
     /**
-     * Sendet ein Steuerkommando an eine Resource. Steuern gilt als Zustandsänderung und
-     * erfordert daher {@link Action#UPDATE}-Berechtigung auf der Resource.
+     * Sends a control command to a resource. Controlling counts as a state change and
+     * therefore requires {@link Action#UPDATE} permission on the resource. The addressed
+     * slot is derived from the user's active reservation.
      *
-     * @param resource Ziel-Resource
-     * @param command  Kommando-Bezeichner
-     * @param param    optionaler freier Parameter (darf {@code null} sein)
-     * @param user     der ausführende Benutzer (Rechteprüfung)
-     * @throws AccessDeniedException     wenn der Benutzer nicht steuern darf
-     * @throws ResourceOfflineException  wenn kein erreichbarer Transport existiert
+     * @param resource target resource
+     * @param command  command identifier
+     * @param param    optional free parameter (may be {@code null})
+     * @param user     the executing user (permission check + slot derivation)
+     * @throws AccessDeniedException      if the user is not allowed to control
+     * @throws SlotNotReservedException   if the user does not hold a unique active reservation
+     * @throws ResourceOfflineException   if no reachable transport exists
      */
     public void sendCommand(Resource resource, String command, String param, PUser user) {
         if (!authService.hasPermission(user, resource, Action.UPDATE)) {
             throw new AccessDeniedException(
-                    "Keine Berechtigung, diese Resource zu steuern.");
+                "Keine Berechtigung, diese Resource zu steuern.");
         }
 
+        int slot = resolveReservedSlot(resource, user);
+
         ResourceControlAdapter adapter = resolveAdapter(resource);
-        log.info("Command '{}' an Resource {} via {} (User: {}).",
-                command, resource.getId(), adapter.getTransportName(), user.getUsername());
-        adapter.sendCommand(resource, command, param);
+        log.info("Command '{}' an Resource {} (Slot {}) via {} (User: {}).",
+            command, resource.getId(), slot, adapter.getTransportName(), user.getUsername());
+        adapter.sendCommand(resource, command, param, slot);
     }
 
     /**
-     * Wählt den Transport gemäß Capability-Set-Strategie mit REST-Fallback.
+     * Derives the slot to control from the user's active reservation.
+     * <p>
+     * Exactly one active reservation of the user on the resource must exist:
+     * none → {@link SlotNotReservedException}; multiple → also
+     * {@link SlotNotReservedException} (ambiguous, slot not uniquely determinable).
+     */
+    private int resolveReservedSlot(Resource resource, PUser user) {
+        Instant now = Instant.now();
+        List<ResourceReservation> active =
+            reservationRepository.findActiveReservationsByUser(resource.getId(), user.getId(), now);
+
+        if (active.isEmpty()) {
+            throw new SlotNotReservedException(
+                "Benutzer '" + user.getUsername() + "' hat keine aktive Reservierung auf Resource "
+                    + resource.getId() + ". Ein Steuerkommando setzt eine laufende Reservierung voraus.");
+        }
+        if (active.size() > 1) {
+            throw new SlotNotReservedException(
+                "Benutzer '" + user.getUsername() + "' hält mehrere aktive Reservierungen auf Resource "
+                    + resource.getId() + "; der Ziel-Slot ist nicht eindeutig.");
+        }
+        return active.get(0).getSlotNumber();
+    }
+
+    /**
+     * Selects the transport according to the capability-set strategy with REST fallback.
      */
     private ResourceControlAdapter resolveAdapter(Resource resource) {
         MqttResourceControlAdapter mqtt = mqttAdapterProvider.getIfAvailable();
 
-        // 1. MQTT bevorzugt, wenn Capability vorhanden UND online
+        // 1. MQTT preferred, if capability present AND online
         if (mqtt != null && mqtt.isAvailable(resource)) {
             return mqtt;
         }
@@ -86,14 +130,14 @@ public class ResourceControlService {
         if (restAdapter.isAvailable(resource)) {
             if (mqtt != null && mqtt.supports(resource)) {
                 log.debug("Resource {} ist MQTT-Resource, aber offline → REST-Fallback.",
-                        resource.getId());
+                    resource.getId());
             }
             return restAdapter;
         }
 
         // 4. Kein Transport erreichbar
         throw new ResourceOfflineException(
-                "Resource " + resource.getId() + " ist offline und besitzt keinen Steuerkanal "
-                        + "(MQTT offline, kein REST-Endpunkt).");
+            "Resource " + resource.getId() + " ist offline und besitzt keinen Steuerkanal "
+                + "(MQTT offline, kein REST-Endpunkt).");
     }
 }

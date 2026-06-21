@@ -35,7 +35,7 @@ public class Skill extends PObject implements PAuthorizedObject {
     @JsonManagedReference(value = "skill-properties")
     private Set<SkillProperty> skillProperties = new HashSet<>();
 
-    // Helper für bidirektionale Verknüpfung (Wichtig für JPA!)
+    // Helper for the bidirectional association (important for JPA!)
     public void addSkillProperty(SkillProperty property) {
         skillProperties.add(property);
         property.setSkill(this);

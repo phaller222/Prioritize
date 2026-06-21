@@ -10,7 +10,7 @@ import lombok.*;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor // Für Builder
+@AllArgsConstructor // For the builder
 @Builder
 public class SkillPropertyText extends SkillProperty {
     @Column(length = 2048)

@@ -48,7 +48,7 @@ class DepartmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Admin-User aus der DB holen (wird vom InitializationService angelegt)
+        // Fetch admin user from the DB (created by the InitializationService)
         adminUser = userService.findUserByUsername("admin");
 
         testCompany = Company.builder()

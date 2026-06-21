@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 /**
- * DTO für die Historie eines Dokuments, enthält Version, Dateiname, Änderungsdatum, Änderungsbetrieb und Kommentar.
+ * DTO for the history of a document, contains version, file name, modification date, modifying operation and comment.
  */
 public class DocumentHistoryDTO {
     private int version;

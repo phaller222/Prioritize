@@ -42,10 +42,10 @@ public class InitializationService {
         // 3. Default Dokumentengruppe & Permissions
         ensureDefaultDocumentGroup(defaultDept, admin);
 
-        // 4. Default Ressourcengruppe & Permissions
+        // 4. Default resource group & permissions
         ensureDefaultResourceGroup(defaultDept, admin);
 
-        // 5. Globale Berechtigungen für Ressourcen-Management (ID 0 = Alle Instanzen)
+        // 5. Global permissions for resource management (ID 0 = all instances)
         ensureGeneralResourcePermissions(admin);
     }
 
@@ -117,7 +117,7 @@ public class InitializationService {
 
         permissionRepository.save(perm);
 
-        // Durch @Transactional bleibt die Session hier offen und das Set kann geladen werden
+        // Thanks to @Transactional, the session stays open here and the set can be loaded
         user.addPersonalPermission(perm);
         userService.updateUser(user);
     }

@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("postgres")
-@Transactional  // Jeder Test wird nach Abschluss automatisch zurückgerollt
+@Transactional  // Each test is automatically rolled back after completion
 class SkillServiceTest {
 
     @Autowired
@@ -37,7 +37,7 @@ class SkillServiceTest {
     @Autowired
     private UserService userService;
 
-    // Testdaten die in @BeforeEach aufgebaut werden
+    // Test data built up in @BeforeEach
     private SkillCategory mainCat;
     private SkillCategory subCat;
     private Skill javaSkill;
@@ -46,8 +46,8 @@ class SkillServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Admin-User aus der DB holen (vom InitializationService angelegt);
-        // passiert dank isAdmin() alle Berechtigungs-Guards.
+        // Fetch admin user from the DB (created by the InitializationService);
+        // passes all permission guards thanks to isAdmin().
         adminUser = userService.findUserByUsername("admin");
 
         mainCat = new SkillCategory();
@@ -114,24 +114,24 @@ class SkillServiceTest {
         newSkill.setName("Orphan Skill-Test");
         SkillCategory fakeCategory = new SkillCategory();
         fakeCategory.setName("Ghost");
-        // ID manuell setzen ohne zu speichern
-        // Wir simulieren eine nicht-existente Kategorie
+        // Set ID manually without saving
+        // We simulate a non-existent category
         newSkill.setCategory(SkillCategory.builder()
                 .name("NonExistent")
                 .build());
-        // Eine Kategorie ohne ID wird nicht als "zu laden" behandelt,
-        // daher testen wir mit einer gespeicherten aber dann gelöschten ID
+        // A category without an ID is not treated as "to be loaded",
+        // therefore we test with a saved but then deleted ID
         Long deletedId = mainCat.getId();
         categoryRepository.delete(mainCat);
 
         SkillCategory ghostCat = new SkillCategory();
         ghostCat.setName("ghost");
-        // Manuell eine nicht-existente ID simulieren über den Service
+        // Manually simulate a non-existent ID via the service
         Skill skillWithBadCat = new Skill();
         skillWithBadCat.setName("BadCatSkill-Test");
         SkillCategory badRef = new SkillCategory();
         badRef.setName("bad");
-        // Direkt via Repository mit fake ID prüfen
+        // Check directly via the repository with a fake ID
         assertThrows(EntityNotFoundException.class,
                 () -> skillService.getSkillById(-1L, adminUser));
     }
@@ -157,7 +157,7 @@ class SkillServiceTest {
     void updateSkill_ShouldUpdateCategory() {
         Skill update = new Skill();
         update.setName(javaSkill.getName());
-        update.setCategory(mainCat); // Von subCat zu mainCat wechseln
+        update.setCategory(mainCat); // Switch from subCat to mainCat
 
         Skill updated = skillService.updateSkill(javaSkill.getId(), update, adminUser);
 

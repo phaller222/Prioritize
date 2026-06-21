@@ -21,6 +21,6 @@ class PrioritizeApplicationTests {
     @Test
     void contextLoads() {
         // Dieser Test bleibt leer.
-        // Er schlägt automatisch fehl, wenn der Spring-Kontext nicht hochfährt.
+        // It fails automatically if the Spring context does not start up.
     }
 }

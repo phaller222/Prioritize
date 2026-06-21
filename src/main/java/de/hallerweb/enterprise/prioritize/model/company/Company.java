@@ -64,7 +64,7 @@ public class Company extends PObject implements PAuthorizedObject {
     private String taxId;
 
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY )
-    @JsonManagedReference(value = "companyBackRef") // Der "Chef" der Beziehung
+    @JsonManagedReference(value = "companyBackRef") // The "owner" of the relationship
     @Builder.Default
     private Set<Department> departments = new HashSet<>();
 

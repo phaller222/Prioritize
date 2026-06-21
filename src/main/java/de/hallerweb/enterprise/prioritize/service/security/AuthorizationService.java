@@ -7,7 +7,7 @@ import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.security.PermissionRecord;
 import de.hallerweb.enterprise.prioritize.model.security.Role;
-import de.hallerweb.enterprise.prioritize.service.company.CompanyService; // Falls vorhanden
+import de.hallerweb.enterprise.prioritize.service.company.CompanyService; // If present
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import org.hibernate.Hibernate;
 import org.springframework.context.annotation.Lazy;
@@ -22,41 +22,41 @@ public class AuthorizationService {
 
     private final DepartmentService departmentService;
 
-    // @Lazy verhindert zirkuläre Abhängigkeiten, falls Services sich gegenseitig brauchen
+    // @Lazy prevents circular dependencies in case services need each other
     public AuthorizationService(@Lazy DepartmentService departmentService) {
         this.departmentService = departmentService;
     }
 
     /**
-     * ÜBERLADUNG FÜR CONTROLLER: Erlaubt den Aufruf mit Klassenname und ID direkt aus dem API-Pfad.
+     * OVERLOAD FOR CONTROLLER: Allows the call with class name and ID directly from the API path.
      */
     public boolean hasPermission(PUser user, String absoluteObjectType, Long objectId, Action action) {
 
         if (user == null) {
-            return false; // Wer nicht eingeloggt ist, hat keine Rechte!
+            return false; // Whoever is not logged in has no rights!
         }
         if (isAdmin(user)) {
             return true;
         }
 
-        // 1. Erst prüfen, ob ein direkter PermissionRecord für diesen Typ + ID existiert
+        // 1. First check whether a direct PermissionRecord exists for this type + ID
         boolean hasDirect = checkDirectWithStrings(user, absoluteObjectType, objectId, action);
         if (hasDirect) {
             return true;
         }
 
-        // 2. Wenn nicht direkt erlaubt, müssen wir für die hierarchische Vererbung das echte Objekt laden
+        // 2. If not directly allowed, we must load the actual object for the hierarchical inheritance
         if (absoluteObjectType.equals("de.hallerweb.enterprise.prioritize.model.company.Department")) {
             Department department = departmentService.getDepartmentById(objectId);
-            return hasPermission(user, department, action); // Wechselt in die hierarchische Objekt-Prüfung
+            return hasPermission(user, department, action); // Switches to the hierarchical object check
         }
 
-        // Für eine Company gibt es keine höhere Hierarchie (oberste Ebene)
+        // For a Company there is no higher hierarchy (top level)
         return false;
     }
 
     /**
-     * HAUPTMETHODE: Prüft Rechte direkt auf einem geladenen JPA-Objekt (inkl. Vererbung).
+     * MAIN METHOD: Checks rights directly on a loaded JPA object (incl. inheritance).
      */
     public boolean hasPermission(PUser user, PAuthorizedObject targetObject, Action action) {
 
@@ -67,12 +67,12 @@ public class AuthorizationService {
             return true;
         }
 
-        // Direkte Berechtigung auf das Objekt prüfen
+        // Check direct permission on the object
         if (hasDirectPermission(user, targetObject, action)) {
             return true;
         }
 
-        // Hierarchische Prüfung (Vererbung nach unten)
+        // Hierarchical check (inheritance downward)
         Object unproxiedTarget = Hibernate.unproxy(targetObject);
 
         if (unproxiedTarget instanceof Department department) {
@@ -94,7 +94,7 @@ public class AuthorizationService {
     }
 
     /**
-     * Interne Prüfung für die String-basierte Controller-Methode
+     * Internal check for the String-based controller method
      */
     private boolean checkDirectWithStrings(PUser user, String type, Long id, Action action) {
         return Stream.concat(

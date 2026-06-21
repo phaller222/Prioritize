@@ -31,7 +31,7 @@ class UserServiceTest {
                 .name("Testmann")
                 .firstname("Max")
                 .email("max.test@example.com")
-                .password("plaintext123") // wird in createUser verschlüsselt
+                .password("plaintext123") // is encrypted in createUser
                 .admin(false)
                 .build();
         testUser = userService.createUser(testUser);
@@ -107,8 +107,8 @@ class UserServiceTest {
         PUser updated = userService.partialUpdateUser(testUser.getId(), patch);
 
         assertEquals("new.email@example.com", updated.getEmail());
-        assertEquals("Testmann", updated.getName()); // unverändert
-        assertEquals(oldPassword, updated.getPassword()); // unverändert
+        assertEquals("Testmann", updated.getName()); // unchanged
+        assertEquals(oldPassword, updated.getPassword()); // unchanged
     }
 
     @Test
@@ -129,11 +129,11 @@ class UserServiceTest {
     @DisplayName("partialUpdateUser: admin-Flag kann nicht per PATCH geändert werden")
     void partialUpdate_ShouldNotChangeAdminFlag() {
         PUser patch = new PUser();
-        patch.setAdmin(true); // Versuch, sich selbst zum Admin zu machen
+        patch.setAdmin(true); // Attempt to make oneself an admin
 
         PUser updated = userService.partialUpdateUser(testUser.getId(), patch);
 
-        assertFalse(updated.isAdmin()); // muss false bleiben
+        assertFalse(updated.isAdmin()); // must remain false
     }
 
     // ==========================================

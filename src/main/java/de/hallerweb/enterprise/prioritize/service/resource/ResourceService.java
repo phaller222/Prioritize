@@ -34,13 +34,13 @@ public class ResourceService {
     private final ResourceRepository resourceRepository;
     private final ResourceGroupRepository resourceGroupRepository;
     private final ResourceReservationRepository reservationRepository;
-    private final AuthorizationService authService; // Dein zentraler Wächter
+    private final AuthorizationService authService; // Your central guard
 
     // --- Resource Group Management ---
 
     public ResourceGroup createResourceGroup(String name, Department dept, PUser user) {
-        // Hier prüfen wir, ob der User im Department überhaupt Gruppen anlegen darf
-        // Falls das Department selbst ein PAuthorizedObject ist:
+        // Here we check whether the user is even allowed to create groups in the department
+        // In case the department itself is a PAuthorizedObject:
         if (!authService.hasPermission(user, dept, Action.CREATE)) {
             throw new AccessDeniedException("Keine Berechtigung, Gruppen in diesem Department anzulegen.");
         }
@@ -59,7 +59,7 @@ public class ResourceService {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Zielgruppe nicht gefunden"));
 
-        // Darf der User Ressourcen in dieser Gruppe erstellen?
+        // Is the user allowed to create resources in this group?
         if (!authService.hasPermission(user, group, Action.UPDATE)) {
             throw new AccessDeniedException("Keine Berechtigung, Ressourcen zu dieser Gruppe hinzuzufügen.");
         }
@@ -128,12 +128,12 @@ public class ResourceService {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
 
-        // 1. Rechte prüfen
+        // 1. Check rights
         if (!authService.hasPermission(user, resource, Action.READ)) {
             throw new AccessDeniedException("Keine Berechtigung für diese Ressource.");
         }
 
-        // 2. Überschneidungen für den Zeitraum finden
+        // 2. Find overlaps for the time span
         List<ResourceReservation> overlaps = reservationRepository
                 .findOverlappingReservations(resourceId, from, until);
 
@@ -160,10 +160,90 @@ public class ResourceService {
         return reservationRepository.save(reservation);
     }
 
+    // --- Reservierungs-Abfrage & Storno ---
+
     /**
-     * Findet die erste freie Slot-Nummer zwischen 1 und maxSlots.
+     * Returns the reservations active at the point in time {@code now} that the given
+     * user holds on the resource. This is exactly the set from which the slot is
+     * derived when sending a control command: empty → no command possible (409);
+     * exactly one → its slot; multiple → ambiguous (409).
      *
-     * @return freier Slot oder -1 wenn alles belegt
+     * @param resourceId resource
+     * @param user       the querying user (also the owner of the reservations)
+     * @return active reservations of this user on this resource
+     */
+    @Transactional(readOnly = true)
+    public List<ResourceReservation> getMyActiveReservations(Long resourceId, PUser user) {
+        Resource resource = resourceRepository.findById(resourceId)
+            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+
+        if (!authService.hasPermission(user, resource, Action.READ)) {
+            throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
+        }
+
+        return reservationRepository.findActiveReservationsByUser(resourceId, user.getId(), Instant.now());
+    }
+
+    /**
+     * Returns all reservations of a resource (past, active and future) as an
+     * occupancy overview. Requires read permission on the resource.
+     *
+     * @param resourceId resource
+     * @param user       the querying user (permission check)
+     * @return all reservations of the resource
+     */
+    @Transactional(readOnly = true)
+    public List<ResourceReservation> getReservationsForResource(Long resourceId, PUser user) {
+        Resource resource = resourceRepository.findById(resourceId)
+            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+
+        if (!authService.hasPermission(user, resource, Action.READ)) {
+            throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
+        }
+
+        return reservationRepository.findByResourceId(resourceId.intValue());
+    }
+
+    /**
+     * Cancels (deletes) a reservation and thereby releases the occupied slot.
+     * <p>
+     * Permission: the caller must either be the owner of the reservation OR
+     * hold {@link Action#UPDATE} on the associated resource (managers may
+     * release others' reservations). Consistent with the convention: check in the service,
+     * enforcement via exception.
+     *
+     * @param reservationId reservation to cancel
+     * @param user          the executing user
+     * @throws NoSuchElementException if the reservation does not exist
+     * @throws AccessDeniedException  if the user is neither the owner nor has UPDATE rights
+     */
+    public void cancelReservation(Integer reservationId, PUser user) {
+        ResourceReservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() -> new NoSuchElementException(
+                "Reservierung " + reservationId + " nicht gefunden."));
+
+        boolean isOwner = reservation.getReservedBy() != null
+            && user.getId().equals(reservation.getReservedBy().getId());
+        boolean isResourceManager = authService.hasPermission(
+            user, reservation.getResource(), Action.UPDATE);
+
+        if (!isOwner && !isResourceManager) {
+            throw new AccessDeniedException(
+                "Keine Berechtigung, diese Reservierung zu stornieren.");
+        }
+
+        reservationRepository.delete(reservation);
+        log.info("Reservierung {} (Slot {}) auf Resource {} von User '{}' storniert.",
+            reservationId, reservation.getSlotNumber(),
+            reservation.getResource() != null ? reservation.getResource().getId() : "?",
+            user.getUsername());
+    }
+
+
+    /**
+     * Finds the first free slot number between 1 and maxSlots.
+     *
+     * @return free slot, or -1 if everything is occupied
      */
     private int findFirstAvailableSlot(int maxSlots, List<ResourceReservation> overlaps) {
         Set<Integer> occupied = overlaps.stream()
@@ -185,59 +265,59 @@ public class ResourceService {
     }
 
     /**
-     * Löscht eine Ressourcengruppe.
-     * * @param groupId ID der zu löschenden Gruppe
+     * Deletes a resource group.
+     * * @param groupId ID of the group to delete
      *
-     * @param user Der ausführende Benutzer (für die Rechteprüfung)
+     * @param user The executing user (for the permission check)
      */
     public void deleteResourceGroup(Long groupId, PUser user) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
                 .orElseThrow(() -> new NoSuchElementException("Ressourcengruppe nicht gefunden."));
 
-        // 1. Schutz der Default-Gruppe (System-Invariant)
+        // 1. Protection of the default group (system invariant)
         if (ResourceGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
             throw new IllegalStateException("Die Default-Gruppe kann nicht gelöscht werden.");
         }
 
-        // 2. Rechteprüfung
+        // 2. Permission check
         if (!authService.hasPermission(user, group, Action.DELETE)) {
             throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Gruppe.");
         }
 
-        // 3. Löschen
-        // Hinweis: Falls Ressourcen in der Gruppe sind, entscheidet das Cascade-Label im Model,
-        // ob diese mitgelöscht werden oder das Löschen verhindert wird.
+        // 3. Deletion
+        // Note: if there are resources in the group, the cascade label in the model decides
+        // whether they are deleted along with it or deletion is prevented.
         resourceGroupRepository.delete(group);
         log.info("Ressourcengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
                 group.getName(), groupId, user.getUsername());
     }
 
     /**
-     * Löscht eine einzelne Ressource und alle damit verbundenen Reservierungen.
-     * * @param resourceId ID der Ressource
+     * Deletes a single resource and all reservations associated with it.
+     * * @param resourceId ID of the resource
      *
-     * @param user Der ausführende Benutzer
+     * @param user The executing user
      */
     public void deleteResource(Long resourceId, PUser user) {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden."));
 
-        // 1. Rechteprüfung
+        // 1. Permission check
         if (!authService.hasPermission(user, resource, Action.DELETE)) {
             throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Ressource.");
         }
 
         // 2. Optional: Check auf aktive Reservierungen
-        // Hier könntest du entscheiden, ob Löschen verboten ist, wenn noch jemand die Ressource nutzt.
+        // Here you could decide whether deletion is forbidden while someone is still using the resource.
         List<ResourceReservation> activeReservations = reservationRepository.findOverlappingReservations(
                 resourceId, Instant.now(), Instant.now().plus(Duration.ofDays(365)));
 
         if (!activeReservations.isEmpty()) {
             log.warn("Löschen der Ressource {} trotz {} zukünftiger Reservierungen.", resourceId, activeReservations.size());
-            // Entweder Exception werfen oder (wie hier geplant) durch Cascade mitlöschen.
+            // Either throw an exception or (as planned here) delete it along via cascade.
         }
 
-        // 3. Löschen
+        // 3. Deletion
         resourceRepository.delete(resource);
     }
 
@@ -249,7 +329,7 @@ public class ResourceService {
             throw new AccessDeniedException("Keine Berechtigung, diese Ressource zu ändern.");
         }
 
-        // Nur unkritische Felder per PATCH änderbar (null = unverändert)
+        // Only non-critical fields modifiable via PATCH (null = unchanged)
         if (patch.getName() != null) existing.setName(patch.getName());
         if (patch.getDescription() != null) existing.setDescription(patch.getDescription());
         if (patch.getIp() != null) existing.setIp(patch.getIp());
@@ -259,26 +339,26 @@ public class ResourceService {
         if (patch.getStationary() != null) existing.setStationary(patch.getStationary());
         if (patch.getRemote() != null) existing.setRemote(patch.getRemote());
 
-        // MQTT-Felder
+        // MQTT fields
         if (patch.getMqttResource() != null) existing.setMqttResource(patch.getMqttResource());
         if (patch.getMqttOnline() != null) existing.setMqttOnline(patch.getMqttOnline());
         if (patch.getMqttUUID() != null) existing.setMqttUUID(patch.getMqttUUID());
         if (patch.getMqttDataReceiveTopic() != null) existing.setMqttDataReceiveTopic(patch.getMqttDataReceiveTopic());
         if (patch.getMqttDataSendTopic() != null) existing.setMqttDataSendTopic(patch.getMqttDataSendTopic());
 
-        // Beziehungen (department, resourceGroup), reservations, skills NICHT per PATCH änderbar!
-        // Dafür gibt es dedizierte Endpoints (createResource, reserveResource, assignSkillToResource).
+        // Relationships (department, resourceGroup), reservations, skills are NOT modifiable via PATCH!
+        // Dedicated endpoints exist for that (createResource, reserveResource, assignSkillToResource).
 
         return resourceRepository.save(existing);
     }
 
     /**
-     * Validiert, ob eine Ressource zur angegebenen Ressourcengruppe gehört.
-     * Wirft EntityNotFoundException wenn Ressource oder Gruppe nicht existieren,
-     * IllegalArgumentException wenn die Ressource nicht zur Gruppe gehört.
+     * Validates whether a resource belongs to the given resource group.
+     * Throws EntityNotFoundException if the resource or group does not exist,
+     * IllegalArgumentException if the resource does not belong to the group.
      *
-     * @param resourceId ID der Ressource
-     * @param groupId    ID der Ressourcengruppe
+     * @param resourceId ID of the resource
+     * @param groupId    ID of the resource group
      */
     @Transactional(readOnly = true)
     public void validateResourceInGroup(Long resourceId, Long groupId) {
@@ -297,13 +377,13 @@ public class ResourceService {
     }
 
     /**
-     * Setzt den Online-/Offline-Status einer MQTT-Resource anhand ihrer MQTT-UUID.
-     * Wird vom Inbound-Pfad (Gerät → System, STATUS-Meldung) aufgerufen. Aktualisiert
-     * zusätzlich den Last-Ping-Zeitstempel. Unbekannte UUIDs werden ignoriert (geloggt),
-     * da sich Geräte erst per Discovery registrieren.
+     * Sets the online/offline status of an MQTT resource by its MQTT UUID.
+     * Called by the inbound path (device → system, STATUS message). Additionally
+     * updates the last-ping timestamp. Unknown UUIDs are ignored (logged),
+     * since devices register themselves via discovery first.
      *
-     * @param mqttUuid die MQTT-UUID des meldenden Geräts
-     * @param online   neuer Online-Zustand
+     * @param mqttUuid the MQTT UUID of the reporting device
+     * @param online   new online state
      */
     public void setMqttResourceStatusByUuid(String mqttUuid, boolean online) {
         resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {

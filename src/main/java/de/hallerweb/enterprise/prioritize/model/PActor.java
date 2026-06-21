@@ -6,17 +6,17 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * PActor ist die Basis für alle Einheiten, die aktiv an Aufgaben (Tasks)
- * arbeiten können (z.B. Personen oder Maschinen).
+ * PActor is the base for all entities that can actively work on tasks
+ * (e.g. persons or machines).
  */
 @Entity
 @Table(name = "pactor")
 @Inheritance(strategy = InheritanceType.JOINED)
-@DiscriminatorColumn(name = "actor_type") // Hilft Hibernate beim Mapping
+@DiscriminatorColumn(name = "actor_type") // Helps Hibernate with the mapping
 @Getter
 @Setter
 @NoArgsConstructor
 public abstract class PActor extends PObject {
-    // Falls du später Felder für alle Aktoren brauchst (z.B. eine interne Kennung),
-    // kommen sie hier rein.
+    // If you later need fields for all actors (e.g. an internal identifier),
+    // they go in here.
 }

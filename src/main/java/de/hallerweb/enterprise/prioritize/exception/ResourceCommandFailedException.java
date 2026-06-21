@@ -1,12 +1,12 @@
 package de.hallerweb.enterprise.prioritize.exception;
 
 /**
- * Wird geworfen, wenn ein Steuerkommando an ein Gerät zwar zugestellt werden konnte,
- * das Gerät aber nicht erreichbar war oder mit einem Fehler geantwortet hat
- * (Connection refused, Timeout, HTTP 4xx/5xx).
+ * Thrown when a control command could be delivered to a device,
+ * but the device was unreachable or responded with an error
+ * (connection refused, timeout, HTTP 4xx/5xx).
  * <p>
- * Wird im GlobalExceptionHandler auf HTTP 502 (Bad Gateway) gemappt: Das Backend
- * selbst funktioniert, aber das nachgelagerte Gerät hat die Steuerung nicht angenommen.
+ * Mapped to HTTP 502 (Bad Gateway) in the GlobalExceptionHandler: the backend
+ * itself works, but the downstream device did not accept the control command.
  */
 public class ResourceCommandFailedException extends RuntimeException {
 

@@ -8,18 +8,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Repository für DocumentGroup Entitäten (Verzeichnisse).
+ * Repository for DocumentGroup entities (directories).
  */
 @Repository
 public interface DocumentGroupRepository extends JpaRepository<DocumentGroup, Long> {
 
-    // Findet alle Dokumentengruppen einer bestimmten Abteilung
+    // Finds all document groups of a specific department
     List<DocumentGroup> findByDepartment_Id(Long departmentId);
 
-    // Findet eine spezifische Gruppe nach Namen innerhalb einer Abteilung
-    // Essenziell für den Check auf die "Default"-Gruppe im DataInitializer
+    // Finds a specific group by name within a department
+    // Essential for the check on the "default" group in the DataInitializer
     Optional<DocumentGroup> findByNameAndDepartment_Id(String name, Long departmentId);
 
-    // Findet Gruppen nach Namen (Global, ignoriert Groß-/Kleinschreibung)
+    // Finds groups by name (global, case-insensitive)
     List<DocumentGroup> findByNameContainingIgnoreCase(String name);
 }

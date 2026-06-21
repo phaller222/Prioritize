@@ -27,7 +27,7 @@ public class UserService implements UserDetailsService {
     }
 
     public PUser createUser(PUser user) {
-        // Passwort verschlüsseln, bevor es in die DB geht
+        // Encrypt the password before it goes into the DB
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
@@ -36,16 +36,16 @@ public class UserService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Sucht den PUser in deiner Datenbank
+        // Looks up the PUser in your database
         PUser pUser = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
 
         // Changes PUser to a Spring-Security-UserDetails Object
         return org.springframework.security.core.userdetails.User.builder()
                 .username(pUser.getUsername())
-                .password(pUser.getPassword()) // Das Passwort aus der DB (BCrypt-Encoded)
+                .password(pUser.getPassword()) // The password from the DB (BCrypt-encoded)
                 .authorities(pUser.isAdmin() ? "ROLE_ADMIN" : "ROLE_USER")
-                .disabled(!pUser.isActive()) // Inaktive User werden von Spring Security blockiert
+                .disabled(!pUser.isActive()) // Inactive users are blocked by Spring Security
                 .build();
     }
 
@@ -81,7 +81,7 @@ public class UserService implements UserDetailsService {
     public PUser partialUpdateUser(Long id, PUser patch) {
         PUser existing = getUserById(id);
 
-        // Nur unkritische Felder per PATCH änderbar
+        // Only non-critical fields modifiable via PATCH
         if (patch.getName() != null) existing.setName(patch.getName());
         if (patch.getFirstname() != null) existing.setFirstname(patch.getFirstname());
         if (patch.getEmail() != null) existing.setEmail(patch.getEmail());
@@ -90,13 +90,13 @@ public class UserService implements UserDetailsService {
         if (patch.getDateOfBirth() != null) existing.setDateOfBirth(patch.getDateOfBirth());
         if (patch.getAddress() != null) existing.setAddress(patch.getAddress());
 
-        // Passwort nur ändern wenn explizit mitgeschickt – und dann verschlüsseln
+        // Only change the password if explicitly supplied – and then encrypt it
         if (patch.getPassword() != null && !patch.getPassword().isBlank()) {
             existing.setPassword(passwordEncoder.encode(patch.getPassword()));
         }
 
-        // Rollen, Berechtigungen und admin-Flag niemals per PATCH änderbar!
-        // Dafür braucht es dedizierte Endpoints mit erhöhter Autorisierung.
+        // Roles, permissions and the admin flag are never modifiable via PATCH!
+        // That requires dedicated endpoints with elevated authorization.
 
         return userRepository.save(existing);
     }

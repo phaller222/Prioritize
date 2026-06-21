@@ -17,7 +17,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Builder
 /**
- * Zeitraum, der für eine bestimmte Ressource reserviert ist oder für andere Zwecke verwendet wird.
+ * Time span that is reserved for a specific resource or used for other purposes.
  */
 public class TimeSpan implements PAuthorizedObject {
 
@@ -59,10 +59,10 @@ public class TimeSpan implements PAuthorizedObject {
     // --- Business Logik ---
 
     /**
-     * Überprüft, ob dieser Zeitraum mit einem anderen Zeitraum überlapt.
+     * Checks whether this time span overlaps with another time span.
      *
-     * @param other Der andere Zeitraum, mit dem überprüft werden soll
-     * @return true, wenn die Zeitraume sich überlappen, sonst false
+     * @param other The other time span to check against
+     * @return true if the time spans overlap, false otherwise
      */
     public boolean intersects(TimeSpan other) {
         if (other == null || other.getDateFrom() == null || other.getDateUntil() == null) {

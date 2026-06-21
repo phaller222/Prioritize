@@ -12,17 +12,17 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 /**
- * Verarbeitet eingehende MQTT-Nachrichten (Gerät → System) vom {@code mqttInboundChannel}.
+ * Processes inbound MQTT messages (device → system) from the {@code mqttInboundChannel}.
  * <p>
- * Aktueller Umfang dieser Iteration: Status-Meldungen (online/offline). Discovery
- * (Selbstregistrierung neuer Geräte) und Telemetrie (Key/Value-Werte) sind als Hooks
- * vorbereitet, aber noch nicht implementiert — sie loggen vorerst nur.
+ * Current scope of this iteration: status messages (online/offline). Discovery
+ * (self-registration of new devices) and telemetry (key/value values) are prepared
+ * as hooks but not yet implemented — for now they only log.
  * <p>
- * Inbound-JSON (Beispiele):
+ * Inbound JSON (examples):
  * <pre>
  * Status:   { "type": "STATUS", "uuid": "...", "online": true }
- * Discovery:{ "type": "DISCOVERY", "uuid": "...", ... }   (später)
- * Telemetry:{ "type": "VALUE", "uuid": "...", "name": "temp", "value": "21" } (später)
+ * Discovery:{ "type": "DISCOVERY", "uuid": "...", ... }   (later)
+ * Telemetry:{ "type": "VALUE", "uuid": "...", "name": "temp", "value": "21" } (later)
  * </pre>
  *
  * @author peter haller
@@ -68,15 +68,15 @@ public class InboundResourceEventHandler {
         log.debug("Resource (uuid={}) Status gesetzt: online={}", uuid, online);
     }
 
-    // ---------------- Hooks für spätere Iterationen ----------------
+    // ---------------- Hooks for later iterations ----------------
 
     private void handleDiscovery(JsonNode node) {
-        // TODO (spätere Iteration): Selbstregistrierung neuer MQTT-Geräte.
+        // TODO (later iteration): self-registration of new MQTT devices.
         log.info("DISCOVERY empfangen (noch nicht implementiert): {}", node);
     }
 
     private void handleTelemetry(JsonNode node) {
-        // TODO (spätere Iteration): NameValueEntry-Telemetrie speichern.
+        // TODO (later iteration): persist NameValueEntry telemetry.
         log.debug("VALUE empfangen (noch nicht implementiert): {}", node);
     }
 }

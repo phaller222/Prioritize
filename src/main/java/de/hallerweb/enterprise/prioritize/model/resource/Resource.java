@@ -98,7 +98,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private Set<String> mqttCommands;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "resource_id") // Verhindert Join-Table für NameValueEntries
+    @JoinColumn(name = "resource_id") // Prevents a join table for NameValueEntries
     @OrderBy("mqttName")
     private Set<NameValueEntry> mqttValues;
 
@@ -143,7 +143,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     // --- Helper ---
     public void addReservation(ResourceReservation reservation) {
         this.reservations.add(reservation);
-        reservation.setResource(this); // Wichtig für bidirektionale Bindung
+        reservation.setResource(this); // Important for bidirectional binding
     }
 
     @Override

@@ -10,7 +10,7 @@ public record ApiError(
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     Instant timestamp
 ) {
-    // Factory-Methode für bequeme Erstellung
+    // Factory method for convenient creation
     public static ApiError of(String message, int status) {
         return new ApiError(message, status, Instant.now());
     }

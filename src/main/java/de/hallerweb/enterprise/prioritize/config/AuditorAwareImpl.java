@@ -37,7 +37,7 @@ public class AuditorAwareImpl implements AuditorAware<PUser> {
             username = principal.toString();
         }
 
-        // 2. Die echte Entity aus der DB laden
+        // 2. Load the actual entity from the DB
         return userRepository.findByUsername(username);
     }
 }

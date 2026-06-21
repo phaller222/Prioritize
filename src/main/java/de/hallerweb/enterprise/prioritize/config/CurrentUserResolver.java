@@ -11,16 +11,16 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Component;
 
 /**
- * Zentrale Brücke zwischen Spring Security {@link Authentication} und der
- * Domänen-Entität {@link PUser}.
+ * Central bridge between Spring Security {@link Authentication} and the
+ * domain entity {@link PUser}.
  * <p>
- * Im Dev-Modus (Basic Auth) liefert {@code auth.getName()} den Benutzernamen.
- * Für den späteren Keycloak-Modus (OAuth2 Resource Server) wird hier der
- * JWT-Zweig ergänzt, der den {@code preferred_username}-Claim auswertet.
+ * In dev mode (Basic Auth), {@code auth.getName()} returns the username.
+ * For the later Keycloak mode (OAuth2 Resource Server), the JWT branch is
+ * added here, which evaluates the {@code preferred_username} claim.
  * <p>
- * Gemäß Projektkonvention ermitteln Controller den {@link PUser} über diesen
- * Resolver und übergeben ihn explizit an die Services. Die eigentliche
- * Berechtigungsprüfung bleibt im Service.
+ * Per project convention, controllers determine the {@link PUser} via this
+ * resolver and pass it explicitly to the services. The actual
+ * permission check remains in the service.
  */
 @Component
 @RequiredArgsConstructor
@@ -41,7 +41,7 @@ public class CurrentUserResolver {
                 throw new AccessDeniedException("Kein preferred_username im Token.");
             }
         } else {
-            // Basic Auth: Principal ist UserDetails, getName() liefert den Username.
+            // Basic Auth: principal is UserDetails, getName() returns the username.
             username = auth.getName();
         }
 

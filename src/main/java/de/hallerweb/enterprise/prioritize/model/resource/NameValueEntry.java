@@ -5,7 +5,7 @@ import jakarta.persistence.Entity;
 import lombok.*;
 
 /**
- * Repräsentiert MQTT IoT-Daten (Name-Wert-Paare).
+ * Represents MQTT IoT data (name-value pairs).
  */
 @Entity
 @Getter
@@ -18,7 +18,7 @@ import lombok.*;
 public class NameValueEntry extends PObject implements Comparable<NameValueEntry> {
 
     @ToString.Include
-    private String mqttName; // Name des Datenpunkts
+    private String mqttName; // Name of the data point
 
     private String mqttValues; // Kommagetrennte Werte (historisch)
 

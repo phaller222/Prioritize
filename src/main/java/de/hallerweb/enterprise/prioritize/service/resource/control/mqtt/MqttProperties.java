@@ -9,9 +9,9 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 /**
- * Typsichere MQTT-Konfiguration, gebunden an den Prefix {@code prioritize.mqtt}.
+ * Type-safe MQTT configuration, bound to the prefix {@code prioritize.mqtt}.
  * <p>
- * Beispiel (application-mqtt.yaml):
+ * Example (application-mqtt.yaml):
  * <pre>
  * prioritize:
  *   mqtt:
@@ -35,10 +35,10 @@ import java.util.List;
 @Setter
 public class MqttProperties {
 
-    /** Schaltet das gesamte MQTT-Modul scharf. */
+    /** Arms the entire MQTT module. */
     private boolean enabled = false;
 
-    /** Broker-URL, z.B. tcp://memoryalpha:1883 (TLS später: ssl://...:8883). */
+    /** Broker URL, e.g. tcp://memoryalpha:1883 (TLS later: ssl://...:8883). */
     private String brokerUrl = "tcp://localhost:1883";
 
     /** Basis-Client-ID; pub/sub erhalten Suffixe. */
@@ -47,9 +47,9 @@ public class MqttProperties {
     private String username;
     private String password;
 
-    /** Quality of Service (0, 1 oder 2). */
+    /** Quality of Service (0, 1 or 2). */
     private int qos = 1;
 
-    /** Topics, die das Backend abonniert (Discovery, Status, ...). */
+    /** Topics that the backend subscribes to (discovery, status, ...). */
     private List<String> subscribeTopics = List.of("DISCOVERY");
 }

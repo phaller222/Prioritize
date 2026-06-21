@@ -6,8 +6,8 @@ import lombok.*;
 import java.util.Set;
 
 /**
- * DTO zur Darstellung eines Suchergebnisses.
- * Hält Informationen über das gefundene Objekt und einen Textauszug (Excerpt).
+ * DTO for representing a search result.
+ * Holds information about the found object and a text excerpt.
  */
 @Getter
 @Setter
@@ -17,7 +17,7 @@ import java.util.Set;
 public class SearchResult implements Comparable<SearchResult> {
 
     private PAuthorizedObject result;
-    private String resultType;  // Hier könntest du später ein Enum SearchResultType nutzen
+    private String resultType;  // Here you could later use a SearchResultType enum
     private String excerpt;
     private boolean providesExcerpt;
 

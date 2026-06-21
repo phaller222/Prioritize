@@ -11,20 +11,20 @@ import java.util.Optional;
 @Repository
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
-    // Überschreibt das normale findAll und lädt die Company und die Resource-Gruppen sofort mit
+    // Overrides the normal findAll and eagerly loads the Company and the resource groups
     @EntityGraph(attributePaths = {"company", "resourceGroups"})
     List<Department> findAll();
 
-    // Findet eine Abteilung anhand ihres Namens
+    // Finds a department by its name
     Optional<Department> findByName(String name);
 
-    // Findet eine Abteilung anhand des geheimen Tokens
-    // Extrem wichtig für automatisierte Prozesse/Geräte
+    // Finds a department by its secret token
+    // Extremely important for automated processes/devices
     Optional<Department> findByToken(String token);
 
-    // Findet alle Abteilungen einer bestimmten Firma
+    // Finds all departments of a specific company
     List<Department> findByCompany_Id(Long companyId);
 
-    // Ermöglicht eine Suche nach Abteilungsnamen (Case Insensitive)
+    // Enables a search by department name (case insensitive)
     List<Department> findByNameContainingIgnoreCase(String name);
 }
