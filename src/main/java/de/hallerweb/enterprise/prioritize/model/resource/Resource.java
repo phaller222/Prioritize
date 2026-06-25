@@ -64,7 +64,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     @ToString.Include
     private String description;
 
-    // --- Physische Eigenschaften ---
+    // --- Physical properties ---
     @Builder.Default
     private Boolean stationary = true;
     @Builder.Default
@@ -81,7 +81,7 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private String latitude;
     private String longitude;
 
-    // --- MQTT Eigenschaften ---
+    // --- MQTT properties ---
     @Builder.Default
     private Boolean mqttResource=false;
     private String mqttUUID;
@@ -94,8 +94,9 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     @Builder.Default
     private Boolean agent = false;
 
-    @ElementCollection
-    private Set<String> mqttCommands;
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "resource_id") // Prevents a join table for MqttCommands
+    private Set<MqttCommand> mqttCommands;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "resource_id") // Prevents a join table for NameValueEntries
@@ -114,10 +115,10 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     @Builder.Default
     private byte[] mqttDataToSend = new byte[]{};
 
-    // --- Beziehungen ---
+    // --- Relationships ---
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
-    @JsonBackReference(value = "department-resources-fallback") // Eindeutige Back-Reference!
+    @JsonBackReference(value = "department-resources-fallback") // Unique back-reference!
     private Department department;
 
     @ManyToOne(fetch = FetchType.LAZY)

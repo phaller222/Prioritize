@@ -20,7 +20,7 @@ public class NameValueEntry extends PObject implements Comparable<NameValueEntry
     @ToString.Include
     private String mqttName; // Name of the data point
 
-    private String mqttValues; // Kommagetrennte Werte (historisch)
+    private String mqttValues; // Comma-separated values (historical)
 
     @Override
     public int compareTo(NameValueEntry other) {
