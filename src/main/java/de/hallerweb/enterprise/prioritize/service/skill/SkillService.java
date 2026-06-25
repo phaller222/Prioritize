@@ -47,11 +47,11 @@ public class SkillService {
     @Transactional
     public Skill createSkill(Skill skill, PUser user) {
         if (!authService.hasPermission(user, skill, Action.CREATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Anlegen eines Skills.");
+            throw new AccessDeniedException("No permission to create a skill.");
         }
         if (skill.getCategory() != null && skill.getCategory().getId() != null) {
             SkillCategory category = skillCategoryRepository.findById(skill.getCategory().getId())
-                    .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skill.getCategory().getId() + " nicht gefunden"));
+                    .orElseThrow(() -> new EntityNotFoundException("Category with id " + skill.getCategory().getId() + " not found"));
             skill.setCategory(category);
         }
 
@@ -82,7 +82,7 @@ public class SkillService {
 
         // 2. Verify the global skill
         Skill skill = skillRepository.findById(record.getSkill().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Skill nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Skill not found"));
         record.setSkill(skill);
 
         // We check whether the user already has a record for THIS specific skill
@@ -91,7 +91,7 @@ public class SkillService {
                     .anyMatch(existingRecord -> existingRecord.getSkill().getId().equals(skill.getId()));
 
             if (skillAlreadyAssigned) {
-                throw new IllegalArgumentException("Dieser Skill wurde dem Benutzer bereits zugewiesen!");
+                throw new IllegalArgumentException("This skill has already been assigned to the user.");
                 // Alternatively you can throw a custom exception, e.g. SkillAlreadyAssignedException
             }
         }
@@ -115,12 +115,12 @@ public class SkillService {
     public SkillRecord assignSkillToResource(Long resourceId, SkillRecord record) {
         // 1. Load resource
         Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new EntityNotFoundException("Resource mit ID " + resourceId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Resource with id " + resourceId + " not found"));
         record.setResource(resource);
 
         // 2. Skill verifizieren
         Skill skill = skillRepository.findById(record.getSkill().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Skill nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Skill not found"));
         record.setSkill(skill);
 
         return skillRecordRepository.save(record);
@@ -134,7 +134,7 @@ public class SkillService {
     @Transactional(readOnly = true)
     public SkillCategory getCategoryById(Long categoryId) {
         return skillCategoryRepository.findById(categoryId)
-                .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + categoryId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Category with id " + categoryId + " not found"));
     }
 
     @Transactional
@@ -145,7 +145,7 @@ public class SkillService {
 
         if (categoryDetails.getParentCategory() != null && categoryDetails.getParentCategory().getId() != null) {
             SkillCategory parent = skillCategoryRepository.findById(categoryDetails.getParentCategory().getId())
-                    .orElseThrow(() -> new EntityNotFoundException("Parent-Kategorie mit ID " + categoryDetails.getParentCategory().getId() + " nicht gefunden"));
+                    .orElseThrow(() -> new EntityNotFoundException("Parent category with id " + categoryDetails.getParentCategory().getId() + " not found"));
             existing.setParentCategory(parent);
         } else {
             existing.setParentCategory(null);
@@ -158,7 +158,7 @@ public class SkillService {
     public void deleteSkill(Long skillId, PUser user) {
         Skill skill = getSkillByIdInternal(skillId);
         if (!authService.hasPermission(user, skill, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieses Skills.");
+            throw new AccessDeniedException("No permission to delete this skill.");
         }
         skillRepository.deleteById(skillId);
     }
@@ -167,7 +167,7 @@ public class SkillService {
     public void deleteCategory(Long categoryId) {
         // 1. Check whether the category to be deleted even exists
         if (!skillCategoryRepository.existsById(categoryId)) {
-            throw new EntityNotFoundException("Kategorie mit ID " + categoryId + " nicht gefunden");
+            throw new EntityNotFoundException("Category with id " + categoryId + " not found");
         }
 
         // 2. STEP 1: Find all IDs in the subtree directly at the DB level with a recursive query (PostgreSQL CTE)
@@ -244,7 +244,7 @@ public class SkillService {
     public Skill getSkillById(Long skillId, PUser user) {
         Skill skill = getSkillByIdInternal(skillId);
         if (!authService.hasPermission(user, skill, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diesen Skill.");
+            throw new AccessDeniedException("No read permission for this skill.");
         }
         return skill;
     }
@@ -256,20 +256,20 @@ public class SkillService {
     @Transactional(readOnly = true)
     Skill getSkillByIdInternal(Long skillId) {
         return skillRepository.findById(skillId)
-                .orElseThrow(() -> new EntityNotFoundException("Skill mit ID " + skillId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Skill with id " + skillId + " not found"));
     }
 
     @Transactional
     public Skill updateSkill(Long skillId, Skill skillDetails, PUser user) {
         Skill existing = getSkillByIdInternal(skillId);
         if (!authService.hasPermission(user, existing, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Ändern dieses Skills.");
+            throw new AccessDeniedException("No permission to update this skill.");
         }
         existing.setName(skillDetails.getName());
 
         if (skillDetails.getCategory() != null && skillDetails.getCategory().getId() != null) {
             SkillCategory category = skillCategoryRepository.findById(skillDetails.getCategory().getId())
-                    .orElseThrow(() -> new EntityNotFoundException("Kategorie mit ID " + skillDetails.getCategory().getId() + " nicht gefunden"));
+                    .orElseThrow(() -> new EntityNotFoundException("Category with id " + skillDetails.getCategory().getId() + " not found"));
             existing.setCategory(category);
         }
 

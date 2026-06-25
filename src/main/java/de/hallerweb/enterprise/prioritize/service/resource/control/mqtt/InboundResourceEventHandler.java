@@ -48,11 +48,11 @@ public class InboundResourceEventHandler {
                 case "STATUS" -> handleStatus(node);
                 case "DISCOVERY" -> handleDiscovery(node);   // Hook, s.u.
                 case "VALUE" -> handleTelemetry(node);       // Hook, s.u.
-                default -> log.warn("Unbekannter Inbound-Typ '{}' auf Topic '{}': {}",
+                default -> log.warn("Unknown inbound type '{}' on topic '{}': {}",
                         type, topic, payload);
             }
         } catch (Exception ex) {
-            log.error("Inbound-MQTT-Nachricht auf Topic '{}' nicht verarbeitbar: {}",
+            log.error("Inbound MQTT message on topic '{}' could not be processed: {}",
                     topic, ex.getMessage());
         }
     }
@@ -61,22 +61,22 @@ public class InboundResourceEventHandler {
         String uuid = node.path("uuid").asText(null);
         boolean online = node.path("online").asBoolean(false);
         if (uuid == null) {
-            log.warn("STATUS-Meldung ohne uuid ignoriert.");
+            log.warn("STATUS message without uuid ignored.");
             return;
         }
         resourceService.setMqttResourceStatusByUuid(uuid, online);
-        log.debug("Resource (uuid={}) Status gesetzt: online={}", uuid, online);
+        log.debug("Resource (uuid={}) status set: online={}", uuid, online);
     }
 
     // ---------------- Hooks for later iterations ----------------
 
     private void handleDiscovery(JsonNode node) {
         // TODO (later iteration): self-registration of new MQTT devices.
-        log.info("DISCOVERY empfangen (noch nicht implementiert): {}", node);
+        log.info("DISCOVERY received (not yet implemented): {}", node);
     }
 
     private void handleTelemetry(JsonNode node) {
         // TODO (later iteration): persist NameValueEntry telemetry.
-        log.debug("VALUE empfangen (noch nicht implementiert): {}", node);
+        log.debug("VALUE received (not yet implemented): {}", node);
     }
 }

@@ -56,7 +56,7 @@ public class InitializationService {
             admin.setPassword("p@ssword");
             admin.setAdmin(true);
             admin.setGender(PUser.Gender.OTHER);
-            log.info("Initialer Admin-User 'admin' wurde erstellt.");
+            log.info("Initial admin user 'admin' created.");
             return userService.createUser(admin);
         }
         return userService.getAllUsers().get(0);
@@ -68,7 +68,7 @@ public class InitializationService {
                     .name("Main Department")
                     .description("Default department for initial structure")
                     .build();
-            log.info("Initiales Department '{}' wurde erstellt.", dept.getName());
+            log.info("Initial department '{}' created.", dept.getName());
             return departmentRepository.save(dept);
         });
     }
@@ -82,7 +82,7 @@ public class InitializationService {
             resourceGroupRepository.save(defResGroup);
 
             grantFullAccess(admin, ResourceGroup.class, defResGroup.getId());
-            log.info("Default Ressourcengruppe für '{}' erstellt und Admin berechtigt.", dept.getName());
+            log.info("Default resource group for '{}' created and admin authorized.", dept.getName());
         }
     }
 
@@ -95,7 +95,7 @@ public class InitializationService {
             documentGroupRepository.save(defDocGroup);
 
             grantFullAccess(admin, DocumentGroup.class, defDocGroup.getId());
-            log.info("Default Dokumentengruppe für '{}' erstellt und Admin berechtigt.", dept.getName());
+            log.info("Default document group for '{}' created and admin authorized.", dept.getName());
         }
     }
 

@@ -46,7 +46,7 @@ public class CompanyController {
     @PutMapping("/{id}")
     public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Company company, Authentication auth) {
         if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
-            throw new IllegalArgumentException("Manuelle ID-Vergabe für Adressen ist nicht erlaubt.");
+            throw new IllegalArgumentException("Manual ID assignment for addresses is not allowed.");
         }
         companyService.updateCompany(id, company, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();

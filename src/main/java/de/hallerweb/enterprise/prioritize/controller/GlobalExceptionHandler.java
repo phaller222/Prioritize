@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
             SecurityContextHolder.getContext().getAuthentication().getName(),
             ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(ApiError.of("Zugriff verweigert: " + ex.getMessage(), HttpStatus.FORBIDDEN.value()));
+            .body(ApiError.of("Access denied: " + ex.getMessage(), HttpStatus.FORBIDDEN.value()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -51,7 +51,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SlotNotReservedException.class)
     public ResponseEntity<ApiError> handleSlotNotReserved(SlotNotReservedException ex) {
-        log.warn("Slot nicht reserviert: {}", ex.getMessage());
+        log.warn("Slot not reserved: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of(ex.getMessage(), HttpStatus.CONFLICT.value()));
     }
@@ -65,7 +65,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceCommandFailedException.class)
     public ResponseEntity<ApiError> handleCommandFailed(ResourceCommandFailedException ex) {
-        log.warn("Command an Gerät fehlgeschlagen: {}", ex.getMessage());
+        log.warn("Command to device failed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
             .body(ApiError.of(ex.getMessage(), HttpStatus.BAD_GATEWAY.value()));
     }
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleGeneric(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiError.of("Ein interner Serverfehler ist aufgetreten.", HttpStatus.INTERNAL_SERVER_ERROR.value()));
+                .body(ApiError.of("An internal server error occurred.", HttpStatus.INTERNAL_SERVER_ERROR.value()));
     }
     */
 }

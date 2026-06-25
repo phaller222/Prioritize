@@ -41,7 +41,7 @@ public class DocumentService {
     @Transactional
     public DocumentInfo createDocument(String name, Long groupId, PUser user, byte[] content, String mimeType) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
-            .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Group not found."));
 
         // 1. Create and save the document wrapper so that docInfo gets an ID.
         DocumentInfo docInfo = new DocumentInfo();
@@ -85,21 +85,21 @@ public class DocumentService {
     public Document addNewVersion(Long documentInfoId, PUser user, byte[] content, String mimeType, String comment) {
         {
             DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-                .orElseThrow(() -> new NoSuchElementException("Dokument-Info nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Document info not found."));
 
             // Check authorization on the logical document.
             if (!authService.hasPermission(user, info, Action.UPDATE)) {
-                throw new AccessDeniedException("Keine Berechtigung für eine neue Version.");
+                throw new AccessDeniedException("No permission to create a new version.");
             }
 
             // SECURITY CHECK:
             if (!info.isLocked()) {
-                throw new IllegalStateException("Version kann nicht erstellt werden: Dokument muss zuerst ausgecheckt werden.");
+                throw new IllegalStateException("Version cannot be created: document must be checked out first.");
             }
 
 
             if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
-                throw new AccessDeniedException("Nur der Besitzer des Locks darf eine neue Version hochladen.");
+                throw new AccessDeniedException("Only the lock owner may upload a new version.");
             }
 
             int nextVersion = info.getCurrentDocument().getVersion() + 1;
@@ -152,10 +152,10 @@ public class DocumentService {
      */
     public List<DocumentInfo> getDocumentsInGroup(Long groupId, PUser user) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
-            .orElseThrow(() -> new NoSuchElementException("Gruppe nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Group not found."));
 
         if (!authService.hasPermission(user, group, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diese Gruppe.");
+            throw new AccessDeniedException("No read permission for this group.");
         }
 
         return documentInfoRepository.findByDocumentGroup_Id(groupId);
@@ -163,10 +163,10 @@ public class DocumentService {
 
     public DocumentInfo getDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-            .orElseThrow(() -> new NoSuchElementException("Dokument mit ID " + documentInfoId + " nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document with id " + documentInfoId + " not found."));
 
         if (!authService.hasPermission(user, info, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für dieses Dokument.");
+            throw new AccessDeniedException("No read permission for this document.");
         }
 
         return info;
@@ -183,23 +183,23 @@ public class DocumentService {
     @Transactional
     public void checkOut(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findByIdWithLockedBy(documentInfoId)
-            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document not found."));
 
         if (info.isLocked()) {
             // make sure info is not null
             String lockerName = (info.getLockedBy() != null) ? info.getLockedBy().getUsername() : "Unknown";
-            throw new IllegalStateException("Dokument ist bereits von " + lockerName + " gesperrt.");
+            throw new IllegalStateException("Document is already locked by " + lockerName + ".");
         }
 
         // Check authorization; UPDATE permission is required for locking.
         if (!authService.hasPermission(user, info, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Sperren dieses Dokuments.");
+            throw new AccessDeniedException("No permission to lock this document.");
         }
 
         info.setLocked(true);
         info.setLockedBy(user);
         documentInfoRepository.save(info);
-        log.info("Dokument ID {} wurde von User {} ausgecheckt.", documentInfoId, user.getUsername());
+        log.info("Document id {} checked out by user {}.", documentInfoId, user.getUsername());
     }
 
 
@@ -212,18 +212,18 @@ public class DocumentService {
     @Transactional
     public Document checkIn(Long documentInfoId, byte[] content, String mimeType, String comment, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document not found."));
 
         if (!info.isLocked()) {
-            throw new IllegalStateException("Dokument ist nicht gesperrt.");
+            throw new IllegalStateException("Document is not locked.");
         }
 
         // Safe check against null and ID comparison.
         PUser locker = info.getLockedBy();
         if (locker == null) {
-            log.warn("Dokument {} war gesperrt, aber lockedBy war null!", documentInfoId);
+            log.warn("Document {} was locked but lockedBy was null!", documentInfoId);
         } else if (locker.getId() != user.getId() && !user.isAdmin()) {
-            throw new AccessDeniedException("Nur der Besitzer des Locks (" + locker.getUsername() + ") darf einchecken.");
+            throw new AccessDeniedException("Only the lock owner (" + locker.getUsername() + ") may check in.");
         }
 
         // Create new version by using the logic from addNewVersion.
@@ -234,7 +234,7 @@ public class DocumentService {
         info.setLockedBy(null);
         documentInfoRepository.save(info);
 
-        log.info("Dokument ID {} wurde erfolgreich von User {} eingecheckt.", documentInfoId, user.getUsername());
+        log.info("Document id {} successfully checked in by user {}.", documentInfoId, user.getUsername());
         return newVersion;
     }
 
@@ -249,7 +249,7 @@ public class DocumentService {
     @Transactional
     public void cancelCheckOut(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document not found."));
 
         if (!info.isLocked()) {
             return; // Nothing to do.
@@ -257,13 +257,13 @@ public class DocumentService {
 
         // Only the owner or an admin may cancel.
         if (info.getLockedBy().getId() != user.getId() && !user.isAdmin()) {
-            throw new AccessDeniedException("Nur der Besitzer des Locks kann die Sperre aufheben.");
+            throw new AccessDeniedException("Only the lock owner may cancel the checkout.");
         }
 
         info.setLocked(false);
         info.setLockedBy(null);
         documentInfoRepository.save(info);
-        log.info("Lock für Dokument ID {} wurde von User {} aufgehoben (Abbruch).", documentInfoId, user.getUsername());
+        log.info("Lock for document id {} released by user {} (cancelled).", documentInfoId, user.getUsername());
     }
 
     public String getExtension(String contentType) {
@@ -279,20 +279,20 @@ public class DocumentService {
     @Transactional
     public void deleteDocument(Long documentInfoId, PUser user) {
         DocumentInfo info = documentInfoRepository.findById(documentInfoId)
-            .orElseThrow(() -> new NoSuchElementException("Dokument nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document not found."));
 
         // check for Action.DELETE
         if (!authService.hasPermission(user, info, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen.");
+            throw new AccessDeniedException("No permission to delete.");
         }
 
         // If document is locked, it cannot be deleted except by admins
         if (info.isLocked() && !user.isAdmin()) {
-            throw new IllegalStateException("Gesperrte Dokumente können nicht gelöscht werden.");
+            throw new IllegalStateException("Locked documents cannot be deleted.");
         }
 
         documentInfoRepository.delete(info);
-        log.info("Dokument {} wurde von User {} gelöscht.", documentInfoId, user.getUsername());
+        log.info("Document {} deleted by user {}.", documentInfoId, user.getUsername());
     }
 
     public List<DocumentSummaryDTO> searchDocumentsByName(String name, PUser user) {
@@ -330,7 +330,7 @@ public class DocumentService {
     public DocumentGroup createDocumentGroup(DocumentGroup group) {
         // Protection: the default group must not be created manually
         if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
-            throw new IllegalArgumentException("Eine Gruppe mit dem Namen 'Default' kann nicht manuell angelegt werden.");
+            throw new IllegalArgumentException("A group named 'Default' cannot be created manually.");
         }
         return documentGroupRepository.save(group);
     }
@@ -349,18 +349,18 @@ public class DocumentService {
 
     public void deleteDocumentGroup(Long groupId, PUser user) {
         DocumentGroup group = documentGroupRepository.findById(groupId)
-            .orElseThrow(() -> new NoSuchElementException("Dokumentengruppe mit ID " + groupId + " nicht gefunden."));
+            .orElseThrow(() -> new NoSuchElementException("Document group with id " + groupId + " not found."));
 
         if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
-            throw new IllegalStateException("Die Default-Gruppe kann nicht gelöscht werden.");
+            throw new IllegalStateException("The default group cannot be deleted.");
         }
 
         if (!authService.hasPermission(user, group, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Gruppe.");
+            throw new AccessDeniedException("No permission to delete this group.");
         }
 
         documentGroupRepository.delete(group);
-        log.info("Dokumentengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
+        log.info("Document group '{}' (id: {}) deleted by user '{}'.",
             group.getName(), groupId, user.getUsername());
     }
 

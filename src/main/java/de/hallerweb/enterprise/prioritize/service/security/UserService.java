@@ -38,7 +38,7 @@ public class UserService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // Looks up the PUser in your database
         PUser pUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User nicht gefunden: " + username));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
         // Changes PUser to a Spring-Security-UserDetails Object
         return org.springframework.security.core.userdetails.User.builder()
@@ -52,9 +52,9 @@ public class UserService implements UserDetailsService {
 
     public PUser findUserByUsername(String username) {
         PUser user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new NoSuchElementException("User " + username + " nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("User " + username + " not found"));
         if (!user.isActive()) {
-            throw new NoSuchElementException("User " + username + " nicht gefunden");
+            throw new NoSuchElementException("User " + username + " not found");
         }
         return user;
     }
@@ -62,7 +62,7 @@ public class UserService implements UserDetailsService {
     @Transactional
     public PUser updateUser(PUser user) {
         if (!userRepository.existsById(user.getId())) {
-            throw new NoSuchElementException("User mit ID " + user.getId() + " existiert nicht.");
+            throw new NoSuchElementException("User with id " + user.getId() + " does not exist.");
         }
         return userRepository.save(user);
     }
@@ -70,9 +70,9 @@ public class UserService implements UserDetailsService {
     @Transactional(readOnly = true)
     public PUser getUserById(Long id) {
         PUser user = userRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("User with id " + id + " not found"));
         if (!user.isActive()) {
-            throw new NoSuchElementException("User mit ID " + id + " nicht gefunden");
+            throw new NoSuchElementException("User with id " + id + " not found");
         }
         return user;
     }
@@ -104,9 +104,9 @@ public class UserService implements UserDetailsService {
     @Transactional
     public void deactivateUser(Long id) {
         PUser user = userRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("User mit ID " + id + " nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("User with id " + id + " not found"));
         if (user.isAdmin()) {
-            throw new IllegalArgumentException("Admin-User können nicht deaktiviert werden.");
+            throw new IllegalArgumentException("Admin users cannot be deactivated.");
         }
         user.setActive(false);
     }

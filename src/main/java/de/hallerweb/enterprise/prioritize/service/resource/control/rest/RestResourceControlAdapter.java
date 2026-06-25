@@ -49,13 +49,13 @@ public class RestResourceControlAdapter implements ResourceControlAdapter {
                 .body(payload)
                 .retrieve()
                 .toBodilessEntity();
-            log.debug("REST-Command '{}' an Resource {} (Slot {}, {}) gesendet.",
+            log.debug("REST command '{}' sent to resource {} (slot {}, {}).",
                 command, resource.getId(), slot, url);
         } catch (RestClientException ex) {
-            log.warn("REST-Command '{}' an Resource {} ({}) fehlgeschlagen: {}",
+            log.warn("REST command '{}' to resource {} ({}) failed: {}",
                 command, resource.getId(), url, ex.getMessage());
             throw new ResourceCommandFailedException(
-                "Gerät unter " + url + " hat das Kommando nicht angenommen: " + ex.getMessage(), ex);
+                "Device at " + url + " did not accept the command: " + ex.getMessage(), ex);
         }
     }
 

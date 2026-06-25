@@ -42,7 +42,7 @@ public class ResourceService {
         // Here we check whether the user is even allowed to create groups in the department
         // In case the department itself is a PAuthorizedObject:
         if (!authService.hasPermission(user, dept, Action.CREATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, Gruppen in diesem Department anzulegen.");
+            throw new AccessDeniedException("No permission to create groups in this department.");
         }
 
         ResourceGroup group = ResourceGroup.builder()
@@ -57,11 +57,11 @@ public class ResourceService {
 
     public Resource createResource(Resource resource, Long groupId, PUser user) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-                .orElseThrow(() -> new NoSuchElementException("Zielgruppe nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Target group not found"));
 
         // Is the user allowed to create resources in this group?
         if (!authService.hasPermission(user, group, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, Ressourcen zu dieser Gruppe hinzuzufügen.");
+            throw new AccessDeniedException("No permission to add resources to this group.");
         }
 
         resource.setResourceGroup(group);
@@ -100,10 +100,10 @@ public class ResourceService {
 
     public Resource getResource(Long resourceId, PUser user) {
         Resource res = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
 
         if (!authService.hasPermission(user, res, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
+            throw new AccessDeniedException("No read permission for this resource.");
         }
 
         Instant now = Instant.now();
@@ -116,7 +116,7 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public Set<Resource> getResourcesByGroupId(Long groupId) {
         if (!resourceGroupRepository.existsById(groupId)) {
-            throw new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden");
+            throw new EntityNotFoundException("Resource group with id " + groupId + " not found");
         }
         return new java.util.HashSet<>(resourceRepository.findByResourceGroup_Id(groupId));
     }
@@ -126,11 +126,11 @@ public class ResourceService {
 
     public ResourceReservation reserveResource(Long resourceId, PUser user, Instant from, Instant until) {
         Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
 
         // 1. Check rights
         if (!authService.hasPermission(user, resource, Action.READ)) {
-            throw new AccessDeniedException("Keine Berechtigung für diese Ressource.");
+            throw new AccessDeniedException("No permission for this resource.");
         }
 
         // 2. Find overlaps for the time span
@@ -140,7 +140,7 @@ public class ResourceService {
         // 3. Freien Slot berechnen
         int assignedSlot = findFirstAvailableSlot(resource.getMaxSlots(), overlaps);
         if (assignedSlot == -1) {
-            throw new IllegalStateException("Alle Slots (" + resource.getMaxSlots() + ") belegt.");
+            throw new IllegalStateException("All slots (" + resource.getMaxSlots() + ") occupied.");
         }
 
         // 4. Reservierung inkl. TimeSpan speichern
@@ -175,10 +175,10 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public List<ResourceReservation> getMyActiveReservations(Long resourceId, PUser user) {
         Resource resource = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+            .orElseThrow(() -> new NoSuchElementException("Resource not found"));
 
         if (!authService.hasPermission(user, resource, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
+            throw new AccessDeniedException("No read permission for this resource.");
         }
 
         return reservationRepository.findActiveReservationsByUser(resourceId, user.getId(), Instant.now());
@@ -195,10 +195,10 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public List<ResourceReservation> getReservationsForResource(Long resourceId, PUser user) {
         Resource resource = resourceRepository.findById(resourceId)
-            .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+            .orElseThrow(() -> new NoSuchElementException("Resource not found"));
 
         if (!authService.hasPermission(user, resource, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diese Ressource.");
+            throw new AccessDeniedException("No read permission for this resource.");
         }
 
         return reservationRepository.findByResourceId(resourceId.intValue());
@@ -220,7 +220,7 @@ public class ResourceService {
     public void cancelReservation(Integer reservationId, PUser user) {
         ResourceReservation reservation = reservationRepository.findById(reservationId)
             .orElseThrow(() -> new NoSuchElementException(
-                "Reservierung " + reservationId + " nicht gefunden."));
+                "Reservation " + reservationId + " not found."));
 
         boolean isOwner = reservation.getReservedBy() != null
             && user.getId().equals(reservation.getReservedBy().getId());
@@ -229,11 +229,11 @@ public class ResourceService {
 
         if (!isOwner && !isResourceManager) {
             throw new AccessDeniedException(
-                "Keine Berechtigung, diese Reservierung zu stornieren.");
+                "No permission to cancel this reservation.");
         }
 
         reservationRepository.delete(reservation);
-        log.info("Reservierung {} (Slot {}) auf Resource {} von User '{}' storniert.",
+        log.info("Reservation {} (slot {}) on resource {} cancelled by user '{}'.",
             reservationId, reservation.getSlotNumber(),
             reservation.getResource() != null ? reservation.getResource().getId() : "?",
             user.getUsername());
@@ -272,23 +272,23 @@ public class ResourceService {
      */
     public void deleteResourceGroup(Long groupId, PUser user) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-                .orElseThrow(() -> new NoSuchElementException("Ressourcengruppe nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Resource group not found."));
 
         // 1. Protection of the default group (system invariant)
         if (ResourceGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
-            throw new IllegalStateException("Die Default-Gruppe kann nicht gelöscht werden.");
+            throw new IllegalStateException("The default group cannot be deleted.");
         }
 
         // 2. Permission check
         if (!authService.hasPermission(user, group, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Gruppe.");
+            throw new AccessDeniedException("No permission to delete this group.");
         }
 
         // 3. Deletion
         // Note: if there are resources in the group, the cascade label in the model decides
         // whether they are deleted along with it or deletion is prevented.
         resourceGroupRepository.delete(group);
-        log.info("Ressourcengruppe '{}' (ID: {}) wurde von User '{}' gelöscht.",
+        log.info("Resource group '{}' (id: {}) deleted by user '{}'.",
                 group.getName(), groupId, user.getUsername());
     }
 
@@ -300,11 +300,11 @@ public class ResourceService {
      */
     public void deleteResource(Long resourceId, PUser user) {
         Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden."));
+                .orElseThrow(() -> new NoSuchElementException("Resource not found."));
 
         // 1. Permission check
         if (!authService.hasPermission(user, resource, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Ressource.");
+            throw new AccessDeniedException("No permission to delete this resource.");
         }
 
         // 2. Optional: Check auf aktive Reservierungen
@@ -313,7 +313,7 @@ public class ResourceService {
                 resourceId, Instant.now(), Instant.now().plus(Duration.ofDays(365)));
 
         if (!activeReservations.isEmpty()) {
-            log.warn("Löschen der Ressource {} trotz {} zukünftiger Reservierungen.", resourceId, activeReservations.size());
+            log.warn("Deleting resource {} despite {} future reservations.", resourceId, activeReservations.size());
             // Either throw an exception or (as planned here) delete it along via cascade.
         }
 
@@ -323,10 +323,10 @@ public class ResourceService {
 
     public Resource partialUpdateResource(Long id, Resource patch, PUser user) {
         Resource existing = resourceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Ressource nicht gefunden"));
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
 
         if (!authService.hasPermission(user, existing, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, diese Ressource zu ändern.");
+            throw new AccessDeniedException("No permission to update this resource.");
         }
 
         // Only non-critical fields modifiable via PATCH (null = unchanged)
@@ -363,16 +363,16 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public void validateResourceInGroup(Long resourceId, Long groupId) {
         ResourceGroup group = resourceGroupRepository.findById(groupId)
-                .orElseThrow(() -> new EntityNotFoundException("ResourceGroup mit ID " + groupId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Resource group with id " + groupId + " not found"));
 
         Resource resource = resourceRepository.findById(resourceId)
-                .orElseThrow(() -> new EntityNotFoundException("Ressource mit ID " + resourceId + " nicht gefunden"));
+                .orElseThrow(() -> new EntityNotFoundException("Resource with id " + resourceId + " not found"));
 
         boolean belongs = resourceRepository.findByResourceGroup_Id(groupId)
                 .stream().anyMatch(r -> r.getId().equals(resourceId));
         if (!belongs) {
             throw new IllegalArgumentException(
-                    "Ressource " + resourceId + " gehört nicht zu Gruppe " + groupId + ".");
+                    "Resource " + resourceId + " does not belong to group " + groupId + ".");
         }
     }
 
@@ -390,7 +390,7 @@ public class ResourceService {
             resource.setMqttOnline(online);
             resource.setMqttLastPing(java.time.LocalDateTime.now());
             resourceRepository.save(resource);
-        }, () -> log.warn("STATUS für unbekannte MQTT-UUID '{}' ignoriert.", mqttUuid));
+        }, () -> log.warn("STATUS for unknown MQTT UUID '{}' ignored.", mqttUuid));
     }
 
 

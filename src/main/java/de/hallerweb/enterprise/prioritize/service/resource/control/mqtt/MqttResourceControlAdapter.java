@@ -50,7 +50,7 @@ public class MqttResourceControlAdapter implements ResourceControlAdapter {
         String topic = resource.getMqttDataReceiveTopic();
         if (topic == null || topic.isBlank()) {
             throw new IllegalStateException(
-                "MQTT-Resource " + resource.getId() + " hat kein Receive-Topic konfiguriert.");
+                "MQTT resource " + resource.getId() + " has no receive topic configured.");
         }
 
         ResourceCommandMessage payload = new ResourceCommandMessage(command, param, slot);
@@ -60,10 +60,10 @@ public class MqttResourceControlAdapter implements ResourceControlAdapter {
                 .withPayload(json)
                 .setHeader(MqttHeaders.TOPIC, topic)
                 .build());
-            log.debug("MQTT-Command '{}' an Resource {} (Slot {}, Topic {}) gesendet.",
+            log.debug("MQTT command '{}' sent to resource {} (slot {}, topic {}).",
                 command, resource.getId(), slot, topic);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Command-Payload konnte nicht serialisiert werden.", e);
+            throw new IllegalStateException("Command payload could not be serialized.", e);
         }
     }
 

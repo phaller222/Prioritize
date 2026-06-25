@@ -35,7 +35,7 @@ public class CompanyService {
         Company company = companyRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Company not found with id: " + id));
         if (!authService.hasPermission(user, company, Action.READ)) {
-            throw new AccessDeniedException("Keine Leseberechtigung für diese Firma.");
+            throw new AccessDeniedException("No read permission for this company.");
         }
         return company;
     }
@@ -75,7 +75,7 @@ public class CompanyService {
 
     public Company createCompany(Company company, PUser user) {
         if (!authService.hasPermission(user, company, Action.CREATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Anlegen einer Firma.");
+            throw new AccessDeniedException("No permission to create a company.");
         }
         return companyRepository.save(company);
     }
@@ -83,7 +83,7 @@ public class CompanyService {
     public void updateCompany(Long id, Company companyDetails, PUser user) {
         Company company = findByIdInternal(id);
         if (!authService.hasPermission(user, company, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Ändern dieser Firma.");
+            throw new AccessDeniedException("No permission to update this company.");
         }
 
         // Only update base data, so as not to accidentally kill relationships
@@ -120,7 +120,7 @@ public class CompanyService {
     public void deleteCompany(Long id, PUser user) {
         Company company = findByIdInternal(id);
         if (!authService.hasPermission(user, company, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung zum Löschen dieser Firma.");
+            throw new AccessDeniedException("No permission to delete this company.");
         }
         companyRepository.deleteById(id);
     }

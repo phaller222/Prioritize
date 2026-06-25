@@ -29,7 +29,7 @@ public class DepartmentService {
         if (!authService.hasPermission(requestingUser,
                 "de.hallerweb.enterprise.prioritize.model.company.Company",
                 companyId, Action.CREATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, Abteilungen in dieser Company anzulegen.");
+            throw new AccessDeniedException("No permission to create departments in this company.");
         }
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new EntityNotFoundException("Company with id " + companyId + " not found."));
@@ -42,7 +42,7 @@ public class DepartmentService {
         if (!authService.hasPermission(requestingUser,
                 "de.hallerweb.enterprise.prioritize.model.company.Department",
                 id, Action.UPDATE)) {
-            throw new AccessDeniedException("Keine Berechtigung, diese Abteilung zu bearbeiten.");
+            throw new AccessDeniedException("No permission to update this department.");
         }
         Department existingDept = getDepartmentById(id);
         existingDept.setName(departmentDetails.getName());
@@ -69,10 +69,10 @@ public class DepartmentService {
         if (!authService.hasPermission(requestingUser,
                 "de.hallerweb.enterprise.prioritize.model.company.Department",
                 id, Action.DELETE)) {
-            throw new AccessDeniedException("Keine Berechtigung, diese Abteilung zu löschen.");
+            throw new AccessDeniedException("No permission to delete this department.");
         }
         if (!departmentRepository.existsById(id)) {
-            throw new EntityNotFoundException("Löschen fehlgeschlagen: Department " + id + " existiert nicht.");
+            throw new EntityNotFoundException("Delete failed: department " + id + " does not exist.");
         }
         departmentRepository.deleteById(id);
     }
@@ -80,7 +80,7 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public Department getDepartmentById(Long id) {
         return departmentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Department mit ID " + id + " nicht gefunden."));
+                .orElseThrow(() -> new EntityNotFoundException("Department with id " + id + " not found."));
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +88,7 @@ public class DepartmentService {
         if (!authService.hasPermission(requestingUser,
                 "de.hallerweb.enterprise.prioritize.model.company.Company",
                 companyId, Action.READ)) {
-            throw new AccessDeniedException("Keine Berechtigung, Abteilungen dieser Company zu lesen.");
+            throw new AccessDeniedException("No permission to read departments of this company.");
         }
         return departmentRepository.findByCompany_Id(companyId);
     }
@@ -101,7 +101,7 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public Department getDepartmentByName(String name) {
         return departmentRepository.findByName(name)
-                .orElseThrow(() -> new EntityNotFoundException("Department mit Name '" + name + "' nicht gefunden."));
+                .orElseThrow(() -> new EntityNotFoundException("Department with name '" + name + "' not found."));
     }
 
     public void renameDepartment(Long id, String newName) {

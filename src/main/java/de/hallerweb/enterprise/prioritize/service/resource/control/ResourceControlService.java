@@ -79,7 +79,7 @@ public class ResourceControlService {
     public void sendCommand(Resource resource, String command, String param, PUser user) {
         if (!authService.hasPermission(user, resource, Action.UPDATE)) {
             throw new AccessDeniedException(
-                "Keine Berechtigung, diese Resource zu steuern.");
+                "No permission to control this resource.");
         }
 
         int slot = resolveReservedSlot(resource, user);
@@ -104,13 +104,13 @@ public class ResourceControlService {
 
         if (active.isEmpty()) {
             throw new SlotNotReservedException(
-                "Benutzer '" + user.getUsername() + "' hat keine aktive Reservierung auf Resource "
-                    + resource.getId() + ". Ein Steuerkommando setzt eine laufende Reservierung voraus.");
+                "User '" + user.getUsername() + "' has no active reservation on resource "
+                    + resource.getId() + ". A control command requires an active reservation.");
         }
         if (active.size() > 1) {
             throw new SlotNotReservedException(
-                "Benutzer '" + user.getUsername() + "' hält mehrere aktive Reservierungen auf Resource "
-                    + resource.getId() + "; der Ziel-Slot ist nicht eindeutig.");
+                "User '" + user.getUsername() + "' holds multiple active reservations on resource "
+                    + resource.getId() + "; the target slot is ambiguous.");
         }
         return active.get(0).getSlotNumber();
     }
@@ -137,7 +137,7 @@ public class ResourceControlService {
 
         // 4. Kein Transport erreichbar
         throw new ResourceOfflineException(
-            "Resource " + resource.getId() + " ist offline und besitzt keinen Steuerkanal "
-                + "(MQTT offline, kein REST-Endpunkt).");
+            "Resource " + resource.getId() + " is offline and has no control channel "
+                + "(MQTT offline, no REST endpoint).");
     }
 }
