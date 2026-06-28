@@ -1,6 +1,7 @@
 package de.hallerweb.enterprise.prioritize.service.resource;
 
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
@@ -307,5 +308,47 @@ class ResourceServiceTest {
     void validateResourceInGroup_UnknownResource_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
                 () -> resourceService.validateResourceInGroup(-999L, testGroup.getId()));
+    }
+
+    // ==========================================
+    // MQTT TELEMETRY (VALUE)
+    // ==========================================
+
+    @Test
+    @DisplayName("recordMqttValueByUuid: Neuer Datenpunkt wird mit dem ersten Wert angelegt")
+    void recordMqttValue_createsEntry() {
+        testResource.setMqttUUID("uuid-telemetry-1");
+        resourceRepository.save(testResource);
+
+        resourceService.recordMqttValueByUuid("uuid-telemetry-1", "temp", "21");
+
+        Resource reloaded = resourceRepository.findByMqttUUID("uuid-telemetry-1").orElseThrow();
+        NameValueEntry entry = reloaded.getMqttValues().stream()
+                .filter(e -> "temp".equals(e.getMqttName())).findFirst().orElseThrow();
+        assertEquals("21", entry.getMqttValues());
+    }
+
+    @Test
+    @DisplayName("recordMqttValueByUuid: Weitere Werte werden an die Komma-Historie angehängt")
+    void recordMqttValue_appendsHistory() {
+        testResource.setMqttUUID("uuid-telemetry-2");
+        resourceRepository.save(testResource);
+
+        resourceService.recordMqttValueByUuid("uuid-telemetry-2", "temp", "21");
+        resourceService.recordMqttValueByUuid("uuid-telemetry-2", "temp", "22");
+        resourceService.recordMqttValueByUuid("uuid-telemetry-2", "temp", "23");
+
+        Resource reloaded = resourceRepository.findByMqttUUID("uuid-telemetry-2").orElseThrow();
+        NameValueEntry entry = reloaded.getMqttValues().stream()
+                .filter(e -> "temp".equals(e.getMqttName())).findFirst().orElseThrow();
+        assertEquals("21,22,23", entry.getMqttValues());
+        assertEquals(1, reloaded.getMqttValues().size(), "Gleicher Datenpunkt, keine Dublette");
+    }
+
+    @Test
+    @DisplayName("recordMqttValueByUuid: Unbekannte UUID wird fehlerfrei ignoriert")
+    void recordMqttValue_unknownUuid_isIgnored() {
+        assertDoesNotThrow(
+                () -> resourceService.recordMqttValueByUuid("does-not-exist", "temp", "21"));
     }
 }

@@ -15,15 +15,15 @@ import org.springframework.stereotype.Component;
 /**
  * Processes inbound MQTT messages (device → system) from the {@code mqttInboundChannel}.
  * <p>
- * Current scope: status messages (online/offline) and discovery (self-registration
- * of new devices, see {@link MqttDiscoveryService}). Telemetry (key/value values) is
- * prepared as a hook but not yet implemented — for now it only logs.
+ * Current scope: status messages (online/offline), discovery (self-registration of new
+ * devices, see {@link MqttDiscoveryService}) and telemetry (key/value readings, persisted
+ * as {@code NameValueEntry} history on the resource).
  * <p>
  * Inbound JSON (examples):
  * <pre>
  * Status:   { "type": "STATUS", "uuid": "...", "online": true }
  * Discovery:{ "type": "DISCOVERY", "uuid": "...", "name": "...", "description": "...", ... }
- * Telemetry:{ "type": "VALUE", "uuid": "...", "name": "temp", "value": "21" } (later)
+ * Telemetry:{ "type": "VALUE", "uuid": "...", "name": "temp", "value": "21" }
  * </pre>
  *
  * @author peter haller
@@ -49,7 +49,7 @@ public class InboundResourceEventHandler {
             switch (type) {
                 case "STATUS" -> handleStatus(node);
                 case "DISCOVERY" -> handleDiscovery(node);
-                case "VALUE" -> handleTelemetry(node);       // Hook, see below
+                case "VALUE" -> handleTelemetry(node);
                 default -> log.warn("Unknown inbound type '{}' on topic '{}': {}",
                         type, topic, payload);
             }
@@ -90,11 +90,20 @@ public class InboundResourceEventHandler {
         discoveryService.registerOrUpdate(msg);
     }
 
-    // ---------------- Hook for a later iteration ----------------
-
+    /**
+     * Telemetry (a single key/value reading). Reads the mandatory uuid, name and value and
+     * delegates to {@link ResourceService#recordMqttValueByUuid(String, String, String)},
+     * which appends the value to the data point's history.
+     */
     private void handleTelemetry(JsonNode node) {
-        // TODO (later iteration): persist NameValueEntry telemetry.
-        log.debug("VALUE received (not yet implemented): {}", node);
+        String uuid = node.path("uuid").asText(null);
+        String name = node.path("name").asText(null);
+        String value = node.path("value").asText(null);
+        if (uuid == null || name == null || value == null) {
+            log.warn("VALUE ignored: uuid, name and value are required. Payload: {}", node);
+            return;
+        }
+        resourceService.recordMqttValueByUuid(uuid, name, value);
     }
 
     private static boolean isBlank(String value) {

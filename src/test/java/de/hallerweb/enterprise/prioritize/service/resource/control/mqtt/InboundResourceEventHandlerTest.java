@@ -73,4 +73,26 @@ class InboundResourceEventHandlerTest {
         verify(resourceService).setMqttResourceStatusByUuid("u1", true);
         verifyNoInteractions(discoveryService);
     }
+
+    @Test
+    @DisplayName("VALUE routes to the resource service with uuid, name and value")
+    void value_isDelegated() {
+        dispatch("""
+            { "type": "VALUE", "uuid": "u1", "name": "temp", "value": "21" }
+            """);
+
+        verify(resourceService).recordMqttValueByUuid("u1", "temp", "21");
+        verifyNoInteractions(discoveryService);
+    }
+
+    @Test
+    @DisplayName("VALUE missing a mandatory field (value) is ignored")
+    void value_missingField_isIgnored() {
+        dispatch("""
+            { "type": "VALUE", "uuid": "u1", "name": "temp" }
+            """);
+
+        verifyNoInteractions(resourceService);
+        verifyNoInteractions(discoveryService);
+    }
 }

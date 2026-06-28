@@ -2,6 +2,7 @@ package de.hallerweb.enterprise.prioritize.service.resource;
 
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
@@ -35,6 +36,9 @@ public class ResourceService {
     private final ResourceGroupRepository resourceGroupRepository;
     private final ResourceReservationRepository reservationRepository;
     private final AuthorizationService authService; // Your central guard
+
+    /** Maximum number of readings kept per data point in the comma-separated history. */
+    private static final int MAX_VALUE_HISTORY = 100;
 
     // --- Resource Group Management ---
 
@@ -391,6 +395,55 @@ public class ResourceService {
             resource.setMqttLastPing(java.time.LocalDateTime.now());
             resourceRepository.save(resource);
         }, () -> log.warn("STATUS for unknown MQTT UUID '{}' ignored.", mqttUuid));
+    }
+
+    /**
+     * Records a telemetry value reported by an MQTT device (VALUE message). The value is
+     * appended to the named data point's comma-separated history ({@link NameValueEntry}),
+     * which is created on first sight. Only the most recent {@link #MAX_VALUE_HISTORY}
+     * readings are kept. Also refreshes the last-ping timestamp. Unknown UUIDs are ignored
+     * (logged), like STATUS, since devices register themselves via discovery first.
+     *
+     * @param mqttUuid the MQTT UUID of the reporting device
+     * @param name     the data point name (e.g. {@code temp})
+     * @param value    the reported value
+     */
+    public void recordMqttValueByUuid(String mqttUuid, String name, String value) {
+        resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {
+            if (resource.getMqttValues() == null) {
+                resource.setMqttValues(new java.util.HashSet<>());
+            }
+            NameValueEntry entry = resource.getMqttValues().stream()
+                    .filter(e -> name.equals(e.getMqttName()))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        NameValueEntry created = new NameValueEntry();
+                        created.setMqttName(name);
+                        resource.getMqttValues().add(created);
+                        return created;
+                    });
+            entry.setMqttValues(appendCapped(entry.getMqttValues(), value));
+            resource.setMqttLastPing(java.time.LocalDateTime.now());
+            resourceRepository.save(resource);
+            log.debug("VALUE recorded for resource (uuid={}): {}={}", mqttUuid, name, value);
+        }, () -> log.warn("VALUE for unknown MQTT UUID '{}' ignored.", mqttUuid));
+    }
+
+    /**
+     * Appends {@code value} to a comma-separated history, keeping only the most recent
+     * {@link #MAX_VALUE_HISTORY} entries.
+     */
+    private static String appendCapped(String history, String value) {
+        if (history == null || history.isBlank()) {
+            return value;
+        }
+        java.util.List<String> values = new java.util.ArrayList<>(
+                java.util.Arrays.asList(history.split(",")));
+        values.add(value);
+        if (values.size() > MAX_VALUE_HISTORY) {
+            values = values.subList(values.size() - MAX_VALUE_HISTORY, values.size());
+        }
+        return String.join(",", values);
     }
 
 
