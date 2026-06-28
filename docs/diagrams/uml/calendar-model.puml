@@ -1,0 +1,48 @@
+@startuml Calendar-Subsystem
+' Scoped to the "calendar" subsystem (model/calendar). ResourceReservation, Resource and
+' PUser live in other packages and are shown as «external». TimeSpan also implements the
+' security marker interface PAuthorizedObject (not drawn). Only key attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class TimeSpan {
+  title : String
+  description : String
+  dateFrom : Instant
+  dateUntil : Instant
+  type : TimeSpanType
+}
+
+enum TimeSpanType {
+  RESOURCE_RESERVATION
+  VACATION
+  ILLNESS
+  TIME_TRACKER
+  OTHER
+  ALL
+}
+
+class ResourceReservation <<external>>
+class Resource <<external>>
+class PUser <<external>>
+
+' A ResourceReservation owns exactly one TimeSpan (cascade / orphanRemoval).
+' TimeSpan may additionally involve many resources and users (ManyToMany join tables).
+ResourceReservation "1" *-- "1" TimeSpan : timespan
+TimeSpan "*" --> "*" Resource : involvedResources
+TimeSpan "*" --> "*" PUser : involvedUsers
+TimeSpan --> TimeSpanType : type
+
+@enduml

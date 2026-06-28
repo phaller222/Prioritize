@@ -1,0 +1,54 @@
+@startuml Document-Subsystem
+' Scoped to the "document" subsystem only (model/document entities).
+' Neighbouring classes from other packages (Department, PUser) are shown as «external»
+' purely for connection context. Base class PObject is omitted — every entity carries a
+' Long id. Only the most relevant attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class DocumentGroup {
+  name : String
+  {static} DEFAULT_GROUP_NAME = "Default"
+}
+
+class DocumentInfo {
+  locked : boolean
+}
+
+class Document {
+  name : String
+  version : int
+  mimeType : String
+  tag : String
+  lastModified : LocalDateTime
+  changes : String
+}
+
+class Department <<external>>
+class PUser <<external>>
+
+' DocumentInfo is the logical document (a directory entry + its version history);
+' Document is a single concrete version. currentDocument points at the active version,
+' recentDocuments holds the full history.
+' Composition (filled diamond) = owned lifecycle (cascade / orphanRemoval).
+' Plain arrow = ManyToOne reference.
+DocumentGroup "0..*" --> "1" Department : department
+DocumentGroup "1" *-- "0..*" DocumentInfo : documents
+DocumentInfo "1" *-- "1" Document : currentDocument
+DocumentInfo "1" *-- "0..*" Document : recentDocuments
+DocumentInfo "0..*" --> "1" PUser : lockedBy
+Document "0..*" --> "1" PUser : lastModifiedBy
+
+@enduml

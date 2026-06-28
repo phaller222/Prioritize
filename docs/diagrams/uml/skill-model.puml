@@ -1,0 +1,77 @@
+@startuml Skill-Subsystem
+' Scoped to the "skill" subsystem (model/skill entities). PUser and Resource live in other
+' packages and are shown as «external». Base class PObject is omitted — entities carry a
+' Long id (SkillProperty has its own Integer id as a SINGLE_TABLE inheritance root).
+' Only the most relevant attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class Skill {
+  name : String
+  description : String
+  keywords : String
+}
+
+class SkillCategory {
+  name : String
+  description : String
+}
+
+class SkillGroup {
+  amount : int
+}
+
+abstract class SkillProperty {
+  name : String
+  description : String
+}
+
+class SkillPropertyNumeric {
+  minimum : int
+  maximum : int
+}
+
+class SkillPropertyText {
+  textValue : String
+}
+
+class SkillRecord {
+  enthusiasm : Integer
+}
+
+class SkillRecordProperty {
+  valueNumeric : int
+  valueText : String
+}
+
+class PUser <<external>>
+class Resource <<external>>
+
+' --- Definition side ---
+Skill "0..*" --> "1" SkillCategory : category
+SkillCategory "1" *-- "0..*" SkillCategory : subCategories
+Skill "1" *-- "0..*" SkillProperty : skillProperties
+SkillProperty <|-- SkillPropertyNumeric
+SkillProperty <|-- SkillPropertyText
+SkillGroup "0..*" --> "1" Skill : skill
+
+' --- Assessment side (who has which skill, at what level) ---
+SkillRecord "0..*" --> "1" Skill : skill
+SkillRecord "0..*" --> "1" PUser : user
+SkillRecord "0..*" --> "1" Resource : resource
+SkillRecord "1" *-- "0..*" SkillRecordProperty : skillRecordProperties
+SkillRecordProperty "0..*" --> "1" SkillProperty : property
+
+@enduml

@@ -1,0 +1,58 @@
+@startuml Company-Subsystem
+' Scoped to the "company" subsystem (model/company + the embedded Address value object).
+' DocumentGroup and ResourceGroup live in other subsystems and are shown as «external»
+' (a Department owns groups of both kinds). Base class PObject is omitted — every entity
+' carries a Long id. Only the most relevant attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class Company {
+  name : String
+  description : String
+  url : String
+  vatNumber : String
+  taxId : String
+}
+
+class Department {
+  name : String
+  description : String
+  token : String
+}
+
+class Address {
+  street : String
+  housenumber : String
+  floor : String
+  zipCode : String
+  city : String
+  country : String
+  phone : String
+  fax : String
+  mobile : String
+}
+
+class DocumentGroup <<external>>
+class ResourceGroup <<external>>
+
+' Composition (filled diamond) = owned lifecycle (cascade / orphanRemoval).
+' Address is an embedded value object, managed only through its owner.
+Company "1" *-- "0..*" Department : departments
+Company "1" *-- "0..1" Address : mainAddress
+Department "1" *-- "0..1" Address : address
+Department "1" *-- "0..*" DocumentGroup : documentGroups
+Department "1" *-- "0..*" ResourceGroup : resourceGroups
+
+@enduml

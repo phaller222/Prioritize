@@ -1,0 +1,85 @@
+@startuml Resource-Subsystem
+' Scoped to the "resource" subsystem only (model/resource + the value objects it owns).
+' Neighbouring classes from other packages (Department, PUser, TimeSpan) are shown as
+' «external» purely for connection context. Base classes (PObject / PActor) are omitted —
+' every entity carries a Long id. Only the most relevant attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class Resource {
+  name : String
+  description : String
+  ip : String
+  port : Integer
+  maxSlots : Integer
+  mqttResource : Boolean
+  mqttUUID : String
+  mqttOnline : Boolean
+}
+
+class ResourceGroup {
+  name : String
+  {static} DEFAULT_GROUP_NAME = "Default"
+}
+
+class ResourceReservation {
+  slotNumber : int
+}
+
+class NameValueEntry {
+  mqttName : String
+  mqttValues : String
+}
+
+class MqttCommand {
+  name : String
+  description : String
+}
+
+class MqttCommandParameter {
+  name : String
+  type : MqttParameterType
+  minValue : Double
+  maxValue : Double
+  unit : String
+  required : boolean
+  allowedValues : Set<String>
+}
+
+enum MqttParameterType {
+  STRING
+  INT
+  FLOAT
+  BOOL
+  ENUM
+}
+
+class Department <<external>>
+class PUser <<external>>
+class TimeSpan <<external>>
+
+' Composition (filled diamond) = owned lifecycle (cascade / orphanRemoval).
+' Plain arrow = ManyToOne reference.
+ResourceGroup "1" *-- "0..*" Resource : resources
+Resource "0..*" --> "1" Department : department
+Resource "1" *-- "0..*" NameValueEntry : mqttValues
+Resource "1" *-- "0..*" MqttCommand : mqttCommands
+MqttCommand "1" *-- "0..*" MqttCommandParameter : parameters
+MqttCommandParameter --> MqttParameterType : type
+ResourceReservation "0..*" --> "1" Resource : resource
+ResourceReservation "0..*" --> "1" PUser : reservedBy
+ResourceReservation "1" *-- "1" TimeSpan : timespan
+
+@enduml

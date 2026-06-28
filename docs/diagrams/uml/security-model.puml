@@ -1,0 +1,77 @@
+@startuml Security-Subsystem
+' Scoped to the "security" subsystem (model/security). Department, Address and SkillRecord
+' live in other packages and are shown as «external». Base classes PObject/PActor are
+' omitted. PAuthorizedObject is the marker interface for permission-controlled objects;
+' it is implemented by PUser, Role, PermissionRecord AND most domain entities across the
+' app (only these three realizations are drawn here). Only key attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class PUser {
+  username : String
+  name : String
+  firstname : String
+  email : String
+  gender : Gender
+  admin : boolean
+  active : boolean
+}
+
+class Role {
+  name : String
+  description : String
+}
+
+class PermissionRecord {
+  createPermission : boolean
+  readPermission : boolean
+  updatePermission : boolean
+  deletePermission : boolean
+  absoluteObjectType : String
+  objectId : Long
+}
+
+interface PAuthorizedObject {
+  +getId() : Long
+}
+
+enum Action {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+}
+
+class Department <<external>>
+class Address <<external>>
+class SkillRecord <<external>>
+
+' Department is the authorization anchor: users, roles and permission records reference it.
+PUser "*" -- "*" Role : roles
+PUser "1" *-- "0..*" PermissionRecord : personalPermissions
+Role "1" *-- "0..*" PermissionRecord : permissions
+PermissionRecord ..> Action : checks (CRUD)
+PUser "0..*" --> "1" Department : department
+Role "0..*" --> "1" Department : department
+PermissionRecord "0..*" --> "1" Department : department
+PUser "1" *-- "0..1" Address : address
+PUser "1" *-- "0..*" SkillRecord : skills
+
+PUser ..|> PAuthorizedObject
+Role ..|> PAuthorizedObject
+PermissionRecord ..|> PAuthorizedObject
+note bottom of PAuthorizedObject : Also implemented by most domain entities\n(Resource, Company, Document, Skill, TimeSpan, ...)
+
+@enduml
