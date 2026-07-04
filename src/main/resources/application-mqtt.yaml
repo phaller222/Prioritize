@@ -7,5 +7,6 @@ prioritize:
     #password: ${MQTT_PASSWORD:}
     qos: 1
     subscribe-topics:
-      - DISCOVERY
-      - "+/status"
+      - DISCOVERY          # self-registration of devices (type=DISCOVERY)
+      - "+/status"         # <uuid>/status: online/offline heartbeats (type=STATUS)
+      - "+/values"         # <uuid>/values: telemetry readings (type=VALUE)

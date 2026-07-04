@@ -259,6 +259,40 @@ public class ResourceController {
     }
 
     // ==========================================
+    // TELEMETRY (REST ingest)
+    // ==========================================
+
+    /**
+     * Records a telemetry reading for a resource (REST ingest). Enables devices without MQTT —
+     * and manual/Bruno calls — to report values. The reading is appended to the named data
+     * point's history, mirroring the MQTT VALUE path. Requires UPDATE permission on the
+     * resource.
+     *
+     * @param id      ID of the resource
+     * @param request data point name and value (both mandatory)
+     * @return 202 Accepted once the reading has been recorded
+     */
+    @PostMapping("/resources/{id}/values")
+    public ResponseEntity<Void> recordValue(
+        @PathVariable Long id,
+        @RequestBody ResourceValueRequest request,
+        Authentication auth) {
+
+        if (request == null || request.name() == null || request.name().isBlank()
+            || request.value() == null) {
+            throw new IllegalArgumentException("name and value are required.");
+        }
+        resourceService.recordMqttValue(id, request.name(), request.value(), getCurrentUser(auth));
+        return ResponseEntity.accepted().build();
+    }
+
+    /**
+     * Request body for a telemetry ingest. Both fields are mandatory.
+     */
+    public record ResourceValueRequest(String name, String value) {
+    }
+
+    // ==========================================
     // SKILL RECORDS - RESOURCE ASSIGNMENT
     // ==========================================
 

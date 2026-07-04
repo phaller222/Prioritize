@@ -410,23 +410,60 @@ public class ResourceService {
      */
     public void recordMqttValueByUuid(String mqttUuid, String name, String value) {
         resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {
-            if (resource.getMqttValues() == null) {
-                resource.setMqttValues(new java.util.HashSet<>());
-            }
-            NameValueEntry entry = resource.getMqttValues().stream()
-                    .filter(e -> name.equals(e.getMqttName()))
-                    .findFirst()
-                    .orElseGet(() -> {
-                        NameValueEntry created = new NameValueEntry();
-                        created.setMqttName(name);
-                        resource.getMqttValues().add(created);
-                        return created;
-                    });
-            entry.setMqttValues(appendCapped(entry.getMqttValues(), value));
-            resource.setMqttLastPing(java.time.LocalDateTime.now());
+            appendValue(resource, name, value);
             resourceRepository.save(resource);
             log.debug("VALUE recorded for resource (uuid={}): {}={}", mqttUuid, name, value);
         }, () -> log.warn("VALUE for unknown MQTT UUID '{}' ignored.", mqttUuid));
+    }
+
+    /**
+     * Records a telemetry value for a resource addressed by its numeric id. This is the REST
+     * ingest path, used by devices that do not speak MQTT (and by manual/Bruno calls). Unlike
+     * {@link #recordMqttValueByUuid(String, String, String)} it enforces {@link Action#UPDATE}
+     * permission on the resource; the history handling is identical.
+     *
+     * @param resourceId the id of the target resource
+     * @param name       the data point name (e.g. {@code temp})
+     * @param value      the reported value
+     * @param user       the authenticated user performing the ingest
+     * @return the updated resource
+     * @throws NoSuchElementException if no resource with the given id exists
+     * @throws AccessDeniedException  if the user lacks UPDATE permission on the resource
+     */
+    public Resource recordMqttValue(Long resourceId, String name, String value, PUser user) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
+
+        if (!authService.hasPermission(user, resource, Action.UPDATE)) {
+            throw new AccessDeniedException("No update permission for this resource.");
+        }
+
+        appendValue(resource, name, value);
+        Resource saved = resourceRepository.save(resource);
+        log.debug("VALUE recorded via REST for resource (id={}): {}={}", resourceId, name, value);
+        return saved;
+    }
+
+    /**
+     * Appends {@code value} to the named data point of {@code resource}, creating the
+     * {@link NameValueEntry} on first sight, and refreshes the last-ping timestamp. Shared by
+     * the MQTT (by-uuid) and REST (by-id) telemetry ingest paths.
+     */
+    private void appendValue(Resource resource, String name, String value) {
+        if (resource.getMqttValues() == null) {
+            resource.setMqttValues(new java.util.HashSet<>());
+        }
+        NameValueEntry entry = resource.getMqttValues().stream()
+                .filter(e -> name.equals(e.getMqttName()))
+                .findFirst()
+                .orElseGet(() -> {
+                    NameValueEntry created = new NameValueEntry();
+                    created.setMqttName(name);
+                    resource.getMqttValues().add(created);
+                    return created;
+                });
+        entry.setMqttValues(appendCapped(entry.getMqttValues(), value));
+        resource.setMqttLastPing(java.time.LocalDateTime.now());
     }
 
     /**

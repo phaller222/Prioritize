@@ -351,4 +351,24 @@ class ResourceServiceTest {
         assertDoesNotThrow(
                 () -> resourceService.recordMqttValueByUuid("does-not-exist", "temp", "21"));
     }
+
+    @Test
+    @DisplayName("recordMqttValue(byId): Neuer Datenpunkt wird angelegt und Historie fortgeschrieben")
+    void recordMqttValueById_createsAndAppends() {
+        resourceService.recordMqttValue(testResource.getId(), "temp", "21", adminUser);
+        resourceService.recordMqttValue(testResource.getId(), "temp", "22", adminUser);
+
+        Resource reloaded = resourceRepository.findById(testResource.getId()).orElseThrow();
+        NameValueEntry entry = reloaded.getMqttValues().stream()
+                .filter(e -> "temp".equals(e.getMqttName())).findFirst().orElseThrow();
+        assertEquals("21,22", entry.getMqttValues());
+        assertEquals(1, reloaded.getMqttValues().size(), "Gleicher Datenpunkt, keine Dublette");
+    }
+
+    @Test
+    @DisplayName("recordMqttValue(byId): Unbekannte Ressourcen-ID wirft NoSuchElementException")
+    void recordMqttValueById_unknownId_throws() {
+        assertThrows(NoSuchElementException.class,
+                () -> resourceService.recordMqttValue(999999L, "temp", "21", adminUser));
+    }
 }

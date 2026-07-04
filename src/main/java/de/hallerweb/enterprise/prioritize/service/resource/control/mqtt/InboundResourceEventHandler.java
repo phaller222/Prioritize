@@ -91,9 +91,11 @@ public class InboundResourceEventHandler {
     }
 
     /**
-     * Telemetry (a single key/value reading). Reads the mandatory uuid, name and value and
-     * delegates to {@link ResourceService#recordMqttValueByUuid(String, String, String)},
-     * which appends the value to the data point's history.
+     * Telemetry (a single key/value reading), published by devices on the dedicated
+     * {@code <uuid>/values} topic. Reads the mandatory uuid, name and value and delegates to
+     * {@link ResourceService#recordMqttValueByUuid(String, String, String)}, which appends
+     * the value to the data point's history. Routing is by the payload {@code type} field,
+     * so the topic serves only as a subscription convention.
      */
     private void handleTelemetry(JsonNode node) {
         String uuid = node.path("uuid").asText(null);
