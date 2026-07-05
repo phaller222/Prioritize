@@ -77,6 +77,17 @@ public class TaskController {
         return ResponseEntity.ok(taskService.changeStatus(id, request.status(), getCurrentUser(auth)));
     }
 
+    @PutMapping("/tasks/{id}/goal/{goalId}")
+    public ResponseEntity<Task> assignGoal(
+        @PathVariable Long id, @PathVariable Long goalId, Authentication auth) {
+        return ResponseEntity.ok(taskService.assignGoal(id, goalId, getCurrentUser(auth)));
+    }
+
+    @DeleteMapping("/tasks/{id}/goal")
+    public ResponseEntity<Task> unassignGoal(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.unassignGoal(id, getCurrentUser(auth)));
+    }
+
     /**
      * Request body for creating/updating a task. {@code name} is mandatory.
      */

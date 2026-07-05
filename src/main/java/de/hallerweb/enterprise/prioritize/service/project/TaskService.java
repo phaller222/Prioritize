@@ -5,6 +5,7 @@ import de.hallerweb.enterprise.prioritize.model.project.Blackboard;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
+import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
@@ -132,6 +133,35 @@ public class TaskService {
         Task task = findOrThrow(taskId);
         projectService.requireMemberOrManager(projectOf(task), user);
         task.setAssignee(null);
+        return task;
+    }
+
+    /**
+     * Assigns the task to one of its own project's goals, so it contributes to that goal's
+     * progress. The goal must belong to the task's project.
+     *
+     * @param taskId the task id
+     * @param goalId the id of a goal in the task's project
+     * @param user   the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws NoSuchElementException if the goal is not part of the task's project
+     */
+    public Task assignGoal(Long taskId, Long goalId, PUser user) {
+        Task task = findOrThrow(taskId);
+        Project project = projectOf(task);
+        projectService.requireMemberOrManager(project, user);
+        ProjectGoal goal = project.getGoals().stream()
+                .filter(g -> goalId.equals(g.getId()))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Goal not found in this task's project"));
+        task.setGoal(goal);
+        return task;
+    }
+
+    public Task unassignGoal(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        task.setGoal(null);
         return task;
     }
 

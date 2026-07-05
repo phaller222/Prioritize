@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
+import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
@@ -38,6 +39,13 @@ public class Task extends PObject {
     /** The actor currently responsible for this task; {@code null} if unassigned. */
     @ManyToOne
     private PActor assignee;
+
+    /**
+     * The goal this task contributes to; {@code null} if the task is not tied to any goal.
+     * Tasks without a goal do not count towards project progress.
+     */
+    @ManyToOne
+    private ProjectGoal goal;
 
     /** Resources needed to carry out this task. */
     @JsonIgnore

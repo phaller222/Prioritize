@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
+import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillGroup;
@@ -11,7 +12,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -72,4 +75,15 @@ public class Project extends PObject {
     /** The blackboard holding this project's tasks. Created together with the project. */
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
     private Blackboard blackboard;
+
+    /**
+     * Target goals pursued by this project. Owned by the project (unidirectional; the
+     * {@code project_id} foreign key lives on the goal table). A project's progress is derived
+     * from these goals and the tasks assigned to them.
+     */
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "project_id")
+    private List<ProjectGoal> goals = new ArrayList<>();
 }
