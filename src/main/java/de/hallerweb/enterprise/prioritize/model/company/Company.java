@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2024 Peter Michael Haller and contributors
+ * Copyright 2026 Peter Michael Haller and contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,13 +30,6 @@ import java.util.Set;
  * JPA entity to represent a {@link Company}. A Company is the object at the
  * very top of the Prioritize hierarchie. A Company can have one or more
  * {@link Department} objects.
- *
- * <p>
- * Copyright: (c) 2014
- * </p>
- * <p>
- * Peter Haller
- * </p>
  *
  * @author peter
  */

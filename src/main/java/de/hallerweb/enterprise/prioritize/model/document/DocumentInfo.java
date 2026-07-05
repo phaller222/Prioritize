@@ -32,13 +32,6 @@ import java.util.Set;
 /**
  * JPA entity to represent a reference to a {@link Document} and it's history.
  *
- * <p>
- * Copyright: (c) 2014
- * </p>
- * <p>
- * Peter Haller
- * </p>
- *
  * @author peter
  */
 @Entity

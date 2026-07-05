@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2024 Peter Michael Haller and contributors
+ * Copyright 2026 Peter Michael Haller and contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,13 +34,6 @@ import java.util.Set;
  * JPA entity to represent a {@link Department} of a {@link Company}. A Department has a key role in the Prioritize authorization mechanism.
  * All objects which implement PAuthorizedObject must provide a Department. Usually this is the department the object belongs to (e.G. User
  * X works for Department Y). If the Department is null for any {@link PAuthorizedObject} this is handled as a special case.
- *
- * <p>
- * Copyright: (c) 2014
- * </p>
- * <p>
- * Peter Haller
- * </p>
  *
  * @author peter
  */

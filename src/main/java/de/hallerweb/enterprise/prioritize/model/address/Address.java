@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2024 Peter Michael Haller and contributors
+ * Copyright 2026 Peter Michael Haller and contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,6 @@ import lombok.*;
 
 /**
  * Address.java - JPA class to represent an {@link Address}.
- *
- *
- * <p>
- * Copyright: (c) 2026
- * </p>
- * <p>
- * Peter Haller
- * </p>
  *
  * @author peter
  */
