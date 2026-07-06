@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.model.project;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.PObject;
+import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
@@ -26,7 +27,9 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -42,7 +45,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true) // id-based (via PObject); all-field hashing would walk lazy relations
 public class Task extends PObject {
 
     private int priority;
@@ -85,4 +88,29 @@ public class Task extends PObject {
     @JsonIgnore
     @ManyToOne
     private Blackboard blackboard;
+
+    /**
+     * Completed time-tracking spans. Each entry is a closed {@link TimeSpan} of type
+     * {@link TimeSpan.TimeSpanType#TIME_TRACKER}. Owned by the task and stored via a
+     * {@code task_id} column. A {@code List} (not a {@code Set}) on purpose: a transient span's
+     * id-based {@code hashCode} would otherwise break removal from a hash-based collection.
+     */
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "task_id")
+    private List<TimeSpan> timeSpent = new ArrayList<>();
+
+    /**
+     * The currently running time-tracking span, or {@code null} when tracking is idle. On stop the
+     * span is closed and moved into {@link #timeSpent}.
+     */
+    @JsonIgnore
+    @OneToOne(cascade = CascadeType.ALL)
+    private TimeSpan activeTimeSpan;
+
+    /** Whether time tracking is currently running for this task. */
+    public boolean isTracking() {
+        return activeTimeSpan != null;
+    }
 }

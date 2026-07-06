@@ -49,7 +49,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true) // id-based (via PObject); avoids the Project<->Blackboard cycle
 public class Project extends PObject {
 
     private String name;

@@ -110,4 +110,64 @@ class TaskServiceTest {
         taskService.deleteTask(task.getId(), admin);
         assertFalse(taskRepository.existsById(task.getId()));
     }
+
+    // --- Time tracking ---
+
+    @Test
+    @DisplayName("startTracking: öffnet einen aktiven TimeSpan und setzt Status STARTED")
+    void startTracking_opensActiveSpan() {
+        Task task = newTask();
+        Task started = taskService.startTracking(task.getId(), admin);
+
+        assertTrue(started.isTracking());
+        assertEquals(TaskStatus.STARTED, started.getTaskStatus());
+        assertTrue(started.getTimeSpent().isEmpty(), "Der laufende Span zählt noch nicht zur Historie");
+    }
+
+    @Test
+    @DisplayName("startTracking: erneuter Start bei laufendem Tracking wirft IllegalStateException")
+    void startTracking_whenAlreadyRunning_throws() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        assertThrows(IllegalStateException.class,
+                () -> taskService.startTracking(task.getId(), admin));
+    }
+
+    @Test
+    @DisplayName("stopTracking: schließt den Span, hängt ihn an timeSpent und setzt Status STOPPED")
+    void stopTracking_closesSpanAndArchives() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        Task stopped = taskService.stopTracking(task.getId(), admin);
+
+        assertFalse(stopped.isTracking());
+        assertEquals(TaskStatus.STOPPED, stopped.getTaskStatus());
+        assertEquals(1, stopped.getTimeSpent().size());
+        assertNotNull(stopped.getTimeSpent().get(0).getDateFrom());
+        assertNotNull(stopped.getTimeSpent().get(0).getDateUntil());
+    }
+
+    @Test
+    @DisplayName("stopTracking: ohne laufendes Tracking wirft IllegalStateException")
+    void stopTracking_whenIdle_throws() {
+        Task task = newTask();
+        assertThrows(IllegalStateException.class,
+                () -> taskService.stopTracking(task.getId(), admin));
+    }
+
+    @Test
+    @DisplayName("toggleTracking: wechselt zwischen Start und Stop und sammelt die Spans")
+    void toggleTracking_alternatesAndAccumulates() {
+        Task task = newTask();
+
+        taskService.toggleTracking(task.getId(), admin); // start
+        assertTrue(taskService.getTask(task.getId(), admin).isTracking());
+
+        taskService.toggleTracking(task.getId(), admin); // stop
+        taskService.toggleTracking(task.getId(), admin); // start again
+        Task afterThird = taskService.toggleTracking(task.getId(), admin); // stop again
+
+        assertFalse(afterThird.isTracking());
+        assertEquals(2, afterThird.getTimeSpent().size());
+    }
 }

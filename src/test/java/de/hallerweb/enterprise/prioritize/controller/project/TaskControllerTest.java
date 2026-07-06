@@ -102,4 +102,20 @@ class TaskControllerTest {
         controller.changeStatus(5L, new TaskStatusRequest(TaskStatus.STARTED), auth);
         verify(taskService).changeStatus(eq(5L), eq(TaskStatus.STARTED), eq(user));
     }
+
+    @Test
+    @DisplayName("startTracking: delegates to the service")
+    void startTracking_delegates() {
+        when(taskService.startTracking(eq(5L), eq(user))).thenReturn(new Task());
+        controller.startTracking(5L, auth);
+        verify(taskService).startTracking(eq(5L), eq(user));
+    }
+
+    @Test
+    @DisplayName("toggleTracking: delegates to the service")
+    void toggleTracking_delegates() {
+        when(taskService.toggleTracking(eq(5L), eq(user))).thenReturn(new Task());
+        controller.toggleTracking(5L, auth);
+        verify(taskService).toggleTracking(eq(5L), eq(user));
+    }
 }

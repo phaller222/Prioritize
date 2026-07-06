@@ -104,6 +104,21 @@ public class TaskController {
         return ResponseEntity.ok(taskService.unassignGoal(id, getCurrentUser(auth)));
     }
 
+    @PostMapping("/tasks/{id}/tracking/start")
+    public ResponseEntity<Task> startTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.startTracking(id, getCurrentUser(auth)));
+    }
+
+    @PostMapping("/tasks/{id}/tracking/stop")
+    public ResponseEntity<Task> stopTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.stopTracking(id, getCurrentUser(auth)));
+    }
+
+    @PostMapping("/tasks/{id}/tracking/toggle")
+    public ResponseEntity<Task> toggleTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.toggleTracking(id, getCurrentUser(auth)));
+    }
+
     /**
      * Request body for creating/updating a task. {@code name} is mandatory.
      */

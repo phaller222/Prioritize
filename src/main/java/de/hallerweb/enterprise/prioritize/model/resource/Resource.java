@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
@@ -29,7 +30,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -134,6 +137,17 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     @JoinColumn(name = "resource_id")
     @JsonIgnore
     private Set<SkillRecord> skills = new HashSet<>();
+
+    // --- NFC ---
+    /**
+     * NFC tags mounted on this resource. Empty for resources that cannot be scanned
+     * (e.g. a printer or a training room). A {@code List} for the same reason as elsewhere:
+     * id-based {@code hashCode} of a still-transient child breaks hash-set removal.
+     */
+    @Builder.Default
+    @OneToMany(mappedBy = "resource", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference("resource-nfc")
+    private List<NfcUnit> nfcUnits = new ArrayList<>();
 
     // --- Helper ---
     public void addReservation(ResourceReservation reservation) {

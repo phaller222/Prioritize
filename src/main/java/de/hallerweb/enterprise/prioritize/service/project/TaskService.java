@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.service.project;
 
 import de.hallerweb.enterprise.prioritize.model.PActor;
+import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
+import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.project.Blackboard;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
@@ -24,12 +26,14 @@ import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
+import de.hallerweb.enterprise.prioritize.repository.nfc.NfcUnitRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -58,6 +62,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final ProjectService projectService;
     private final PActorRepository actorRepository;
+    private final NfcUnitRepository nfcUnitRepository;
 
     /**
      * Editable task fields, decoupling the service from HTTP DTOs.
@@ -116,6 +121,11 @@ public class TaskService {
     public void deleteTask(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
         projectService.requireMemberOrManager(projectOf(task), user);
+        // Detach any NFC tracker tags pointing at this task first, so the blackboard's
+        // orphanRemoval below doesn't schedule the task deletion while an FK still references it.
+        for (NfcUnit unit : nfcUnitRepository.findByTask_Id(taskId)) {
+            unit.setTask(null);
+        }
         Blackboard blackboard = task.getBlackboard();
         if (blackboard != null) {
             blackboard.getTasks().remove(task); // keep the in-memory board consistent
@@ -200,6 +210,81 @@ public class TaskService {
         }
         task.setTaskStatus(newStatus);
         return task;
+    }
+
+    // --- Time tracking ---
+    // A task accumulates closed TIME_TRACKER spans in its timeSpent list; while tracking runs the
+    // open span is held in activeTimeSpan. This works with or without NFC — an NFC TIMETRACKER tag
+    // is just one trigger for toggleTracking (see NfcUnitService). Authorization is the usual
+    // project membership: whoever may work on the task may clock time on it.
+
+    /**
+     * Starts time tracking on a task: opens a new {@link TimeSpan.TimeSpanType#TIME_TRACKER} span
+     * with the current server time and promotes the task to {@link TaskStatus#STARTED}.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be manager or member); recorded on the span
+     * @return the updated task
+     * @throws IllegalStateException if tracking is already running for this task
+     */
+    public Task startTracking(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        if (task.isTracking()) {
+            throw new IllegalStateException("Time tracking is already running for this task.");
+        }
+        TimeSpan span = TimeSpan.builder()
+                .title(task.getName())
+                .description(task.getDescription())
+                .dateFrom(Instant.now())
+                .type(TimeSpan.TimeSpanType.TIME_TRACKER)
+                .build();
+        span.getInvolvedUsers().add(user);
+        task.setActiveTimeSpan(span);
+        task.setTaskStatus(TaskStatus.STARTED);
+        log.info("Time tracking started on task '{}' (id={}) by '{}'.",
+                task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Stops time tracking on a task: closes the running span with the current server time, moves it
+     * into the task's {@link Task#getTimeSpent() timeSpent} history and sets the task to
+     * {@link TaskStatus#STOPPED}.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException if no tracking is currently running for this task
+     */
+    public Task stopTracking(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        if (!task.isTracking()) {
+            throw new IllegalStateException("No time tracking is running for this task.");
+        }
+        TimeSpan span = task.getActiveTimeSpan();
+        span.setDateUntil(Instant.now());
+        task.getTimeSpent().add(span);
+        task.setActiveTimeSpan(null);
+        task.setTaskStatus(TaskStatus.STOPPED);
+        log.info("Time tracking stopped on task '{}' (id={}) by '{}'.",
+                task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Toggles time tracking on a task: stops it if running, otherwise starts it. This is the entry
+     * point an NFC scan of a {@link de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType#TIMETRACKER}
+     * tag maps to.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be manager or member)
+     * @return the updated task
+     */
+    public Task toggleTracking(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        return task.isTracking() ? stopTracking(taskId, user) : startTracking(taskId, user);
     }
 
     private Task findOrThrow(Long taskId) {
