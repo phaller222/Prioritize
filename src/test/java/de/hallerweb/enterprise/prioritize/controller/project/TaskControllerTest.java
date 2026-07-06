@@ -118,4 +118,17 @@ class TaskControllerTest {
         controller.toggleTracking(5L, auth);
         verify(taskService).toggleTracking(eq(5L), eq(user));
     }
+
+    @Test
+    @DisplayName("getTracking: delegates and returns the tracking summary")
+    void getTracking_delegates() {
+        TaskService.TrackingSummary summary =
+                new TaskService.TrackingSummary(5L, false, 90L, "PT1M30S", null);
+        when(taskService.getTrackingSummary(eq(5L), eq(user))).thenReturn(summary);
+
+        ResponseEntity<TaskService.TrackingSummary> response = controller.getTracking(5L, auth);
+
+        assertEquals(summary, response.getBody());
+        verify(taskService).getTrackingSummary(eq(5L), eq(user));
+    }
 }

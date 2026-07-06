@@ -119,6 +119,12 @@ public class TaskController {
         return ResponseEntity.ok(taskService.toggleTracking(id, getCurrentUser(auth)));
     }
 
+    /** Returns the total time tracked on the task (completed spans plus the running one, live). */
+    @GetMapping("/tasks/{id}/tracking")
+    public ResponseEntity<TaskService.TrackingSummary> getTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.getTrackingSummary(id, getCurrentUser(auth)));
+    }
+
     /**
      * Request body for creating/updating a task. {@code name} is mandatory.
      */

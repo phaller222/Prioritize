@@ -170,4 +170,33 @@ class TaskServiceTest {
         assertFalse(afterThird.isTracking());
         assertEquals(2, afterThird.getTimeSpent().size());
     }
+
+    @Test
+    @DisplayName("getTrackingSummary: laufendes Tracking meldet tracking=true und einen runningSince")
+    void getTrackingSummary_whileRunning() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+
+        var summary = taskService.getTrackingSummary(task.getId(), admin);
+
+        assertEquals(task.getId(), summary.taskId());
+        assertTrue(summary.tracking());
+        assertNotNull(summary.runningSince());
+        assertTrue(summary.totalSeconds() >= 0);
+        assertTrue(summary.totalText().startsWith("PT"), "ISO-8601 duration expected");
+    }
+
+    @Test
+    @DisplayName("getTrackingSummary: nach Stop tracking=false, kein runningSince, Summe bleibt")
+    void getTrackingSummary_afterStop() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        taskService.stopTracking(task.getId(), admin);
+
+        var summary = taskService.getTrackingSummary(task.getId(), admin);
+
+        assertFalse(summary.tracking());
+        assertNull(summary.runningSince());
+        assertTrue(summary.totalSeconds() >= 0);
+    }
 }

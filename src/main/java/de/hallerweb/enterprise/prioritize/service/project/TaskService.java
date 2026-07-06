@@ -33,6 +33,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -68,6 +69,15 @@ public class TaskService {
      * Editable task fields, decoupling the service from HTTP DTOs.
      */
     public record TaskData(String name, String description, int priority) {
+    }
+
+    /**
+     * Aggregated time-tracking total for a task. {@code totalSeconds} sums all completed spans and,
+     * while tracking runs, the open span up to now; {@code totalText} is that as an ISO-8601
+     * duration. {@code runningSince} is the start of the open span, or {@code null} when idle.
+     */
+    public record TrackingSummary(Long taskId, boolean tracking, long totalSeconds,
+                                  String totalText, Instant runningSince) {
     }
 
     /**
@@ -285,6 +295,39 @@ public class TaskService {
     public Task toggleTracking(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
         return task.isTracking() ? stopTracking(taskId, user) : startTracking(taskId, user);
+    }
+
+    /**
+     * Returns the total time tracked on a task: the sum of all completed spans plus, if tracking is
+     * currently running, the open span counted live up to now. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the aggregated tracking total
+     */
+    @Transactional(readOnly = true)
+    public TrackingSummary getTrackingSummary(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        long seconds = 0;
+        for (TimeSpan span : task.getTimeSpent()) {
+            seconds += secondsBetween(span.getDateFrom(), span.getDateUntil());
+        }
+        Instant runningSince = null;
+        if (task.getActiveTimeSpan() != null) {
+            runningSince = task.getActiveTimeSpan().getDateFrom();
+            seconds += secondsBetween(runningSince, Instant.now()); // count the open span live
+        }
+        return new TrackingSummary(task.getId(), task.isTracking(), seconds,
+                Duration.ofSeconds(seconds).toString(), runningSince);
+    }
+
+    /** Non-negative seconds between two instants; 0 if either bound is missing. */
+    private static long secondsBetween(Instant from, Instant until) {
+        if (from == null || until == null) {
+            return 0;
+        }
+        return Math.max(Duration.between(from, until).getSeconds(), 0);
     }
 
     private Task findOrThrow(Long taskId) {
