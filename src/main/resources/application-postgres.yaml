@@ -3,7 +3,7 @@ spring:
     #url: jdbc:postgresql://localhost:5432/prioritize
     url: jdbc:postgresql://memoryalpha:5431/prioritize
     username: prioritize
-    password: prioritize
+    password: ${DB_PASSWORD:prioritize}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

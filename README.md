@@ -1,14 +1,14 @@
 # Prioritize
 
-> Open-source framework for organizing companies, employees, devices (IoT), and their tasks ? Spring Boot 4 / Java 21.
+> Open-source framework for organizing companies, employees, devices (IoT), and their tasks — Spring Boot 4 / Java 21.
 
-Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, and controls IoT resources over MQTT and REST. The project is being migrated from Java EE to Spring Boot and exposes a REST API throughout, against which arbitrary clients can be built.
+Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, controls IoT resources over MQTT and REST, and organizes work as projects, tasks and goals with NFC-driven time tracking. The project is being migrated from Java EE to Spring Boot and exposes a REST API throughout, against which arbitrary clients can be built.
 
 ---
 
 ## Status
 
-Active migration from Java EE to Spring Boot 4. The state documented here reflects the runnable Spring Boot core: company/user management, documents, skills, resource control (MQTT/REST), and Flowable processes. Some concepts from the original framework (projects, blackboard, calendar, time tracker) are conceptually planned but not yet fully ported to the Spring Boot codebase.
+Active migration from Java EE to Spring Boot 4. The runnable Spring Boot core covers: company/user management, documents, skills, resource control (MQTT/REST), Flowable processes, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). An admin GUI (Vaadin) is in early development on a feature branch. Some concepts from the original framework (action board, message inbox) are planned but not yet ported.
 
 ---
 
@@ -50,22 +50,32 @@ Control of IoT resources is modeled as a hexagonal port. The rest of the system 
 
 The `ResourceControlService` selects the transport per command following a capability-set strategy with fallback:
 
-1. MQTT capability present **and** online ? MQTT
-2. MQTT capability present but offline + REST endpoint (IP) set ? REST fallback
-3. No MQTT capability ? REST
-4. No reachable transport ? `ResourceOfflineException` (HTTP 503)
+1. MQTT capability present **and** online → MQTT
+2. MQTT capability present but offline + REST endpoint (IP) set → REST fallback
+3. No MQTT capability → REST
+4. No reachable transport → `ResourceOfflineException` (HTTP 503)
 
 The inbound and outbound directions are deliberately separated: outbound commands go through the port; inbound device events (status, discovery, telemetry) are handled by a separate inbound path (`InboundResourceEventHandler`). The wire format is JSON (`ResourceCommandMessage` with `command` / `param` / `slot`).
 
 ### Slot-bound control via reservations
 
-Resources can have multiple **slots** (`maxSlots`). A control command always addresses a specific slot ? this slot is **not supplied by the client** but derived server-side from the calling user's active reservation:
+Resources can have multiple **slots** (`maxSlots`). A control command always addresses a specific slot — this slot is **not supplied by the client** but derived server-side from the calling user's active reservation:
 
-- Exactly one active reservation by the user ? its slot is used.
-- No active reservation ? `SlotNotReservedException` (HTTP 409). A command requires an ongoing reservation.
-- Multiple active reservations ? slot is ambiguous ? `SlotNotReservedException` (HTTP 409).
+- Exactly one active reservation by the user → its slot is used.
+- No active reservation → `SlotNotReservedException` (HTTP 409). A command requires an ongoing reservation.
+- Multiple active reservations → slot is ambiguous → `SlotNotReservedException` (HTTP 409).
 
 "Active" means the current point in time lies within the reserved window (`dateFrom <= now < dateUntil`). An expired reservation implicitly releases the slot; a command sent afterwards runs into the 409 case.
+
+### Projects, tasks and goal-driven progress
+
+Projects own a **blackboard** carrying **tasks**. Authorization in this subsystem is **membership-based** (project manager or member), orthogonal to the role/permission system used elsewhere; a task's assignee/manager is a `PActor` (either a `PUser` or a `Resource`). Progress is **goal-driven, not task-driven**: a `Task` carries no percentage, only an optional link to a `ProjectGoal`. A goal's completion is the share of its non-cancelled tasks that reached a done status; a project's progress is the average over its counting goals, and `null` (n/a) when undefined. Progress is always **computed, never stored**.
+
+### Task time tracking and NFC
+
+Time tracking lives on the `Task` (a running span plus a history of completed spans), so it works **with or without** NFC. `GET /tasks/{id}/tracking` returns the aggregated total (the running span counted live up to now); `GET /tasks/{id}/tracking/sessions` lists the individual work sessions.
+
+An `NfcUnit` is a physical NFC tag mounted on a resource (a resource may carry several tags of different types: `COUNTER`, `CHECKPOINT`, `TIMETRACKER`, `INFOPOINT`, `OTHER`). Scanning a tag resolves it by UUID and triggers a type-specific action — a `TIMETRACKER` tag toggles the time tracking of the single task it is bound to. When the MQTT profile is active, each scan is additionally **broadcast** on the topic `nfc/scan/<tag-uuid>` so devices and dashboards can observe it live; without MQTT, scanning works unchanged.
 
 ---
 
@@ -88,6 +98,12 @@ The security configuration is profile-dependent and mutually exclusive:
 
 - **Without** the `keycloak` profile, `SecurityConfig` (`@Profile("!keycloak")`) applies with **HTTP Basic Auth**.
 - **With** the `keycloak` profile, `KeycloakSecurityConfig` (`@Profile("keycloak")`) applies as an **OAuth2 Resource Server**. The `issuer-uri` is set in `application-keycloak.yaml`; it must exactly match the `iss` claim of the tokens.
+
+A default administrator (`admin` / `p@ssword`) is seeded on first start by `InitializationService` (BCrypt-hashed in the database). Change it before any non-local deployment.
+
+### Database credentials
+
+The PostgreSQL data source reads its password from the `DB_PASSWORD` environment variable, defaulting to `prioritize` for local development (see `application-postgres.yaml`). Set `DB_PASSWORD` in any shared or production environment.
 
 ### MQTT
 
@@ -115,19 +131,19 @@ Prerequisites: JDK 21, Maven, a reachable database (or use the `h2` profile).
 
 ```bash
 # Local with H2 (no external DB needed)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=h2
+mvn spring-boot:run -Dspring-boot.run.profiles=h2
 
 # Against PostgreSQL (default) with Basic Auth
-./mvnw spring-boot:run
+mvn spring-boot:run
 
 # With Keycloak and MQTT
-./mvnw spring-boot:run -Dspring-boot.run.profiles=postgres,keycloak,mqtt
+mvn spring-boot:run -Dspring-boot.run.profiles=postgres,keycloak,mqtt
 ```
 
 Tests:
 
 ```bash
-./mvnw test
+mvn test
 ```
 
 With the `h2` profile, the H2 console is available at `http://localhost:8080/h2-console`.
@@ -140,7 +156,7 @@ While the application is running, interactive OpenAPI documentation is served vi
 
 ## REST API (overview)
 
-All core endpoints live under `/api/v1`. Document endpoints are under `/api/v1/documents` and `/api/v1/document-groups`. The table below is an overview, not a complete reference ? the authoritative, always-current description is provided by the OpenAPI docs.
+All core endpoints live under `/api/v1`. The table below is an overview, not a complete reference — the authoritative, always-current description is provided by the OpenAPI docs.
 
 ### Resources & control
 
@@ -156,15 +172,37 @@ All core endpoints live under `/api/v1`. Document endpoints are under `/api/v1/d
 | `GET` | `/api/v1/resources/{id}/reservations` | All reservations of the resource |
 | `GET` | `/api/v1/resources/{id}/reservations/mine` | Own active reservations (slot preview) |
 | `DELETE` | `/api/v1/reservations/{reservationId}` | Cancel reservation / release slot |
+| `POST` | `/api/v1/resources/{id}/values` | Ingest a telemetry reading |
 | `GET` | `/api/v1/resources/{resourceId}/skills` | Skills of a resource |
 | `POST` | `/api/v1/resources/{resourceId}/skills` | Assign skill |
 
-### Resource groups
+### Projects, tasks & goals
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/departments/{deptId}/resourcegroups` | Create group |
-| `DELETE` | `/api/v1/resourcegroups/{groupId}` | Delete group |
+| `POST` | `/api/v1/projects` | Create project |
+| `GET` | `/api/v1/projects/mine` | Projects I manage or am a member of |
+| `GET` / `PUT` / `DELETE` | `/api/v1/projects/{id}` | Get / update / delete project |
+| `POST` / `DELETE` | `/api/v1/projects/{id}/members` | Add / remove member |
+| `GET` | `/api/v1/projects/{id}/tasks` | Tasks on the project's blackboard |
+| `GET` / `POST` | `/api/v1/projects/{id}/goals` | List / create goals |
+| `GET` | `/api/v1/projects/{id}/progress` | Computed goal-driven progress |
+| `POST` | `/api/v1/projects/{projectId}/tasks` | Create task |
+| `GET` / `PUT` / `DELETE` | `/api/v1/tasks/{id}` | Get / update / delete task |
+| `POST` | `/api/v1/tasks/{id}/assign` | Assign a `PActor` |
+| `PUT` | `/api/v1/tasks/{id}/status` | Change task status |
+| `PUT` / `DELETE` | `/api/v1/tasks/{id}/goal` | Assign / unassign a goal |
+
+### Time tracking & NFC
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/tasks/{id}/tracking/{start\|stop\|toggle}` | Start / stop / toggle time tracking |
+| `GET` | `/api/v1/tasks/{id}/tracking` | Aggregated tracked total (running span live) |
+| `GET` | `/api/v1/tasks/{id}/tracking/sessions` | Individual tracked work sessions |
+| `GET` / `POST` | `/api/v1/resources/{id}/nfc-units` | List / register NFC tags on a resource |
+| `PUT` / `DELETE` | `/api/v1/nfc-units/{id}/task/{taskId}` | Bind / unbind a `TIMETRACKER` tag to a task |
+| `POST` | `/api/v1/nfc/scan/{uuid}` | Process a tag scan (type-specific action) |
 
 ### Companies & departments
 
@@ -241,13 +279,15 @@ Centralized in `GlobalExceptionHandler`:
 
 ## Domain model (brief overview)
 
-- **Company / Department** ? multi-tenant base structure; a single instance can host multiple companies.
-- **PUser / Role / PermissionRecord** ? users, roles, and the fine-grained permission model.
-- **Resource** ? a device / resource; can represent an IoT device and communicate externally (REST/MQTT). Has slots and reservations.
-- **ResourceReservation** ? time-bound occupancy of a resource slot by a user.
-- **Document / DocumentInfo / DocumentGroup** ? documents with versioning and check-in/check-out.
-- **Skill / SkillCategory / SkillRecord** ? capabilities; assignable to users **and** resources.
-- **Address** ? embedded value object, managed exclusively through its owners (Company, Department, PUser).
+- **Company / Department** — organizational base structure. The hierarchy provides a foundation for tenant separation, but enforced multi-tenant isolation is not yet implemented (projects are membership-scoped, `admin` is a global superuser).
+- **PUser / Role / PermissionRecord** — users, roles, and the fine-grained permission model.
+- **Resource** — a device / resource; can represent an IoT device and communicate externally (REST/MQTT). Has slots and reservations.
+- **ResourceReservation** — time-bound occupancy of a resource slot by a user.
+- **Document / DocumentInfo / DocumentGroup** — documents with versioning and check-in/check-out.
+- **Skill / SkillCategory / SkillRecord** — capabilities; assignable to users **and** resources.
+- **Project / Blackboard / Task / ProjectGoal** — projects own a blackboard of tasks; goals drive computed progress; a task's assignee/manager is a `PActor`.
+- **NfcUnit** — a physical NFC tag mounted on a resource; a scan triggers a type-specific action (e.g. toggling a task's time tracking).
+- **Address** — embedded value object, managed exclusively through its owners (Company, Department, PUser).
 
 ---
 
@@ -257,4 +297,4 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 ## License
 
-Apache License 2.0 ? see [LICENSE](LICENSE). Source files carry the corresponding Apache 2.0 headers.
+Apache License 2.0 — see [LICENSE](LICENSE). Source files carry the corresponding Apache 2.0 headers.
