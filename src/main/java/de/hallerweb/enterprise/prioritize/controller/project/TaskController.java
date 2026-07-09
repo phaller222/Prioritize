@@ -28,6 +28,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * REST endpoints for {@link Task tasks}. Authorization is derived from the owning project's
  * membership (see {@link TaskService}); the acting user is resolved from the authentication.
@@ -123,6 +125,12 @@ public class TaskController {
     @GetMapping("/tasks/{id}/tracking")
     public ResponseEntity<TaskService.TrackingSummary> getTracking(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.getTrackingSummary(id, getCurrentUser(auth)));
+    }
+
+    /** Returns the individual tracked work sessions of the task (completed spans plus the running one). */
+    @GetMapping("/tasks/{id}/tracking/sessions")
+    public ResponseEntity<List<TaskService.WorkSession>> getTrackingSessions(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.getWorkSessions(id, getCurrentUser(auth)));
     }
 
     /**

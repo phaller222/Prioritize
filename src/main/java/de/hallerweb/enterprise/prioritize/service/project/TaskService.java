@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -78,6 +79,14 @@ public class TaskService {
      */
     public record TrackingSummary(Long taskId, boolean tracking, long totalSeconds,
                                   String totalText, Instant runningSince) {
+    }
+
+    /**
+     * One tracked work session on a task: a single start-to-stop interval. For the currently open
+     * session {@code until} is {@code null}, {@code running} is {@code true} and {@code seconds} is
+     * counted live up to now. Hides the underlying {@code TimeSpan} from API consumers.
+     */
+    public record WorkSession(Instant from, Instant until, long seconds, boolean running) {
     }
 
     /**
@@ -320,6 +329,33 @@ public class TaskService {
         }
         return new TrackingSummary(task.getId(), task.isTracking(), seconds,
                 Duration.ofSeconds(seconds).toString(), runningSince);
+    }
+
+    /**
+     * Returns the individual work sessions tracked on a task: each completed span, plus the open
+     * session (with {@code until = null}, counted live up to now) if tracking is running. Completed
+     * sessions come first, the running one last. The aggregate total is {@link #getTrackingSummary}.
+     * Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the tracked work sessions, empty if nothing has been tracked yet
+     */
+    @Transactional(readOnly = true)
+    public List<WorkSession> getWorkSessions(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        List<WorkSession> sessions = new ArrayList<>();
+        for (TimeSpan span : task.getTimeSpent()) {
+            sessions.add(new WorkSession(span.getDateFrom(), span.getDateUntil(),
+                    secondsBetween(span.getDateFrom(), span.getDateUntil()), false));
+        }
+        TimeSpan active = task.getActiveTimeSpan();
+        if (active != null) {
+            sessions.add(new WorkSession(active.getDateFrom(), null,
+                    secondsBetween(active.getDateFrom(), Instant.now()), true));
+        }
+        return sessions;
     }
 
     /** Non-negative seconds between two instants; 0 if either bound is missing. */

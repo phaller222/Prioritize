@@ -199,4 +199,38 @@ class TaskServiceTest {
         assertNull(summary.runningSince());
         assertTrue(summary.totalSeconds() >= 0);
     }
+
+    @Test
+    @DisplayName("getWorkSessions: laufendes Tracking hängt die offene Session (until=null, running) zuletzt an")
+    void getWorkSessions_whileRunning() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin); // one completed
+        taskService.stopTracking(task.getId(), admin);
+        taskService.startTracking(task.getId(), admin); // one running
+
+        var sessions = taskService.getWorkSessions(task.getId(), admin);
+
+        assertEquals(2, sessions.size());
+        assertFalse(sessions.get(0).running());
+        assertNotNull(sessions.get(0).until());
+        var open = sessions.get(1);
+        assertTrue(open.running());
+        assertNull(open.until(), "Die laufende Session hat noch kein Ende");
+        assertNotNull(open.from());
+    }
+
+    @Test
+    @DisplayName("getWorkSessions: ohne Tracking leere Liste, nach Stop eine abgeschlossene Session")
+    void getWorkSessions_idleThenAfterStop() {
+        Task task = newTask();
+        assertTrue(taskService.getWorkSessions(task.getId(), admin).isEmpty());
+
+        taskService.startTracking(task.getId(), admin);
+        taskService.stopTracking(task.getId(), admin);
+
+        var sessions = taskService.getWorkSessions(task.getId(), admin);
+        assertEquals(1, sessions.size());
+        assertFalse(sessions.get(0).running());
+        assertNotNull(sessions.get(0).until());
+    }
 }
