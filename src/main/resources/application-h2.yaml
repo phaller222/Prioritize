@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:h2:file:~/prioritize;MODE=PostgreSQL;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
+    # No MODE=PostgreSQL: it makes H2 reject Flowable's native IDENTITY DDL (ACT_* tables).
+    url: jdbc:h2:file:~/prioritize;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:

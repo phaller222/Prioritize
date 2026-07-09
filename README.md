@@ -81,12 +81,12 @@ An `NfcUnit` is a physical NFC tag mounted on a resource (a resource may carry s
 
 ## Configuration (profiles)
 
-Behavior is controlled via Spring profiles. The default profile is `postgres` (see `application.yaml`).
+Behavior is controlled via Spring profiles. The default profile is `h2` (see `application.yaml`), so a fresh checkout runs with no external setup.
 
 | Profile | Purpose |
 |---|---|
-| `postgres` | PostgreSQL data source (production/NAS setup). **Default.** |
-| `h2` | Local H2 file database including H2 console at `/h2-console`. |
+| `h2` | Local H2 file database including H2 console at `/h2-console`. **Default.** |
+| `postgres` | PostgreSQL data source (shared/production/NAS setup). |
 | `keycloak` | Switches security from Basic Auth to OAuth2 Resource Server (JWT). |
 | `mqtt` | Enables the MQTT transport (`prioritize.mqtt.enabled=true`). |
 
@@ -127,16 +127,16 @@ prioritize:
 
 ## Quickstart (local)
 
-Prerequisites: JDK 21, Maven, a reachable database (or use the `h2` profile).
+Prerequisites: JDK 21 and Maven. No database setup is needed for the default `h2` profile.
 
 ```bash
-# Local with H2 (no external DB needed)
-mvn spring-boot:run -Dspring-boot.run.profiles=h2
-
-# Against PostgreSQL (default) with Basic Auth
+# Default: local H2 file DB, no external services (just run it)
 mvn spring-boot:run
 
-# With Keycloak and MQTT
+# Against a shared/production PostgreSQL
+mvn spring-boot:run -Dspring-boot.run.profiles=postgres
+
+# PostgreSQL with Keycloak and MQTT
 mvn spring-boot:run -Dspring-boot.run.profiles=postgres,keycloak,mqtt
 ```
 

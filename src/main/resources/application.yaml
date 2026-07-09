@@ -1,6 +1,8 @@
 spring:
   profiles:
-      active: postgres
+      # Default is the self-contained H2 file DB so a fresh checkout runs with no external
+      # setup. Use `postgres` for the shared/production database (e.g. -Dspring.profiles.active=postgres).
+      active: h2
 
   jackson:
     serialization:
