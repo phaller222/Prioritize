@@ -29,6 +29,7 @@ import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +60,7 @@ public class NfcUnitService {
     private final TaskRepository taskRepository;
     private final AuthorizationService authService;
     private final TaskService taskService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Editable tag fields, decoupling the service from HTTP DTOs. */
     public record NfcUnitData(String uuid, String name, String description,
@@ -179,7 +181,7 @@ public class NfcUnitService {
                 .orElseThrow(() -> new NoSuchElementException("No NFC tag with uuid '" + uuid + "'"));
         unit.setLastScanTime(Instant.now());
 
-        return switch (unit.getType()) {
+        ScanResult result = switch (unit.getType()) {
             case TIMETRACKER -> {
                 Task bound = unit.getTask();
                 if (bound == null) {
@@ -198,6 +200,14 @@ public class NfcUnitService {
             default -> new ScanResult(uuid, unit.getType(), "RECORDED",
                     null, null, unit.getSequenceNumber());
         };
+
+        // Broadcast the scan (e.g. over MQTT) once the surrounding transaction commits; the
+        // service itself stays transport-agnostic — see NfcScanMqttBridge.
+        Resource resource = unit.getResource();
+        eventPublisher.publishEvent(new NfcScannedEvent(
+                result, resource != null ? resource.getId() : null,
+                user.getUsername(), unit.getLastScanTime()));
+        return result;
     }
 
     /** Loads a tag and asserts the user may manage it (UPDATE on its resource). */
