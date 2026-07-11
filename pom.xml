@@ -30,8 +30,8 @@
         <java.version>21</java.version>
         <flowable.version>8.0.0</flowable.version>
         <lombok.version>1.18.44</lombok.version>
-        <!-- Vaadin 25 is the first line supporting Spring Boot 4; still pre-release. -->
-        <vaadin.version>25.3.0-alpha3</vaadin.version>
+        <!-- Vaadin 25 is the first line supporting Spring Boot 4. -->
+        <vaadin.version>25.2.2</vaadin.version>
     </properties>
 
     <dependencyManagement>
@@ -46,19 +46,6 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Vaadin 25 is only published as a pre-release for now. -->
-    <repositories>
-        <repository>
-            <id>vaadin-prereleases</id>
-            <url>https://maven.vaadin.com/vaadin-prereleases</url>
-        </repository>
-    </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>vaadin-prereleases</id>
-            <url>https://maven.vaadin.com/vaadin-prereleases</url>
-        </pluginRepository>
-    </pluginRepositories>
     <dependencies>
 
         <dependency>
