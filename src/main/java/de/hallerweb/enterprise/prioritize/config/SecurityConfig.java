@@ -24,9 +24,10 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint;
 
 /**
  * Security for the non-Keycloak profile, split into two filter chains so the stateless REST API and
@@ -55,13 +56,15 @@ public class SecurityConfig {
     public SecurityFilterChain restFilterChain(HttpSecurity http) throws Exception {
         // Basic challenge entry point for unauthenticated API calls, so REST clients get a 401 with a
         // WWW-Authenticate header rather than the GUI login form.
-        // KNOWN LIMITATION (Vaadin 25 alpha): the Vaadin integration still wraps the response and
-        // redirects unauthenticated /api requests to /login (302) even with this separate, stateless
-        // chain. Authenticated Basic requests work correctly. Revisit when Vaadin 25 is stable.
-        // TODO(admin-gui): make unauthenticated /api/** return a clean 401 instead of the 302 redirect.
-        BasicAuthenticationEntryPoint entryPoint = new BasicAuthenticationEntryPoint();
-        entryPoint.setRealmName("Prioritize API");
-        entryPoint.afterPropertiesSet();
+        // Note: we write the 401 directly via setStatus instead of the stock BasicAuthenticationEntryPoint
+        // (which calls response.sendError). sendError triggers a servlet ERROR dispatch to /error, and
+        // that dispatch does NOT match this chain's "/api/**" securityMatcher, so it falls through to the
+        // Vaadin catch-all chain whose entry point redirects to /login (302) — masking the 401. Writing
+        // the status directly commits the response without an error dispatch, keeping the clean 401.
+        AuthenticationEntryPoint entryPoint = (request, response, authException) -> {
+            response.setHeader("WWW-Authenticate", "Basic realm=\"Prioritize API\"");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        };
 
         http
                 .securityMatcher(
