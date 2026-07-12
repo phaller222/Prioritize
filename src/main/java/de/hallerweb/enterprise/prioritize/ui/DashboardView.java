@@ -16,8 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.ui;
 
-import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -25,12 +25,11 @@ import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
 
 /**
- * Minimal authenticated landing page of the admin GUI: greets the logged-in user and offers logout.
- * {@link PermitAll} allows any authenticated user; anonymous visitors are redirected to
- * {@link LoginView} by the Vaadin navigation access control. The current user and logout are taken
- * from Vaadin's {@link AuthenticationContext} rather than the static security context.
- * <p>
- * This is the first, deliberately near-empty version; real administration views come next.
+ * Authenticated landing page of the admin GUI: greets the logged-in user. {@link PermitAll} allows any
+ * authenticated user; anonymous visitors are redirected to {@link LoginView} by the Vaadin navigation
+ * access control. The surrounding frame (navigation, current user, logout) is provided by
+ * {@link MainLayout}, into which this view is wrapped automatically. The current user name is taken
+ * from Vaadin's {@link AuthenticationContext}.
  *
  * @author peter haller
  */
@@ -42,6 +41,6 @@ public class DashboardView extends VerticalLayout {
     public DashboardView(AuthenticationContext authContext) {
         String user = authContext.getPrincipalName().orElse("unknown");
         add(new H1("Welcome, " + user));
-        add(new Button("Logout", event -> authContext.logout()));
+        add(new Paragraph("Use the navigation drawer to administer companies."));
     }
 }
