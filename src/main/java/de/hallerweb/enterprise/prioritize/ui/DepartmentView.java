@@ -120,7 +120,7 @@ public class DepartmentView extends VerticalLayout {
     private SplitLayout buildSplit() {
         SplitLayout split = new SplitLayout(buildGridSide(), buildEditor());
         split.setSizeFull();
-        split.setSplitterPosition(50); // start at 50/50; the user can drag the divider either way
+        split.setSplitterPosition(30); // start at 30/70 (grid/form); the user can drag the divider either way
         return split;
     }
 
