@@ -23,9 +23,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface PermissionRecordRepository extends JpaRepository<PermissionRecord, Integer> {
+public interface PermissionRecordRepository extends JpaRepository<PermissionRecord, Long> {
 
-    List<PermissionRecord> findByDepartment_Id(int departmentId);
+    List<PermissionRecord> findByDepartment_Id(Long departmentId);
 
     List<PermissionRecord> findByAbsoluteObjectType(String type);
 }

@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface RoleRepository extends JpaRepository<Role, Integer> {
+public interface RoleRepository extends JpaRepository<Role, Long> {
 
 
     Optional<Role> findByName(String name);
@@ -32,7 +32,7 @@ public interface RoleRepository extends JpaRepository<Role, Integer> {
     // Helpful for the search (case insensitive)
     List<Role> findByNameContainingIgnoreCase(String query);
 
-    List<Role> findByPermissions_Id(int permissionRecordId);
+    List<Role> findByPermissions_Id(Long permissionRecordId);
 
-    List<Role> findByDepartment_Id(int departmentId);
+    List<Role> findByDepartment_Id(Long departmentId);
 }
