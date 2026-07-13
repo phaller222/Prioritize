@@ -68,6 +68,7 @@ public class MainLayout extends AppLayout {
         SideNav nav = new SideNav();
         nav.addItem(new SideNavItem("Dashboard", DashboardView.class));
         nav.addItem(new SideNavItem("Companies", CompanyView.class));
+        nav.addItem(new SideNavItem("Departments", DepartmentView.class));
         addToDrawer(nav);
     }
 }
