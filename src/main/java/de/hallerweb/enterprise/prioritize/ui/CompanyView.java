@@ -94,7 +94,7 @@ public class CompanyView extends SplitLayout {
         setSizeFull();
         addToPrimary(buildGridSide());
         addToSecondary(buildEditor());
-        setSplitterPosition(50); // start at 50/50; the user can drag the divider either way
+        setSplitterPosition(30); // start at 30/70 (grid/form); the user can drag the divider either way
         configureBinder();
         refresh();
         showEditor(false);
