@@ -57,6 +57,18 @@ public class CompanyService {
     }
 
     /**
+     * Reads the company's main address as a detached copy, initialized inside this transaction.
+     * A Vaadin view cannot read the lazy {@code mainAddress} off a detached entity (its thread has no
+     * open session), so the copy is made here and handed out plain. Returns {@code null} if the company
+     * has no address.
+     */
+    @Transactional(readOnly = true)
+    public Address getMainAddress(Long id, PUser user) {
+        Company company = findById(id, user);
+        return Address.copyOf(company.getMainAddress());
+    }
+
+    /**
      * Internal variant without permission check – only for other service methods
      * that have already performed their own check.
      */

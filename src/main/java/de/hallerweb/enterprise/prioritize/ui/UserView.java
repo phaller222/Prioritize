@@ -20,6 +20,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -75,6 +76,7 @@ public class UserView extends SplitLayout {
     private final TextField occupation = new TextField("Occupation");
     private final ComboBox<PUser.Gender> gender = new ComboBox<>("Gender");
     private final PasswordField password = new PasswordField("Password");
+    private final AddressForm addressForm = new AddressForm();
 
     private final Button save = new Button("Save");
     private final Button deactivate = new Button("Deactivate");
@@ -144,7 +146,8 @@ public class UserView extends SplitLayout {
         password.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, deactivate, cancel);
-        formFields.add(username, firstname, name, email, occupation, gender, password, actions);
+        formFields.add(username, firstname, name, email, occupation, gender, password,
+                new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -184,6 +187,9 @@ public class UserView extends SplitLayout {
         this.formBean = bean;
 
         binder.readBean(bean);
+        // The address is lazy and cannot be read off the detached grid entity; load a detached copy
+        // through the service (see AddressForm / UserService#getAddress).
+        addressForm.setAddress(creating ? null : userService.getAddress(source.getId()));
         password.clear();
         // Username is the identity and cannot be changed on an existing user (partialUpdate ignores it).
         username.setReadOnly(!creating);
@@ -213,6 +219,7 @@ public class UserView extends SplitLayout {
                         .occupation(formBean.getOccupation())
                         .gender(formBean.getGender())
                         .password(password.getValue())
+                        .address(addressForm.getAddressOrNull())
                         .active(true)
                         .build();
                 userService.createUser(toCreate);
@@ -228,6 +235,7 @@ public class UserView extends SplitLayout {
                 if (!password.getValue().isBlank()) {
                     patch.setPassword(password.getValue());
                 }
+                patch.setAddress(addressForm.getAddressOrNull());
                 userService.partialUpdateUser(editingId, patch);
                 notifySuccess("User updated");
             }
