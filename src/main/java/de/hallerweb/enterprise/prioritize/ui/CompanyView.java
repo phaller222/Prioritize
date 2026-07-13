@@ -148,6 +148,10 @@ public class CompanyView extends SplitLayout {
         editor.add(placeholder, formFields);
         editor.setMinWidth("320px");
         editor.setPadding(true);
+        // Bound the editor to the detail pane's height and let it scroll, so the action buttons stay
+        // reachable when the form (base fields + address sub-form) is taller than the visible area.
+        editor.setHeightFull();
+        editor.getStyle().set("overflow-y", "auto");
         return editor;
     }
 
