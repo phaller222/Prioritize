@@ -22,10 +22,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<PUser, Long> {
     @QueryHints({@QueryHint(name = "org.hibernate.flushMode", value = "MANUAL")})
     Optional<PUser> findByUsername(String username);
+
+    // Authoritative "which users hold this role" via the user_roles join table (owning side).
+    List<PUser> findByRoles_Id(Long roleId);
 }
