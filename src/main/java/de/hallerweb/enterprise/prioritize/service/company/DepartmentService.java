@@ -109,6 +109,20 @@ public class DepartmentService {
         return departmentRepository.findByCompany_Id(companyId);
     }
 
+    /**
+     * Reads the department's address as a detached copy, initialized inside this transaction (see
+     * {@link CompanyService#getMainAddress}). Returns {@code null} if the department has no address.
+     */
+    @Transactional(readOnly = true)
+    public Address getAddress(Long id, PUser requestingUser) {
+        if (!authService.hasPermission(requestingUser,
+                "de.hallerweb.enterprise.prioritize.model.company.Department",
+                id, Action.READ)) {
+            throw new AccessDeniedException("No permission to read this department.");
+        }
+        return Address.copyOf(getDepartmentById(id).getAddress());
+    }
+
     @Transactional(readOnly = true)
     public List<Department> searchDepartments(String phrase) {
         return departmentRepository.findByNameContainingIgnoreCase(phrase);

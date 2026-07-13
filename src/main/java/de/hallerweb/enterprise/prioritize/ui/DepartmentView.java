@@ -20,6 +20,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -74,6 +75,7 @@ public class DepartmentView extends VerticalLayout {
 
     private final TextField name = new TextField("Name");
     private final TextField description = new TextField("Description");
+    private final AddressForm addressForm = new AddressForm();
 
     private final Button add = new Button("New department");
     private final Button save = new Button("Save");
@@ -156,7 +158,7 @@ public class DepartmentView extends VerticalLayout {
         description.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, delete, cancel);
-        formFields.add(name, description, actions);
+        formFields.add(name, description, new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -187,6 +189,9 @@ public class DepartmentView extends VerticalLayout {
         this.formBean = bean;
 
         binder.readBean(bean);
+        // The address is lazy and cannot be read off the detached grid entity; load a detached copy
+        // through the service (see AddressForm / DepartmentService#getAddress).
+        addressForm.setAddress(creating ? null : departmentService.getAddress(source.getId(), currentUser.require()));
         delete.setVisible(!creating);
         showEditor(true);
     }
@@ -200,6 +205,9 @@ public class DepartmentView extends VerticalLayout {
         } catch (ValidationException validation) {
             return; // field-level messages are already shown by the binder
         }
+        // A non-null address makes the service update it in place (or attach it on create); a fully
+        // blank address stays null, so the stored address is left unchanged.
+        formBean.setAddress(addressForm.getAddressOrNull());
         PUser user = currentUser.require();
         try {
             if (creating) {

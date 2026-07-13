@@ -59,4 +59,28 @@ public class Address extends PObject {
     private String phone;
     private String fax;
     private String mobile;
+
+    /**
+     * Returns a fresh, detached {@link Address} carrying only the scalar fields of {@code src} (no id, no
+     * JPA identity), or {@code null} if {@code src} is {@code null}. Used to hand address data out of a
+     * service transaction into a Vaadin view (whose thread has no open session, so a lazy proxy could not
+     * be read there) and, on the way back, to keep the form bound to a plain bean rather than a managed
+     * entity.
+     */
+    public static Address copyOf(Address src) {
+        if (src == null) {
+            return null;
+        }
+        Address copy = new Address();
+        copy.setStreet(src.getStreet());
+        copy.setHousenumber(src.getHousenumber());
+        copy.setFloor(src.getFloor());
+        copy.setZipCode(src.getZipCode());
+        copy.setCity(src.getCity());
+        copy.setCountry(src.getCountry());
+        copy.setPhone(src.getPhone());
+        copy.setFax(src.getFax());
+        copy.setMobile(src.getMobile());
+        return copy;
+    }
 }

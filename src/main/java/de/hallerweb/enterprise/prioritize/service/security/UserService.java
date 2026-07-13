@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.security;
 
+import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.security.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,18 @@ public class UserService implements UserDetailsService {
         // That requires dedicated endpoints with elevated authorization.
 
         return userRepository.save(existing);
+    }
+
+    /**
+     * Reads the user's address as a detached copy, initialized inside this transaction (see
+     * {@link de.hallerweb.enterprise.prioritize.service.company.CompanyService#getMainAddress}).
+     * Returns {@code null} if the user has no address.
+     */
+    @Transactional(readOnly = true)
+    public Address getAddress(Long id) {
+        PUser user = userRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("User with id " + id + " not found"));
+        return Address.copyOf(user.getAddress());
     }
 
     @Transactional

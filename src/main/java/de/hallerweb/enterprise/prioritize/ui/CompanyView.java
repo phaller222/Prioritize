@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.ui;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -69,6 +70,7 @@ public class CompanyView extends SplitLayout {
     private final TextField url = new TextField("URL");
     private final TextField vatNumber = new TextField("VAT number");
     private final TextField taxId = new TextField("Tax ID");
+    private final AddressForm addressForm = new AddressForm();
 
     private final Button save = new Button("Save");
     private final Button delete = new Button("Delete");
@@ -138,7 +140,7 @@ public class CompanyView extends SplitLayout {
         taxId.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, delete, cancel);
-        formFields.add(name, description, url, vatNumber, taxId, actions);
+        formFields.add(name, description, url, vatNumber, taxId, new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -175,6 +177,9 @@ public class CompanyView extends SplitLayout {
         this.formBean = bean;
 
         binder.readBean(bean);
+        // The address is lazy and cannot be read off the detached grid entity; load a detached copy
+        // through the service (see AddressForm / CompanyService#getMainAddress).
+        addressForm.setAddress(creating ? null : companyService.getMainAddress(source.getId(), currentUser.require()));
         delete.setVisible(!creating);
         showEditor(true);
     }
@@ -185,6 +190,9 @@ public class CompanyView extends SplitLayout {
         } catch (ValidationException validation) {
             return; // field-level messages are already shown by the binder
         }
+        // A non-null address makes the service update it in place (or attach it on create); a fully
+        // blank address stays null, so the stored address is left unchanged.
+        formBean.setMainAddress(addressForm.getAddressOrNull());
         PUser user = currentUser.require();
         try {
             if (creating) {
