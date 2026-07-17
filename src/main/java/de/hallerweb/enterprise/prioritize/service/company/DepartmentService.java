@@ -123,6 +123,16 @@ public class DepartmentService {
         return Address.copyOf(getDepartmentById(id).getAddress());
     }
 
+    /**
+     * Returns every department across all companies. Intended for admin-console screens (e.g. the role
+     * editor's optional department scope selector); carries no per-call authorization, mirroring
+     * {@link #getDepartmentById} and the sibling admin services.
+     */
+    @Transactional(readOnly = true)
+    public List<Department> getAllDepartments() {
+        return departmentRepository.findAll();
+    }
+
     @Transactional(readOnly = true)
     public List<Department> searchDepartments(String phrase) {
         return departmentRepository.findByNameContainingIgnoreCase(phrase);
