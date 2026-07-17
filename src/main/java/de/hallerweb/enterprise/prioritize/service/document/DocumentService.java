@@ -31,6 +31,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.mime.MimeType;
 import org.apache.tika.mime.MimeTypes;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -412,6 +414,57 @@ public class DocumentService {
         return getDocumentsInGroup(groupId, user).stream()
             .map(this::convertToDTO)
             .toList();
+    }
+
+    /**
+     * Paged variant of {@link #getDocumentsInGroupAsDTO} for the admin document list. The admin GUI feeds
+     * this into a lazy Vaadin grid so a large group never loads its whole document set into memory at once.
+     * Requires {@link Action#READ} on the group.
+     */
+    @Transactional(readOnly = true)
+    public Page<DocumentSummaryDTO> getDocumentsInGroup(Long groupId, PUser user, Pageable pageable) {
+        DocumentGroup group = documentGroupRepository.findById(groupId)
+            .orElseThrow(() -> new NoSuchElementException("Document group with id " + groupId + " not found."));
+        if (!authService.hasPermission(user, group, Action.READ)) {
+            throw new AccessDeniedException("No read permission for this group.");
+        }
+        return documentInfoRepository.findByDocumentGroup_Id(groupId, pageable).map(this::convertToDTO);
+    }
+
+    /** Count of documents in a group (the count callback for the lazy admin grid). Requires READ on the group. */
+    @Transactional(readOnly = true)
+    public long countDocumentsInGroup(Long groupId, PUser user) {
+        DocumentGroup group = documentGroupRepository.findById(groupId)
+            .orElseThrow(() -> new NoSuchElementException("Document group with id " + groupId + " not found."));
+        if (!authService.hasPermission(user, group, Action.READ)) {
+            throw new AccessDeniedException("No read permission for this group.");
+        }
+        return documentInfoRepository.countByDocumentGroup_Id(groupId);
+    }
+
+    /**
+     * The binary payload of a document's current version, for a download-for-control action in the admin
+     * GUI (view/download only — the admin never edits or checks out documents). The bytes are read inside
+     * the transaction and returned detached in a {@link DocumentDownload}. Requires {@link Action#READ}.
+     */
+    @Transactional(readOnly = true)
+    public DocumentDownload getCurrentVersionForDownload(Long documentInfoId, PUser user) {
+        DocumentInfo info = documentInfoRepository.findById(documentInfoId)
+            .orElseThrow(() -> new NoSuchElementException("Document with id " + documentInfoId + " not found."));
+        if (!authService.hasPermission(user, info, Action.READ)) {
+            throw new AccessDeniedException("No read permission for this document.");
+        }
+        Document current = info.getCurrentDocument();
+        String baseName = current.getName();
+        // Tika returns the extension WITH a leading dot (e.g. ".txt"), or "" if unknown.
+        String extension = getExtension(current.getMimeType());
+        String filename = (extension.isEmpty() || baseName.toLowerCase().endsWith(extension.toLowerCase()))
+            ? baseName : baseName + extension;
+        return new DocumentDownload(filename, current.getMimeType(), current.getData());
+    }
+
+    /** Detached download payload of a document's current version (filename, MIME type, raw bytes). */
+    public record DocumentDownload(String filename, String mimeType, byte[] data) {
     }
 
     public void deleteDocumentGroup(Long groupId, PUser user) {

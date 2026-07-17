@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.repository.document;
 
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,6 +35,12 @@ public interface DocumentInfoRepository extends JpaRepository<DocumentInfo, Long
      * which belong to the given group.
      */
     List<DocumentInfo> findByDocumentGroup_Id(Long groupId);
+
+    /** Paged variant of {@link #findByDocumentGroup_Id(Long)} for the admin document list (lazy grid). */
+    Page<DocumentInfo> findByDocumentGroup_Id(Long groupId, Pageable pageable);
+
+    /** Number of documents in a group — the count callback for the lazy admin document grid. */
+    long countByDocumentGroup_Id(Long groupId);
 
     @Query("SELECT d FROM DocumentInfo d LEFT JOIN FETCH d.lockedBy WHERE d.id = :id")
     Optional<DocumentInfo> findByIdWithLockedBy(@Param("id") Long id);

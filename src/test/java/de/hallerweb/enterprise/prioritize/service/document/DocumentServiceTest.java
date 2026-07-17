@@ -293,4 +293,42 @@ class DocumentServiceTest {
         assertThrows(IllegalStateException.class,
                 () -> documentService.renameDocumentGroup(id, "Neu", adminUser));
     }
+
+    // ==========================================
+    // Admin document view: paged list, count, download
+    // ==========================================
+
+    @Test
+    @DisplayName("getDocumentsInGroup(paged): Liefert eine Seite mit den Dokumenten der Gruppe")
+    void getDocumentsInGroupPaged_ShouldReturnPage() {
+        var page = documentService.getDocumentsInGroup(
+                testGroup.getId(), adminUser, org.springframework.data.domain.PageRequest.of(0, 10));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals("testdokument.txt", page.getContent().get(0).getName());
+        assertEquals(1, page.getContent().get(0).getCurrentVersion());
+    }
+
+    @Test
+    @DisplayName("countDocumentsInGroup: Zählt die Dokumente der Gruppe")
+    void countDocumentsInGroup_ShouldCount() {
+        assertEquals(1, documentService.countDocumentsInGroup(testGroup.getId(), adminUser));
+    }
+
+    @Test
+    @DisplayName("getCurrentVersionForDownload: Liefert Bytes, MIME-Type und Dateinamen mit Endung")
+    void getCurrentVersionForDownload_ShouldReturnPayload() {
+        var dl = documentService.getCurrentVersionForDownload(testDoc.getId(), adminUser);
+
+        assertArrayEquals("Testinhalt".getBytes(), dl.data());
+        assertEquals("text/plain", dl.mimeType());
+        assertEquals("testdokument.txt", dl.filename());
+    }
+
+    @Test
+    @DisplayName("getCurrentVersionForDownload: Unbekannte ID wirft NoSuchElementException")
+    void getCurrentVersionForDownload_UnknownId_ShouldThrow() {
+        assertThrows(java.util.NoSuchElementException.class,
+                () -> documentService.getCurrentVersionForDownload(999999L, adminUser));
+    }
 }
