@@ -45,6 +45,7 @@ class DocumentServiceTest {
     @Autowired private DocumentGroupRepository groupRepository;
     @Autowired private DocumentInfoRepository documentInfoRepository;
     @Autowired private UserService userService;
+    @Autowired private de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository departmentRepository;
 
     private PUser adminUser;
     private PUser regularUser;
@@ -228,5 +229,68 @@ class DocumentServiceTest {
         List<?> history = documentService.getDocumentHistory(testDoc.getId(), adminUser);
 
         assertEquals(2, history.size());
+    }
+
+    // ==========================================
+    // Document group management (admin GUI): createDocumentGroup(name, dept, user),
+    // getDocumentGroupsByDepartment, renameDocumentGroup
+    // ==========================================
+
+    private de.hallerweb.enterprise.prioritize.model.company.Department firstDepartment() {
+        return departmentRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("No department found - InitializationService not run?"));
+    }
+
+    @Test
+    @DisplayName("createDocumentGroup(name,dept,user): Legt Gruppe im Department an")
+    void createDocumentGroup_WithDepartment_ShouldPersistAndLink() {
+        var dept = firstDepartment();
+        DocumentGroup created = documentService.createDocumentGroup("Verträge", dept, adminUser);
+
+        assertNotNull(created.getId());
+        DocumentGroup reloaded = groupRepository.findById(created.getId()).orElseThrow();
+        assertEquals("Verträge", reloaded.getName());
+        assertEquals(dept.getId(), reloaded.getDepartment().getId());
+    }
+
+    @Test
+    @DisplayName("createDocumentGroup(name,dept,user): Default-Name ist verboten")
+    void createDocumentGroup_DefaultName_ShouldThrow() {
+        var dept = firstDepartment();
+        assertThrows(IllegalArgumentException.class,
+                () -> documentService.createDocumentGroup(DocumentGroup.DEFAULT_GROUP_NAME, dept, adminUser));
+    }
+
+    @Test
+    @DisplayName("getDocumentGroupsByDepartment: Liefert die Gruppen des Departments")
+    void getDocumentGroupsByDepartment_ShouldReturnGroups() {
+        var dept = firstDepartment();
+        DocumentGroup created = documentService.createDocumentGroup("Rechnungen", dept, adminUser);
+
+        var groups = documentService.getDocumentGroupsByDepartment(dept.getId(), adminUser);
+        assertTrue(groups.stream().anyMatch(g -> g.getId().equals(created.getId())));
+    }
+
+    @Test
+    @DisplayName("renameDocumentGroup: Ändert den Namen und persistiert")
+    void renameDocumentGroup_ShouldRename() {
+        var dept = firstDepartment();
+        DocumentGroup created = documentService.createDocumentGroup("Alt", dept, adminUser);
+
+        documentService.renameDocumentGroup(created.getId(), "Neu", adminUser);
+
+        assertEquals("Neu", groupRepository.findById(created.getId()).orElseThrow().getName());
+    }
+
+    @Test
+    @DisplayName("renameDocumentGroup: Default-Gruppe kann nicht umbenannt werden")
+    void renameDocumentGroup_DefaultGroup_ShouldThrow() {
+        DocumentGroup defaultGroup = new DocumentGroup();
+        defaultGroup.setName(DocumentGroup.DEFAULT_GROUP_NAME);
+        defaultGroup = groupRepository.save(defaultGroup);
+        final Long id = defaultGroup.getId();
+
+        assertThrows(IllegalStateException.class,
+                () -> documentService.renameDocumentGroup(id, "Neu", adminUser));
     }
 }

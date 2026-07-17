@@ -387,4 +387,40 @@ class ResourceServiceTest {
         assertThrows(NoSuchElementException.class,
                 () -> resourceService.recordMqttValue(999999L, "temp", "21", adminUser));
     }
+
+    // ==========================================
+    // getResourceGroupsByDepartment / renameResourceGroup (admin group management)
+    // ==========================================
+
+    @Test
+    @DisplayName("getResourceGroupsByDepartment: Liefert die Gruppen des Departments")
+    void getResourceGroupsByDepartment_ShouldReturnGroups() {
+        var groups = resourceService.getResourceGroupsByDepartment(testDept.getId(), adminUser);
+        assertTrue(groups.stream().anyMatch(g -> g.getId().equals(testGroup.getId())));
+    }
+
+    @Test
+    @DisplayName("renameResourceGroup: Ändert den Namen und persistiert")
+    void renameResourceGroup_ShouldRename() {
+        resourceService.renameResourceGroup(testGroup.getId(), "Umbenannte-Gruppe", adminUser);
+
+        ResourceGroup reloaded = resourceGroupRepository.findById(testGroup.getId()).orElseThrow();
+        assertEquals("Umbenannte-Gruppe", reloaded.getName());
+    }
+
+    @Test
+    @DisplayName("renameResourceGroup: Default-Gruppe kann nicht umbenannt werden")
+    void renameResourceGroup_DefaultGroup_ShouldThrow() {
+        ResourceGroup defaultGroup = resourceService.createResourceGroup(
+                ResourceGroup.DEFAULT_GROUP_NAME, testDept, adminUser);
+        assertThrows(IllegalStateException.class,
+                () -> resourceService.renameResourceGroup(defaultGroup.getId(), "Neu", adminUser));
+    }
+
+    @Test
+    @DisplayName("renameResourceGroup: Unbekannte Gruppen-ID wirft NoSuchElementException")
+    void renameResourceGroup_UnknownId_ShouldThrow() {
+        assertThrows(NoSuchElementException.class,
+                () -> resourceService.renameResourceGroup(999999L, "Neu", adminUser));
+    }
 }

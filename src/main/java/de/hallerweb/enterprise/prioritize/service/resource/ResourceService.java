@@ -56,6 +56,9 @@ public class ResourceService {
     /** Maximum number of readings kept per data point in the comma-separated history. */
     private static final int MAX_VALUE_HISTORY = 100;
 
+    /** Canonical type name of {@link Department} for the string-based authorization overload. */
+    private static final String DEPARTMENT_TYPE = "de.hallerweb.enterprise.prioritize.model.company.Department";
+
     // --- Resource Group Management ---
 
     public ResourceGroup createResourceGroup(String name, Department dept, PUser user) {
@@ -69,6 +72,36 @@ public class ResourceService {
                 .name(name)
                 .department(dept)
                 .build();
+        return resourceGroupRepository.save(group);
+    }
+
+    /**
+     * Lists the resource groups of a department (for the admin group management screen). Requires
+     * {@link Action#READ} on the department, mirroring
+     * {@link de.hallerweb.enterprise.prioritize.service.company.DepartmentService#getDepartmentsByCompany}.
+     */
+    @Transactional(readOnly = true)
+    public List<ResourceGroup> getResourceGroupsByDepartment(Long departmentId, PUser user) {
+        if (!authService.hasPermission(user, DEPARTMENT_TYPE, departmentId, Action.READ)) {
+            throw new AccessDeniedException("No permission to read resource groups of this department.");
+        }
+        return resourceGroupRepository.findByDepartment_Id(departmentId);
+    }
+
+    /**
+     * Renames a resource group (the only editable field). The default group is protected — as with
+     * {@link #deleteResourceGroup} it cannot be renamed — and the caller needs {@link Action#UPDATE} on it.
+     */
+    public ResourceGroup renameResourceGroup(Long groupId, String newName, PUser user) {
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
+                .orElseThrow(() -> new NoSuchElementException("Resource group not found."));
+        if (ResourceGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
+            throw new IllegalStateException("The default group cannot be renamed.");
+        }
+        if (!authService.hasPermission(user, group, Action.UPDATE)) {
+            throw new AccessDeniedException("No permission to update this group.");
+        }
+        group.setName(newName);
         return resourceGroupRepository.save(group);
     }
 

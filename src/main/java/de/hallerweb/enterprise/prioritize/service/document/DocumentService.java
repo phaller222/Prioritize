@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.service.document;
 
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
+import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentGroup;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
@@ -351,9 +352,59 @@ public class DocumentService {
         return documentGroupRepository.save(group);
     }
 
+    /**
+     * Creates a document group inside a department (for the admin group management screen). Mirrors
+     * {@link de.hallerweb.enterprise.prioritize.service.resource.ResourceService#createResourceGroup}:
+     * it protects the default group name and requires {@link Action#CREATE} on the department. The
+     * existing {@link #createDocumentGroup(DocumentGroup)} (used by the REST controller) is left unchanged.
+     */
+    @Transactional
+    public DocumentGroup createDocumentGroup(String name, Department dept, PUser user) {
+        if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("A group named 'Default' cannot be created manually.");
+        }
+        if (!authService.hasPermission(user, dept, Action.CREATE)) {
+            throw new AccessDeniedException("No permission to create groups in this department.");
+        }
+        DocumentGroup group = DocumentGroup.builder().name(name).department(dept).build();
+        return documentGroupRepository.save(group);
+    }
+
     @Transactional(readOnly = true)
     public List<DocumentGroup> getAllDocumentGroups() {
         return documentGroupRepository.findAll();
+    }
+
+    /**
+     * Lists the document groups of a department (for the admin group management screen). Requires
+     * {@link Action#READ} on the department, mirroring
+     * {@link de.hallerweb.enterprise.prioritize.service.company.DepartmentService#getDepartmentsByCompany}.
+     */
+    @Transactional(readOnly = true)
+    public List<DocumentGroup> getDocumentGroupsByDepartment(Long departmentId, PUser user) {
+        if (!authService.hasPermission(user,
+                "de.hallerweb.enterprise.prioritize.model.company.Department", departmentId, Action.READ)) {
+            throw new AccessDeniedException("No permission to read document groups of this department.");
+        }
+        return documentGroupRepository.findByDepartment_Id(departmentId);
+    }
+
+    /**
+     * Renames a document group (the only editable field). The default group is protected — as with
+     * {@link #deleteDocumentGroup} it cannot be renamed — and the caller needs {@link Action#UPDATE} on it.
+     */
+    @Transactional
+    public DocumentGroup renameDocumentGroup(Long groupId, String newName, PUser user) {
+        DocumentGroup group = documentGroupRepository.findById(groupId)
+                .orElseThrow(() -> new NoSuchElementException("Document group with id " + groupId + " not found."));
+        if (DocumentGroup.DEFAULT_GROUP_NAME.equalsIgnoreCase(group.getName())) {
+            throw new IllegalStateException("The default group cannot be renamed.");
+        }
+        if (!authService.hasPermission(user, group, Action.UPDATE)) {
+            throw new AccessDeniedException("No permission to update this group.");
+        }
+        group.setName(newName);
+        return documentGroupRepository.save(group);
     }
 
     @Transactional(readOnly = true)
