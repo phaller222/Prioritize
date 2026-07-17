@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.ui;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
@@ -34,8 +35,14 @@ import com.vaadin.flow.data.binder.ValidationException;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.security.Role;
+import de.hallerweb.enterprise.prioritize.service.security.RoleService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import jakarta.annotation.security.PermitAll;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Master-detail CRUD screen for {@link PUser}. The grid lists all active users
@@ -49,8 +56,12 @@ import jakarta.annotation.security.PermitAll;
  * <ul>
  *   <li><b>Update</b> goes through {@link UserService#partialUpdateUser(Long, PUser)} — it loads the managed
  *   entity and copies only the supplied scalar fields (blank password = unchanged), so no detached entity is
- *   round-tripped and no lazy relation (roles/permissions/department) is touched. Username, the admin flag and
- *   roles are intentionally not editable here (roles/permissions are a later slice).</li>
+ *   round-tripped and no lazy relation (permissions/department) is touched. Username and the admin flag are
+ *   intentionally not editable here.</li>
+ *   <li><b>Roles</b> are assigned via a {@link MultiSelectComboBox} and persisted through the dedicated
+ *   {@link UserService#setRoles(Long, java.util.Set)} (a full replace) — {@code partialUpdateUser}/{@code createUser}
+ *   deliberately never touch roles. The lazy {@code roles} collection is never read off the detached grid entity;
+ *   the currently assigned ids come from {@link UserService#getRoleIds(Long)} and pre-select the selector items.</li>
  *   <li><b>Create</b> builds a fresh user via the Lombok builder with {@code active(true)} — a plain
  *   {@code new PUser()} would leave the {@code @Builder.Default} fields at their raw defaults
  *   ({@code active=false}, null collections), which would immediately hide the new user from the active list.</li>
@@ -65,6 +76,7 @@ import jakarta.annotation.security.PermitAll;
 public class UserView extends SplitLayout {
 
     private final transient UserService userService;
+    private final transient RoleService roleService;
 
     private final Grid<PUser> grid = new Grid<>(PUser.class, false);
     private final Binder<PUser> binder = new Binder<>(PUser.class);
@@ -75,8 +87,13 @@ public class UserView extends SplitLayout {
     private final TextField email = new TextField("Email");
     private final TextField occupation = new TextField("Occupation");
     private final ComboBox<PUser.Gender> gender = new ComboBox<>("Gender");
+    private final MultiSelectComboBox<Role> roles = new MultiSelectComboBox<>("Roles");
     private final PasswordField password = new PasswordField("Password");
     private final AddressForm addressForm = new AddressForm();
+
+    // All roles offered in the selector, loaded once; role picks are pre-selected from these exact
+    // instances (by identity), so equality semantics of Role don't matter for the selection.
+    private final List<Role> allRoles;
 
     private final Button save = new Button("Save");
     private final Button deactivate = new Button("Deactivate");
@@ -91,8 +108,10 @@ public class UserView extends SplitLayout {
     private Long editingId;
     private boolean creating;
 
-    public UserView(UserService userService) {
+    public UserView(UserService userService, RoleService roleService) {
         this.userService = userService;
+        this.roleService = roleService;
+        this.allRoles = roleService.getAllRoles();
 
         setSizeFull();
         addToPrimary(buildGridSide());
@@ -143,10 +162,13 @@ public class UserView extends SplitLayout {
         occupation.setWidthFull();
         gender.setItems(PUser.Gender.values());
         gender.setWidthFull();
+        roles.setItems(allRoles);
+        roles.setItemLabelGenerator(Role::getName);
+        roles.setWidthFull();
         password.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, deactivate, cancel);
-        formFields.add(username, firstname, name, email, occupation, gender, password,
+        formFields.add(username, firstname, name, email, occupation, gender, roles, password,
                 new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
@@ -194,6 +216,16 @@ public class UserView extends SplitLayout {
         // The address is lazy and cannot be read off the detached grid entity; load a detached copy
         // through the service (see AddressForm / UserService#getAddress).
         addressForm.setAddress(creating ? null : userService.getAddress(source.getId()));
+        // Roles are lazy too: fetch the assigned role ids through the service and pre-select the matching
+        // selector items (by identity), never touching the detached user's lazy roles collection.
+        if (creating) {
+            roles.clear();
+        } else {
+            Set<Long> assigned = userService.getRoleIds(source.getId());
+            roles.setValue(allRoles.stream()
+                    .filter(r -> assigned.contains(r.getId()))
+                    .collect(Collectors.toSet()));
+        }
         password.clear();
         // Username is the identity and cannot be changed on an existing user (partialUpdate ignores it).
         username.setReadOnly(!creating);
@@ -226,7 +258,9 @@ public class UserView extends SplitLayout {
                         .address(addressForm.getAddressOrNull())
                         .active(true)
                         .build();
-                userService.createUser(toCreate);
+                PUser created = userService.createUser(toCreate);
+                // Role assignment goes through the dedicated setRoles (partialUpdate/create never touch roles).
+                userService.setRoles(created.getId(), selectedRoleIds());
                 notifySuccess("User created");
             } else {
                 // partialUpdateUser copies only non-null fields; a blank password leaves it unchanged.
@@ -241,6 +275,8 @@ public class UserView extends SplitLayout {
                 }
                 patch.setAddress(addressForm.getAddressOrNull());
                 userService.partialUpdateUser(editingId, patch);
+                // Roles are a full replace via the dedicated setRoles (see UserService).
+                userService.setRoles(editingId, selectedRoleIds());
                 notifySuccess("User updated");
             }
             reset();
@@ -277,6 +313,10 @@ public class UserView extends SplitLayout {
 
     private void refresh() {
         grid.setItems(userService.getAllUsers());
+    }
+
+    private Set<Long> selectedRoleIds() {
+        return roles.getValue().stream().map(Role::getId).collect(Collectors.toSet());
     }
 
     private void showEditor(boolean visible) {
