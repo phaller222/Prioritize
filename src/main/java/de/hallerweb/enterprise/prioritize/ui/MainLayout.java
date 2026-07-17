@@ -70,6 +70,7 @@ public class MainLayout extends AppLayout {
         nav.addItem(new SideNavItem("Companies", CompanyView.class));
         nav.addItem(new SideNavItem("Departments", DepartmentView.class));
         nav.addItem(new SideNavItem("Users", UserView.class));
+        nav.addItem(new SideNavItem("Roles", RoleView.class));
         addToDrawer(nav);
     }
 }
