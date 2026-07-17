@@ -17,7 +17,9 @@
 package de.hallerweb.enterprise.prioritize.service.security;
 
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.security.Role;
 import de.hallerweb.enterprise.prioritize.repository.security.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.NoSuchElementException;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,6 +40,7 @@ class UserServiceTest {
 
     @Autowired private UserService userService;
     @Autowired private UserRepository userRepository;
+    @Autowired private RoleService roleService;
 
     private PUser testUser;
 
@@ -205,5 +209,72 @@ class UserServiceTest {
         userService.deactivateUser(testUser.getId());
         assertFalse(userService.getAllUsers().stream()
                 .anyMatch(u -> u.getId().equals(testUser.getId())));
+    }
+
+    // ==========================================
+    // setRoles / getRoleIds (role assignment)
+    // ==========================================
+
+    private Role newRole(String name) {
+        return roleService.createRole(
+                Role.builder().name(name + "-" + System.nanoTime()).description("test role").build(), null);
+    }
+
+    @Test
+    @DisplayName("getRoleIds: Neuer User hat keine Rollen")
+    void getRoleIds_NewUser_ShouldBeEmpty() {
+        assertTrue(userService.getRoleIds(testUser.getId()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("setRoles: Weist Rollen zu und getRoleIds spiegelt sie wider")
+    void setRoles_ShouldAssignRoles() {
+        Role r1 = newRole("Manager");
+        Role r2 = newRole("Reviewer");
+
+        userService.setRoles(testUser.getId(), Set.of(r1.getId(), r2.getId()));
+
+        assertEquals(Set.of(r1.getId(), r2.getId()), userService.getRoleIds(testUser.getId()));
+    }
+
+    @Test
+    @DisplayName("setRoles: Vollständiges Ersetzen — alte Rollen ohne Wirkung entfernt")
+    void setRoles_ShouldReplaceExistingRoles() {
+        Role r1 = newRole("Manager");
+        Role r2 = newRole("Reviewer");
+        userService.setRoles(testUser.getId(), Set.of(r1.getId()));
+
+        userService.setRoles(testUser.getId(), Set.of(r2.getId()));
+
+        assertEquals(Set.of(r2.getId()), userService.getRoleIds(testUser.getId()));
+    }
+
+    @Test
+    @DisplayName("setRoles: Leere Menge entfernt alle Rollen")
+    void setRoles_EmptySet_ShouldClearRoles() {
+        Role r1 = newRole("Manager");
+        userService.setRoles(testUser.getId(), Set.of(r1.getId()));
+
+        userService.setRoles(testUser.getId(), Set.of());
+
+        assertTrue(userService.getRoleIds(testUser.getId()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("setRoles: null entfernt alle Rollen")
+    void setRoles_Null_ShouldClearRoles() {
+        Role r1 = newRole("Manager");
+        userService.setRoles(testUser.getId(), Set.of(r1.getId()));
+
+        userService.setRoles(testUser.getId(), null);
+
+        assertTrue(userService.getRoleIds(testUser.getId()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("setRoles: Unbekannte Rollen-ID wirft EntityNotFoundException")
+    void setRoles_UnknownRoleId_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+                () -> userService.setRoles(testUser.getId(), Set.of(999999L)));
     }
 }
