@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.repository.resource;
 
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -55,6 +57,11 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
 
     // Finds all resources of a specific group
     List<Resource> findByResourceGroup_Id(Long groupId);
+
+    // Paged variant for the admin resources grid (lazy CallbackDataProvider)
+    Page<Resource> findByResourceGroup_Id(Long groupId, Pageable pageable);
+
+    long countByResourceGroup_Id(Long groupId);
 
     // Helpful for MQTT updates
     Optional<Resource> findByMqttUUID(String mqttUUID);

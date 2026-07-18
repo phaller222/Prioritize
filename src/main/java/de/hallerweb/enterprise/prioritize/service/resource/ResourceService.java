@@ -16,6 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.service.resource;
 
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
@@ -31,6 +33,8 @@ import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -172,6 +176,72 @@ public class ResourceService {
             throw new EntityNotFoundException("Resource group with id " + groupId + " not found");
         }
         return new java.util.HashSet<>(resourceRepository.findByResourceGroup_Id(groupId));
+    }
+
+    /**
+     * Lists a resource group's resources for the admin resources grid, as a page of
+     * {@link ResourceSummaryDTO}. Requires {@link Action#READ} on the group, mirroring the paged
+     * {@link de.hallerweb.enterprise.prioritize.service.document.DocumentService#getDocumentsInGroup}
+     * precedent. Mapped to a DTO (not the entity) so the rows are safe inside a Vaadin grid's key mapper —
+     * {@code Resource}'s all-fields {@code hashCode} would otherwise touch its lazy relations. For each row
+     * the currently occupied slots are derived from the reservations overlapping "now", exactly as
+     * {@link #getResource} does for a single resource.
+     */
+    @Transactional(readOnly = true)
+    public Page<ResourceSummaryDTO> getResourcesInGroup(Long groupId, PUser user, Pageable pageable) {
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
+                .orElseThrow(() -> new EntityNotFoundException("Resource group with id " + groupId + " not found"));
+        if (!authService.hasPermission(user, group, Action.READ)) {
+            throw new AccessDeniedException("No permission to read resources of this group.");
+        }
+        Instant now = Instant.now();
+        return resourceRepository.findByResourceGroup_Id(groupId, pageable)
+                .map(r -> toSummary(r, now));
+    }
+
+    /**
+     * Counts the resources in a group for the lazy data provider. Same {@link Action#READ} check on the
+     * group as {@link #getResourcesInGroup}.
+     */
+    @Transactional(readOnly = true)
+    public long countResourcesInGroup(Long groupId, PUser user) {
+        ResourceGroup group = resourceGroupRepository.findById(groupId)
+                .orElseThrow(() -> new EntityNotFoundException("Resource group with id " + groupId + " not found"));
+        if (!authService.hasPermission(user, group, Action.READ)) {
+            throw new AccessDeniedException("No permission to read resources of this group.");
+        }
+        return resourceRepository.countByResourceGroup_Id(groupId);
+    }
+
+    private ResourceSummaryDTO toSummary(Resource r, Instant now) {
+        int occupied = reservationRepository.findOverlappingReservations(r.getId(), now, now.plusMillis(1)).size();
+        return new ResourceSummaryDTO(
+                r.getId(),
+                r.getName(),
+                r.getDescription(),
+                Boolean.TRUE.equals(r.getMqttResource()),
+                Boolean.TRUE.equals(r.getMqttOnline()),
+                r.getMqttLastPing(),
+                r.getMaxSlots() != null ? r.getMaxSlots() : 0,
+                occupied);
+    }
+
+    /**
+     * Returns a resource's reservations (past, active and future) flattened to {@link ResourceReservationDTO}
+     * for the admin occupancy overview. Mapping happens inside the read-only transaction so the lazy
+     * {@code reservedBy}/{@code timespan} are resolved here and the view never touches detached relations.
+     * Same {@link Action#READ} permission as {@link #getReservationsForResource}.
+     */
+    @Transactional(readOnly = true)
+    public List<ResourceReservationDTO> getReservationsForResourceDTO(Long resourceId, PUser user) {
+        return getReservationsForResource(resourceId, user).stream()
+                .map(res -> new ResourceReservationDTO(
+                        res.getId(),
+                        res.getReservedBy() != null ? res.getReservedBy().getUsername() : null,
+                        res.getTimespan() != null ? res.getTimespan().getDateFrom() : null,
+                        res.getTimespan() != null ? res.getTimespan().getDateUntil() : null,
+                        res.getSlotNumber()))
+                .toList();
     }
 
 
