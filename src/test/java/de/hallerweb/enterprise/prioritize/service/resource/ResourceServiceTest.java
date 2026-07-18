@@ -16,6 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.service.resource;
 
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
@@ -32,11 +34,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -422,5 +429,105 @@ class ResourceServiceTest {
     void renameResourceGroup_UnknownId_ShouldThrow() {
         assertThrows(NoSuchElementException.class,
                 () -> resourceService.renameResourceGroup(999999L, "Neu", adminUser));
+    }
+
+    // ==========================================
+    // getResourcesInGroup / countResourcesInGroup (admin resources grid, lazy paging)
+    // ==========================================
+
+    @Test
+    @DisplayName("getResourcesInGroup: Liefert die Ressourcen der Gruppe als Summary-DTO-Seite")
+    void getResourcesInGroup_ShouldReturnSummaryPage() {
+        Page<ResourceSummaryDTO> page = resourceService.getResourcesInGroup(
+                testGroup.getId(), adminUser, PageRequest.of(0, 10));
+
+        assertTrue(page.getContent().stream()
+                .anyMatch(dto -> dto.getId().equals(testResource.getId())
+                        && "Test-Ressource".equals(dto.getName())
+                        && dto.getMaxSlots() == 2));
+    }
+
+    @Test
+    @DisplayName("getResourcesInGroup: occupiedSlots zählt die aktuell überlappenden Reservierungen")
+    void getResourcesInGroup_ShouldComputeOccupiedSlots() {
+        // A reservation active "now" must show up as one occupied slot in the summary.
+        Instant from = Instant.now().minus(1, ChronoUnit.HOURS);
+        Instant until = Instant.now().plus(1, ChronoUnit.HOURS);
+        resourceService.reserveResource(testResource.getId(), adminUser, from, until);
+
+        ResourceSummaryDTO dto = resourceService.getResourcesInGroup(
+                        testGroup.getId(), adminUser, PageRequest.of(0, 10))
+                .getContent().stream()
+                .filter(d -> d.getId().equals(testResource.getId()))
+                .findFirst().orElseThrow();
+
+        assertEquals(1, dto.getOccupiedSlots());
+        assertEquals(2, dto.getMaxSlots());
+    }
+
+    @Test
+    @DisplayName("getResourcesInGroup: Unbekannte Gruppen-ID wirft EntityNotFoundException")
+    void getResourcesInGroup_UnknownGroup_ShouldThrow() {
+        assertThrows(EntityNotFoundException.class,
+                () -> resourceService.getResourcesInGroup(-999L, adminUser, PageRequest.of(0, 10)));
+    }
+
+    @Test
+    @DisplayName("getResourcesInGroup: Nutzer ohne READ-Recht wird abgewiesen")
+    void getResourcesInGroup_NoPermission_ShouldThrow() {
+        PUser noPerm = createPlainUser("noperm-resources");
+        assertThrows(AccessDeniedException.class,
+                () -> resourceService.getResourcesInGroup(testGroup.getId(), noPerm, PageRequest.of(0, 10)));
+    }
+
+    @Test
+    @DisplayName("countResourcesInGroup: Zählt die Ressourcen der Gruppe")
+    void countResourcesInGroup_ShouldCount() {
+        long before = resourceService.countResourcesInGroup(testGroup.getId(), adminUser);
+        resourceService.createResource(Resource.builder().name("Zweite-Ressource").build(),
+                testGroup.getId(), adminUser);
+        assertEquals(before + 1, resourceService.countResourcesInGroup(testGroup.getId(), adminUser));
+    }
+
+    // ==========================================
+    // getReservationsForResourceDTO (occupancy overview)
+    // ==========================================
+
+    @Test
+    @DisplayName("getReservationsForResourceDTO: Bildet Reservierungen inkl. Nutzer und Zeitraum ab")
+    void getReservationsForResourceDTO_ShouldMapFields() {
+        Instant from = Instant.now().plus(1, ChronoUnit.HOURS);
+        Instant until = from.plus(2, ChronoUnit.HOURS);
+        ResourceReservation reservation = resourceService.reserveResource(
+                testResource.getId(), adminUser, from, until);
+
+        List<ResourceReservationDTO> dtos =
+                resourceService.getReservationsForResourceDTO(testResource.getId(), adminUser);
+
+        ResourceReservationDTO dto = dtos.stream()
+                .filter(d -> d.getId().equals(reservation.getId()))
+                .findFirst().orElseThrow();
+        assertEquals(adminUser.getUsername(), dto.getReservedBy());
+        assertEquals(from, dto.getFrom());
+        assertEquals(until, dto.getUntil());
+        assertEquals(1, dto.getSlotNumber());
+    }
+
+    @Test
+    @DisplayName("getReservationsForResourceDTO: Ohne Reservierungen leere Liste")
+    void getReservationsForResourceDTO_Empty() {
+        assertTrue(resourceService.getReservationsForResourceDTO(testResource.getId(), adminUser).isEmpty());
+    }
+
+    /** Creates a persisted, non-admin user with no roles/permissions (for permission-denial tests). */
+    private PUser createPlainUser(String username) {
+        PUser user = PUser.builder()
+                .username(username)
+                .password("secret123")
+                .name(username)
+                .roles(new HashSet<>())
+                .active(true)
+                .build();
+        return userService.createUser(user);
     }
 }
