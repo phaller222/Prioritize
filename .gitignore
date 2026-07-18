@@ -34,7 +34,9 @@ build/
 
 ### Vaadin (generated frontend tooling) ###
 node_modules/
-/src/main/frontend/generated/
+# Whole dir is scaffolded by the Vaadin dev run (index.html + generated/); pure server-side Flow,
+# no hand-written frontend sources live here, so ignore it entirely (was: only .../generated/).
+/src/main/frontend/
 /src/main/bundles/
 /frontend/generated/
 vite.generated.ts
