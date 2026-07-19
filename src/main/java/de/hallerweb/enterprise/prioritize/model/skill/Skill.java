@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.model.skill;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PObject;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
@@ -44,6 +45,11 @@ public class Skill extends PObject implements PAuthorizedObject {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
+    // When a skill is serialized, its category is emitted as a flat {id, name, description} only: the lazy
+    // subCategories/parentCategory tree must NOT be walked here. Doing so lazy-initialises the collection while
+    // Jackson iterates it (under open-in-view), which throws a ConcurrentModificationException and turns
+    // GET /api/v1/skills into a 403. The dedicated category endpoint keeps the full tree (it eager-fetches it).
+    @JsonIgnoreProperties({"subCategories", "parentCategory"})
     private SkillCategory category;
 
     @Builder.Default
