@@ -43,6 +43,7 @@ import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.security.access.AccessDeniedException;
 
@@ -122,15 +123,19 @@ public class ResourcesView extends VerticalLayout {
     private final Grid<ResourceReservationDTO> reservationGrid = new Grid<>(ResourceReservationDTO.class, false);
     private final H4 reservationTitle = new H4("Reservations");
 
+    // --- telemetry-rules sub-panel (full CRUD on the selected resource's monitoring rules) ---
+    private final TelemetryRulesPanel rulesPanel;
+
     private Long selectedGroupId;
     private Long editingId;   // null while creating
     private boolean creating;
 
     public ResourcesView(ResourceService resourceService, DepartmentService departmentService,
-                         CurrentUser currentUser) {
+                         TelemetryRuleService telemetryRuleService, CurrentUser currentUser) {
         this.resourceService = resourceService;
         this.departmentService = departmentService;
         this.currentUser = currentUser;
+        this.rulesPanel = new TelemetryRulesPanel(telemetryRuleService, currentUser);
 
         setSizeFull();
         setPadding(false);
@@ -146,7 +151,10 @@ public class ResourcesView extends VerticalLayout {
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
         attachEvent.getUI().setPollInterval(POLL_INTERVAL_MS);
-        attachEvent.getUI().addPollListener(e -> grid.getDataProvider().refreshAll());
+        attachEvent.getUI().addPollListener(e -> {
+            grid.getDataProvider().refreshAll();
+            rulesPanel.refresh(); // keep the selected resource's rule states (OK/ALARM) live too
+        });
     }
 
     @Override
@@ -295,7 +303,7 @@ public class ResourcesView extends VerticalLayout {
         configureReservationGrid();
 
         formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, actions,
-                reservationTitle, reservationGrid);
+                reservationTitle, reservationGrid, rulesPanel);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -380,6 +388,8 @@ public class ResourcesView extends VerticalLayout {
         if (showRes) {
             loadReservations();
         }
+        // Rules need a persisted resource; bind on edit, clear while creating (the panel hides itself when null).
+        rulesPanel.setResource(creating ? null : editingId);
         showEditor(true);
     }
 
