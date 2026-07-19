@@ -183,6 +183,29 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-java-version</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <!-- Bytecode target is Java 21 (java.version); building needs a JDK >= 21
+                                         (any vendor). Fail early and clearly rather than with the compiler's
+                                         cryptic "release version 21 not supported". -->
+                                    <version>[21,)</version>
+                                    <message>This project requires JDK 21 or newer to build. Please install a JDK 21+ (e.g. Eclipse Temurin, Oracle, Amazon Corretto) and point JAVA_HOME at it.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>com.vaadin</groupId>
                 <artifactId>vaadin-maven-plugin</artifactId>
                 <version>${vaadin.version}</version>
