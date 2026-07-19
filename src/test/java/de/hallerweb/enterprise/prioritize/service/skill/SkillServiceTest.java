@@ -16,6 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.service.skill;
 
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -307,5 +309,92 @@ class SkillServiceTest {
     void deleteCategory_UnknownId_ShouldThrow() {
         assertThrows(EntityNotFoundException.class,
                 () -> skillService.deleteCategory(-999L));
+    }
+
+    // ==========================================
+    // updateSkill (description + keywords)
+    // ==========================================
+
+    @Test
+    @DisplayName("updateSkill: Description und Keywords werden aktualisiert")
+    void updateSkill_ShouldUpdateDescriptionAndKeywords() {
+        Skill update = new Skill();
+        update.setName(javaSkill.getName());
+        update.setDescription("Neue Beschreibung-Test");
+        update.setKeywords("spring, boot, test");
+        update.setCategory(subCat);
+
+        Skill updated = skillService.updateSkill(javaSkill.getId(), update, adminUser);
+
+        assertEquals("Neue Beschreibung-Test", updated.getDescription());
+        assertEquals("spring, boot, test", updated.getKeywords());
+    }
+
+    // ==========================================
+    // createCategory (parent resolution)
+    // ==========================================
+
+    @Test
+    @DisplayName("createCategory: Parent wird per ID aufgelöst und verknüpft")
+    void createCategory_WithParent_ShouldResolveParent() {
+        SkillCategory child = new SkillCategory();
+        child.setName("Child-Testcat");
+        SkillCategory parentRef = new SkillCategory();
+        parentRef.setId(mainCat.getId());
+        child.setParentCategory(parentRef);
+
+        SkillCategory created = skillService.createCategory(child);
+
+        assertNotNull(created.getId());
+        assertNotNull(created.getParentCategory());
+        assertEquals(mainCat.getId(), created.getParentCategory().getId());
+    }
+
+    @Test
+    @DisplayName("createCategory: Unbekannte Parent-ID wirft EntityNotFoundException")
+    void createCategory_UnknownParent_ShouldThrow() {
+        SkillCategory child = new SkillCategory();
+        child.setName("Orphan-Testcat");
+        SkillCategory parentRef = new SkillCategory();
+        parentRef.setId(-999L);
+        child.setParentCategory(parentRef);
+
+        assertThrows(EntityNotFoundException.class, () -> skillService.createCategory(child));
+    }
+
+    // ==========================================
+    // getAllSkillSummaries / getAllCategorySummaries (DTO mapping for the admin GUI)
+    // ==========================================
+
+    @Test
+    @DisplayName("getAllSkillSummaries: Bildet Skills inkl. Kategorie-Name ab")
+    void getAllSkillSummaries_ShouldMapCategory() {
+        List<SkillSummaryDTO> summaries = skillService.getAllSkillSummaries();
+
+        SkillSummaryDTO java = summaries.stream()
+                .filter(s -> s.getId().equals(javaSkill.getId()))
+                .findFirst().orElseThrow();
+        assertEquals(javaSkill.getName(), java.getName());
+        assertEquals(subCat.getId(), java.getCategoryId());
+        assertEquals(subCat.getName(), java.getCategoryName());
+    }
+
+    @Test
+    @DisplayName("getAllCategorySummaries: Bildet Kategorien inkl. Parent-Name ab")
+    void getAllCategorySummaries_ShouldMapParent() {
+        List<SkillCategoryDTO> summaries = skillService.getAllCategorySummaries();
+
+        SkillCategoryDTO sub = summaries.stream()
+                .filter(c -> c.getId().equals(subCat.getId()))
+                .findFirst().orElseThrow();
+        assertEquals(subCat.getName(), sub.getName());
+        assertEquals(mainCat.getId(), sub.getParentId());
+        assertEquals(mainCat.getName(), sub.getParentName());
+
+        SkillCategoryDTO main = summaries.stream()
+                .filter(c -> c.getId().equals(mainCat.getId()))
+                .findFirst().orElseThrow();
+        assertNull(main.getParentId());
+        assertNull(main.getParentName());
     }
 }
