@@ -16,6 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.service.skill;
 
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
@@ -60,6 +62,24 @@ public class SkillService {
         return skillRepository.findAll();
     }
 
+    /**
+     * All skills flattened to {@link SkillSummaryDTO} for the admin skills grid. The lazy {@code category} is
+     * resolved here inside the read-only transaction (id + name), so the Vaadin view never touches a detached
+     * lazy relation and the degenerate {@code Skill} equals/hashCode never reaches a grid key mapper.
+     */
+    @Transactional(readOnly = true)
+    public List<SkillSummaryDTO> getAllSkillSummaries() {
+        return skillRepository.findAll().stream()
+                .map(s -> new SkillSummaryDTO(
+                        s.getId(),
+                        s.getName(),
+                        s.getDescription(),
+                        s.getKeywords(),
+                        s.getCategory() != null ? s.getCategory().getId() : null,
+                        s.getCategory() != null ? s.getCategory().getName() : null))
+                .toList();
+    }
+
     @Transactional
     public Skill createSkill(Skill skill, PUser user) {
         if (!authService.hasPermission(user, skill, Action.CREATE)) {
@@ -80,6 +100,14 @@ public class SkillService {
 
     @Transactional
     public SkillCategory createCategory(SkillCategory category) {
+        // Resolve the parent by id if one was referenced, so sub-categories can be created (mirrors
+        // updateCategory). A null/id-less parent stays null (top-level category).
+        if (category.getParentCategory() != null && category.getParentCategory().getId() != null) {
+            SkillCategory parent = skillCategoryRepository.findById(category.getParentCategory().getId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Parent category with id " + category.getParentCategory().getId() + " not found"));
+            category.setParentCategory(parent);
+        }
         return skillCategoryRepository.save(category);
     }
 
@@ -145,6 +173,23 @@ public class SkillService {
     @Transactional(readOnly = true)
     public List<SkillCategory> getAllCategories() {
         return skillCategoryRepository.findAllWithSubCategories();
+    }
+
+    /**
+     * All categories flattened to {@link SkillCategoryDTO} for the admin categories grid and the parent/category
+     * selectors. The lazy {@code parentCategory} is resolved here in-tx (id + name), keeping the LazyInit-prone
+     * {@code SkillCategory} entity out of every Vaadin grid/ComboBox.
+     */
+    @Transactional(readOnly = true)
+    public List<SkillCategoryDTO> getAllCategorySummaries() {
+        return skillCategoryRepository.findAll().stream()
+                .map(c -> new SkillCategoryDTO(
+                        c.getId(),
+                        c.getName(),
+                        c.getDescription(),
+                        c.getParentCategory() != null ? c.getParentCategory().getId() : null,
+                        c.getParentCategory() != null ? c.getParentCategory().getName() : null))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -282,6 +327,8 @@ public class SkillService {
             throw new AccessDeniedException("No permission to update this skill.");
         }
         existing.setName(skillDetails.getName());
+        existing.setDescription(skillDetails.getDescription());
+        existing.setKeywords(skillDetails.getKeywords());
 
         if (skillDetails.getCategory() != null && skillDetails.getCategory().getId() != null) {
             SkillCategory category = skillCategoryRepository.findById(skillDetails.getCategory().getId())
