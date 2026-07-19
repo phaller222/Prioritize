@@ -30,6 +30,7 @@ import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepos
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceReservationRepository;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -56,6 +57,7 @@ public class ResourceService {
     private final ResourceGroupRepository resourceGroupRepository;
     private final ResourceReservationRepository reservationRepository;
     private final AuthorizationService authService; // Your central guard
+    private final TelemetryRuleService telemetryRuleService;
 
     /** Maximum number of readings kept per data point in the comma-separated history. */
     private static final int MAX_VALUE_HISTORY = 100;
@@ -531,6 +533,7 @@ public class ResourceService {
         resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {
             appendValue(resource, name, value);
             resourceRepository.save(resource);
+            telemetryRuleService.evaluate(resource.getId(), name, value);
             log.debug("VALUE recorded for resource (uuid={}): {}={}", mqttUuid, name, value);
         }, () -> log.warn("VALUE for unknown MQTT UUID '{}' ignored.", mqttUuid));
     }
@@ -559,6 +562,7 @@ public class ResourceService {
 
         appendValue(resource, name, value);
         Resource saved = resourceRepository.save(resource);
+        telemetryRuleService.evaluate(saved.getId(), name, value);
         log.debug("VALUE recorded via REST for resource (id={}): {}={}", resourceId, name, value);
         return saved;
     }
