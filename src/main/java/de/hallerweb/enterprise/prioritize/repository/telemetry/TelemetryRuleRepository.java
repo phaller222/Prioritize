@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.repository.telemetry;
 import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryRule;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * Repository for {@link TelemetryRule}s.
@@ -35,4 +36,11 @@ public interface TelemetryRuleRepository extends JpaRepository<TelemetryRule, Lo
 
     /** All rules of a resource (any data point, enabled or not); used by admin/inspection paths. */
     List<TelemetryRule> findByResource_Id(Long resourceId);
+
+    /** Whether a resource has at least one enabled rule; backs the ingest-path guard's refresh. */
+    boolean existsByResource_IdAndEnabledTrue(Long resourceId);
+
+    /** The ids of all resources with at least one enabled rule; seeds the guard at startup. */
+    @Query("select distinct r.resource.id from TelemetryRule r where r.enabled = true")
+    List<Long> findResourceIdsWithEnabledRules();
 }
