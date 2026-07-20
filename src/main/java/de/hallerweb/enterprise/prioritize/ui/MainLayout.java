@@ -15,6 +15,16 @@
  */
 
 package de.hallerweb.enterprise.prioritize.ui;
+import de.hallerweb.enterprise.prioritize.ui.security.UserView;
+import de.hallerweb.enterprise.prioritize.ui.skill.SkillsView;
+import de.hallerweb.enterprise.prioritize.ui.skill.SkillCategoriesView;
+import de.hallerweb.enterprise.prioritize.ui.security.RoleView;
+import de.hallerweb.enterprise.prioritize.ui.resource.ResourcesView;
+import de.hallerweb.enterprise.prioritize.ui.security.LoginView;
+import de.hallerweb.enterprise.prioritize.ui.group.GroupsView;
+import de.hallerweb.enterprise.prioritize.ui.document.DocumentsView;
+import de.hallerweb.enterprise.prioritize.ui.company.DepartmentView;
+import de.hallerweb.enterprise.prioritize.ui.company.CompanyView;
 
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;

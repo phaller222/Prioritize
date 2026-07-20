@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.security;
 
 import com.vaadin.flow.component.html.Main;
 import com.vaadin.flow.component.login.LoginForm;

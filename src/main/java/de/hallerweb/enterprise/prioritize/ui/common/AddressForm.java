@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.common;
+import de.hallerweb.enterprise.prioritize.ui.security.UserView;
+import de.hallerweb.enterprise.prioritize.ui.company.DepartmentView;
+import de.hallerweb.enterprise.prioritize.ui.company.CompanyView;
 
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.textfield.TextField;
