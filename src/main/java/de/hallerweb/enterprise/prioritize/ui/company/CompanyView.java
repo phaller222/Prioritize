@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.company;
+import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
+import de.hallerweb.enterprise.prioritize.ui.common.AddressForm;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
@@ -33,100 +34,80 @@ import com.vaadin.flow.data.binder.ValidationException;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
-import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.CompanyService;
-import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.security.access.AccessDeniedException;
 
-import java.util.List;
-
 /**
- * Master-detail CRUD screen for {@link Department}. Unlike {@link CompanyView}, departments are always
- * scoped to a {@link Company}: a company {@link ComboBox} at the top selects the context, and the grid
- * then lists that company's departments ({@link DepartmentService#getDepartmentsByCompany}). The side
- * form creates, edits or deletes the selected department.
+ * First real administration view: a master-detail CRUD screen for {@link Company}. The grid lists all
+ * companies (the global platform-admin view — {@link CompanyService#findAll()} deliberately returns
+ * every company; per-tenant filtering is a later multi-tenancy concern), the side form creates, edits
+ * or deletes the selected one.
  * <p>
- * Same conventions as {@link CompanyView}: the view calls the {@code @Service} layer directly, passes
- * the logged-in {@link PUser} (resolved via {@link CurrentUser}), and surfaces denied operations as an
- * error notification. Only the base fields (name, description) are edited; the address is a later slice.
+ * Per project convention the view calls the {@link CompanyService} {@code @Service} layer directly and
+ * passes the logged-in {@link PUser} (resolved via {@link CurrentUser}); the actual authorization stays
+ * in the service. Denied operations surface as an error notification rather than an uncaught exception.
+ * Only base fields are edited here; the address and departments are separate, later slices.
  * <p>
- * Lazy-init guard (see {@link CompanyView}): the form is bound to a fresh, detached {@link Department}
- * bean carrying only the base fields — never to the entity returned by the finder. A detached entity's
- * lazy {@code address}/{@code company} proxies would otherwise be dragged into the service outside a
- * session. Because the fresh bean has a {@code null} address, {@link DepartmentService#updateDepartment}
- * leaves the stored address untouched. The edited id and the selected company id are kept separately.
+ * Grid and detail form sit in a {@link SplitLayout} so the user can drag the divider to resize either
+ * side; the divider starts at 50%. When nothing is selected the detail pane shows a placeholder rather
+ * than collapsing, so the divider stays put.
  *
  * @author peter haller
  */
-@Route("departments")
-@PageTitle("Departments | Prioritize")
+@Route("companies")
+@PageTitle("Companies | Prioritize")
 @PermitAll
-public class DepartmentView extends VerticalLayout {
+public class CompanyView extends SplitLayout {
 
-    private final transient DepartmentService departmentService;
     private final transient CompanyService companyService;
     private final transient CurrentUser currentUser;
 
-    private final ComboBox<Company> companySelect = new ComboBox<>("Company");
-    private final Grid<Department> grid = new Grid<>(Department.class, false);
-    private final Binder<Department> binder = new Binder<>(Department.class);
+    private final Grid<Company> grid = new Grid<>(Company.class, false);
+    private final Binder<Company> binder = new Binder<>(Company.class);
 
     private final TextField name = new TextField("Name");
     private final TextField description = new TextField("Description");
+    private final TextField url = new TextField("URL");
+    private final TextField vatNumber = new TextField("VAT number");
+    private final TextField taxId = new TextField("Tax ID");
     private final AddressForm addressForm = new AddressForm();
 
-    private final Button add = new Button("New department");
     private final Button save = new Button("Save");
     private final Button delete = new Button("Delete");
     private final Button cancel = new Button("Cancel");
     private final VerticalLayout editor = new VerticalLayout();
     private final VerticalLayout formFields = new VerticalLayout();
-    private final Span placeholder = new Span("Select a department on the left, or create a new one.");
+    private final Span placeholder = new Span("Select a company on the left, or create a new one.");
 
-    // Fresh, detached bean carrying only the base fields — never the entity loaded by the finder.
-    private Department formBean = new Department();
-    private Long editingId;      // null while creating
-    private Long selectedCompanyId;
+    // The form is bound to a fresh, detached bean carrying only the base fields — never to the
+    // entity loaded by findAll(). That entity's lazy mainAddress proxy would otherwise be dragged
+    // into updateCompany() outside a session (LazyInitializationException). The id of the edited
+    // company is kept separately; null means we are creating a new one.
+    private Company formBean = new Company();
+    private Long editingId;
     private boolean creating;
 
-    public DepartmentView(DepartmentService departmentService, CompanyService companyService, CurrentUser currentUser) {
-        this.departmentService = departmentService;
+    public CompanyView(CompanyService companyService, CurrentUser currentUser) {
         this.companyService = companyService;
         this.currentUser = currentUser;
 
         setSizeFull();
-        setPadding(false);
-        add(buildCompanySelect(), buildSplit());
+        addToPrimary(buildGridSide());
+        addToSecondary(buildEditor());
+        setSplitterPosition(30); // start at 30/70 (grid/form); the user can drag the divider either way
         configureBinder();
+        refresh();
         showEditor(false);
-        updateAddEnabled();
-    }
-
-    private HorizontalLayout buildCompanySelect() {
-        companySelect.setItems(companyService.findAll());
-        companySelect.setItemLabelGenerator(Company::getName);
-        companySelect.setWidth("320px");
-        companySelect.addValueChangeListener(e -> {
-            selectedCompanyId = e.getValue() != null ? e.getValue().getId() : null;
-            reset();
-        });
-        HorizontalLayout bar = new HorizontalLayout(companySelect);
-        bar.setPadding(true);
-        return bar;
-    }
-
-    private SplitLayout buildSplit() {
-        SplitLayout split = new SplitLayout(buildGridSide(), buildEditor());
-        split.setSizeFull();
-        split.setSplitterPosition(30); // start at 30/70 (grid/form); the user can drag the divider either way
-        return split;
     }
 
     private VerticalLayout buildGridSide() {
-        grid.addColumn(Department::getName).setHeader("Name").setAutoWidth(true).setSortable(true);
-        grid.addColumn(Department::getDescription).setHeader("Description").setAutoWidth(true);
+        grid.addColumn(Company::getName).setHeader("Name").setAutoWidth(true).setSortable(true);
+        grid.addColumn(Company::getDescription).setHeader("Description").setAutoWidth(true);
+        grid.addColumn(Company::getUrl).setHeader("URL").setAutoWidth(true);
+        grid.addColumn(Company::getVatNumber).setHeader("VAT").setAutoWidth(true);
+        grid.addColumn(Company::getTaxId).setHeader("Tax ID").setAutoWidth(true);
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
@@ -134,11 +115,11 @@ public class DepartmentView extends VerticalLayout {
             }
         });
 
-        add.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        add.addClickListener(e -> {
+        Button add = new Button("New company", e -> {
             grid.deselectAll();
-            edit(new Department(), true);
+            edit(new Company(), true);
         });
+        add.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         VerticalLayout side = new VerticalLayout(add, grid);
         side.setSizeFull();
@@ -156,9 +137,12 @@ public class DepartmentView extends VerticalLayout {
 
         name.setWidthFull();
         description.setWidthFull();
+        url.setWidthFull();
+        vatNumber.setWidthFull();
+        taxId.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, delete, cancel);
-        formFields.add(name, description, new H4("Address"), addressForm, actions);
+        formFields.add(name, description, url, vatNumber, taxId, new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -176,34 +160,37 @@ public class DepartmentView extends VerticalLayout {
     private void configureBinder() {
         binder.forField(name)
                 .asRequired("Name is required")
-                .bind(Department::getName, Department::setName);
-        binder.forField(description).bind(Department::getDescription, Department::setDescription);
+                .bind(Company::getName, Company::setName);
+        binder.forField(description).bind(Company::getDescription, Company::setDescription);
+        binder.forField(url).bind(Company::getUrl, Company::setUrl);
+        binder.forField(vatNumber).bind(Company::getVatNumber, Company::setVatNumber);
+        binder.forField(taxId).bind(Company::getTaxId, Company::setTaxId);
     }
 
-    private void edit(Department source, boolean creating) {
+    private void edit(Company source, boolean creating) {
         this.creating = creating;
         this.editingId = creating ? null : source.getId();
 
-        // Copy only the base fields into a fresh bean; the lazy address/company proxies are left untouched.
-        Department bean = new Department();
+        // Copy only the base fields into a fresh bean; the lazy mainAddress proxy is left untouched.
+        Company bean = new Company();
         if (!creating) {
             bean.setName(source.getName());
             bean.setDescription(source.getDescription());
+            bean.setUrl(source.getUrl());
+            bean.setVatNumber(source.getVatNumber());
+            bean.setTaxId(source.getTaxId());
         }
         this.formBean = bean;
 
         binder.readBean(bean);
         // The address is lazy and cannot be read off the detached grid entity; load a detached copy
-        // through the service (see AddressForm / DepartmentService#getAddress).
-        addressForm.setAddress(creating ? null : departmentService.getAddress(source.getId(), currentUser.require()));
+        // through the service (see AddressForm / CompanyService#getMainAddress).
+        addressForm.setAddress(creating ? null : companyService.getMainAddress(source.getId(), currentUser.require()));
         delete.setVisible(!creating);
         showEditor(true);
     }
 
     private void save() {
-        if (selectedCompanyId == null) {
-            return; // cannot create/update without a company context
-        }
         try {
             binder.writeBean(formBean);
         } catch (ValidationException validation) {
@@ -211,20 +198,20 @@ public class DepartmentView extends VerticalLayout {
         }
         // A non-null address makes the service update it in place (or attach it on create); a fully
         // blank address stays null, so the stored address is left unchanged.
-        formBean.setAddress(addressForm.getAddressOrNull());
+        formBean.setMainAddress(addressForm.getAddressOrNull());
         PUser user = currentUser.require();
         try {
             if (creating) {
-                departmentService.saveDepartment(formBean, selectedCompanyId, user);
-                notifySuccess("Department created");
+                companyService.createCompany(formBean, user);
+                notifySuccess("Company created");
             } else {
-                // formBean carries no address, so updateDepartment leaves the existing one unchanged.
-                departmentService.updateDepartment(editingId, formBean, user);
-                notifySuccess("Department updated");
+                // formBean carries no address, so updateCompany leaves the existing one unchanged.
+                companyService.updateCompany(editingId, formBean, user);
+                notifySuccess("Company updated");
             }
             reset();
         } catch (AccessDeniedException denied) {
-            notifyError("You are not allowed to save this department.");
+            notifyError("You are not allowed to save this company.");
         }
     }
 
@@ -234,11 +221,11 @@ public class DepartmentView extends VerticalLayout {
         }
         PUser user = currentUser.require();
         try {
-            departmentService.deleteDepartment(editingId, user);
-            notifySuccess("Department deleted");
+            companyService.deleteCompany(editingId, user);
+            notifySuccess("Company deleted");
             reset();
         } catch (AccessDeniedException denied) {
-            notifyError("You are not allowed to delete this department.");
+            notifyError("You are not allowed to delete this company.");
         }
     }
 
@@ -250,27 +237,13 @@ public class DepartmentView extends VerticalLayout {
     private void reset() {
         editingId = null;
         creating = false;
-        formBean = new Department();
+        formBean = new Company();
         refresh();
         showEditor(false);
-        updateAddEnabled();
     }
 
     private void refresh() {
-        if (selectedCompanyId == null) {
-            grid.setItems(List.of());
-            return;
-        }
-        try {
-            grid.setItems(departmentService.getDepartmentsByCompany(selectedCompanyId, currentUser.require()));
-        } catch (AccessDeniedException denied) {
-            grid.setItems(List.of());
-            notifyError("You are not allowed to view this company's departments.");
-        }
-    }
-
-    private void updateAddEnabled() {
-        add.setEnabled(selectedCompanyId != null);
+        grid.setItems(companyService.findAll());
     }
 
     private void showEditor(boolean visible) {

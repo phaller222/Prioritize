@@ -15,6 +15,7 @@
  */
 
 package de.hallerweb.enterprise.prioritize.ui;
+import de.hallerweb.enterprise.prioritize.ui.security.LoginView;
 
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Paragraph;

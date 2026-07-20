@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.skill;
+import de.hallerweb.enterprise.prioritize.ui.security.UserView;
+import de.hallerweb.enterprise.prioritize.ui.group.GroupsView;
+import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -30,51 +33,60 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillSummaryDTO;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import jakarta.annotation.security.PermitAll;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 
 /**
- * Master-detail admin CRUD screen for the {@link SkillCategory} tree that the {@link SkillsView} categories hang
- * off: name, description and an optional parent category. Admin-only (behind the login), so — like the underlying
- * {@code SkillService} category methods and the sibling {@link RoleView} — it carries no {@code PUser}/permission
- * check.
+ * Master-detail admin CRUD screen for the global {@link Skill} master-data catalogue: name, description,
+ * keywords and an optional {@link SkillCategory}. The per-skill property-definitions editor
+ * ({@code SkillPropertyNumeric}/{@code SkillPropertyText}) is deliberately deferred (like the address sub-form
+ * was), so this view edits the base fields plus the category only.
  * <p>
- * Rows and the parent selector are {@link SkillCategoryDTO}, never the entity: {@code SkillCategory}'s all-fields
- * {@code equals}/{@code hashCode} touches its lazy {@code parentCategory}/{@code subCategories} and would throw a
- * {@code LazyInitializationException} inside a Vaadin grid/ComboBox (see {@link GroupsView}). The parent selector
- * excludes the category being edited (blocks trivial self-parenting); deleting a category removes its whole
- * subtree and detaches affected skills — {@code SkillService#deleteCategory} does this via a recursive query, and
- * the notification says so.
+ * Conventions follow {@link UserView}/{@link GroupsView}: a {@link SplitLayout} 30/70 with a draggable divider,
+ * the {@code @Service} layer called directly with the logged-in {@link PUser} (resolved via {@link CurrentUser}),
+ * denied/invalid operations surfaced as an error notification, and a fresh-bean lazy guard on save.
+ * <p>
+ * Grid rows and the category selector are {@link SkillSummaryDTO}/{@link SkillCategoryDTO}, never the entities:
+ * {@code Skill} has a degenerate {@code equals}/{@code hashCode} (nothing included) and a lazy {@code category},
+ * and {@code SkillCategory}'s all-fields hashCode touches lazy relations — both break a Vaadin grid/ComboBox key
+ * mapper, so the category id/name are resolved into DTOs inside the service (see {@link SkillService}).
  *
  * @author peter haller
  */
-@Route("skill-categories")
-@PageTitle("Skill Categories | Prioritize")
+@Route("skills")
+@PageTitle("Skills | Prioritize")
 @PermitAll
-public class SkillCategoriesView extends SplitLayout {
+public class SkillsView extends SplitLayout {
 
     private final transient SkillService skillService;
+    private final transient CurrentUser currentUser;
 
-    private final Grid<SkillCategoryDTO> grid = new Grid<>(SkillCategoryDTO.class, false);
+    private final Grid<SkillSummaryDTO> grid = new Grid<>(SkillSummaryDTO.class, false);
 
     private final TextField name = new TextField("Name");
     private final TextField description = new TextField("Description");
-    private final ComboBox<SkillCategoryDTO> parent = new ComboBox<>("Parent category");
+    private final TextField keywords = new TextField("Keywords");
+    private final ComboBox<SkillCategoryDTO> category = new ComboBox<>("Category");
     private final Button save = new Button("Save");
     private final Button delete = new Button("Delete");
     private final Button cancel = new Button("Cancel");
     private final VerticalLayout editor = new VerticalLayout();
     private final VerticalLayout formFields = new VerticalLayout();
-    private final Span placeholder = new Span("Select a category on the left, or create a new one.");
+    private final Span placeholder = new Span("Select a skill on the left, or create a new one.");
 
     private Long editingId;   // null while creating
     private boolean creating;
 
-    public SkillCategoriesView(SkillService skillService) {
+    public SkillsView(SkillService skillService, CurrentUser currentUser) {
         this.skillService = skillService;
+        this.currentUser = currentUser;
 
         setSizeFull();
         addToPrimary(buildGridSide());
@@ -85,10 +97,11 @@ public class SkillCategoriesView extends SplitLayout {
     }
 
     private VerticalLayout buildGridSide() {
-        grid.addColumn(SkillCategoryDTO::getName).setHeader("Name").setAutoWidth(true).setSortable(true);
-        grid.addColumn(SkillCategoryDTO::getDescription).setHeader("Description").setAutoWidth(true);
-        grid.addColumn(c -> c.getParentName() != null ? c.getParentName() : "—")
-                .setHeader("Parent").setAutoWidth(true);
+        grid.addColumn(SkillSummaryDTO::getName).setHeader("Name").setAutoWidth(true).setSortable(true);
+        grid.addColumn(SkillSummaryDTO::getDescription).setHeader("Description").setAutoWidth(true);
+        grid.addColumn(SkillSummaryDTO::getKeywords).setHeader("Keywords").setAutoWidth(true);
+        grid.addColumn(s -> s.getCategoryName() != null ? s.getCategoryName() : "—")
+                .setHeader("Category").setAutoWidth(true);
         grid.setSizeFull();
         grid.asSingleSelect().addValueChangeListener(e -> {
             if (e.getValue() != null) {
@@ -96,7 +109,7 @@ public class SkillCategoriesView extends SplitLayout {
             }
         });
 
-        Button add = new Button("New category", e -> {
+        Button add = new Button("New skill", e -> {
             grid.deselectAll();
             edit(null, true);
         });
@@ -118,12 +131,13 @@ public class SkillCategoriesView extends SplitLayout {
 
         name.setWidthFull();
         description.setWidthFull();
-        parent.setWidthFull();
-        parent.setClearButtonVisible(true);
-        parent.setItemLabelGenerator(SkillCategoryDTO::getName);
+        keywords.setWidthFull();
+        category.setWidthFull();
+        category.setClearButtonVisible(true);
+        category.setItemLabelGenerator(SkillCategoryDTO::getName);
 
         HorizontalLayout actions = new HorizontalLayout(save, delete, cancel);
-        formFields.add(name, description, parent, actions);
+        formFields.add(name, description, keywords, category, actions);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -136,26 +150,26 @@ public class SkillCategoriesView extends SplitLayout {
         return editor;
     }
 
-    private void edit(SkillCategoryDTO row, boolean creating) {
+    private void edit(SkillSummaryDTO row, boolean creating) {
         this.creating = creating;
         this.editingId = creating ? null : row.getId();
 
-        // Parent options = all categories except the one being edited (blocks self-parenting).
-        List<SkillCategoryDTO> options = skillService.getAllCategorySummaries().stream()
-                .filter(c -> creating || !c.getId().equals(row.getId()))
-                .toList();
-        parent.setItems(options);
+        // Refresh the category options each time so newly created categories are available.
+        List<SkillCategoryDTO> options = skillService.getAllCategorySummaries();
+        category.setItems(options);
 
         name.setInvalid(false);
         if (creating) {
             name.clear();
             description.clear();
-            parent.setValue(null);
+            keywords.clear();
+            category.setValue(null);
         } else {
             name.setValue(nullToEmpty(row.getName()));
             description.setValue(nullToEmpty(row.getDescription()));
-            parent.setValue(row.getParentId() == null ? null
-                    : options.stream().filter(c -> c.getId().equals(row.getParentId())).findFirst().orElse(null));
+            keywords.setValue(nullToEmpty(row.getKeywords()));
+            category.setValue(row.getCategoryId() == null ? null
+                    : options.stream().filter(c -> c.getId().equals(row.getCategoryId())).findFirst().orElse(null));
         }
         delete.setVisible(!creating);
         showEditor(true);
@@ -168,36 +182,40 @@ public class SkillCategoriesView extends SplitLayout {
             name.setErrorMessage("Name is required");
             return;
         }
+        PUser user = currentUser.require();
         try {
             if (creating) {
-                skillService.createCategory(buildCategoryBean());
-                notifySuccess("Category created");
+                skillService.createSkill(buildSkillBean(), user);
+                notifySuccess("Skill created");
             } else {
-                skillService.updateCategory(editingId, buildCategoryBean());
-                notifySuccess("Category updated");
+                skillService.updateSkill(editingId, buildSkillBean(), user);
+                notifySuccess("Skill updated");
             }
             reset();
+        } catch (AccessDeniedException denied) {
+            notifyError("You are not allowed to save this skill.");
         } catch (RuntimeException ex) {
             notifyError(ex.getMessage());
         }
     }
 
     /**
-     * A fresh {@link SkillCategory} bean carrying only name/description plus a parent reference by id. Built with
-     * {@code new SkillCategory()} (not the builder) so {@code subCategories} stays {@code null} and no lazy
-     * relation is round-tripped; create/update resolve the parent by id.
+     * A fresh {@link Skill} bean carrying only the edited base fields plus a category reference by id. Built with
+     * {@code new Skill()} (not the builder) so {@code skillProperties} stays {@code null} — on update the service
+     * then leaves the existing properties untouched instead of clearing them, and no lazy relation is round-tripped.
      */
-    private SkillCategory buildCategoryBean() {
-        SkillCategory cat = new SkillCategory();
-        cat.setName(name.getValue().trim());
-        cat.setDescription(emptyToNull(description.getValue()));
-        SkillCategoryDTO selectedParent = parent.getValue();
-        if (selectedParent != null) {
+    private Skill buildSkillBean() {
+        Skill skill = new Skill();
+        skill.setName(name.getValue().trim());
+        skill.setDescription(emptyToNull(description.getValue()));
+        skill.setKeywords(emptyToNull(keywords.getValue()));
+        SkillCategoryDTO selected = category.getValue();
+        if (selected != null) {
             SkillCategory ref = new SkillCategory();
-            ref.setId(selectedParent.getId());
-            cat.setParentCategory(ref);
+            ref.setId(selected.getId());
+            skill.setCategory(ref);
         }
-        return cat;
+        return skill;
     }
 
     private void delete() {
@@ -205,9 +223,11 @@ public class SkillCategoriesView extends SplitLayout {
             return;
         }
         try {
-            skillService.deleteCategory(editingId);
-            notifySuccess("Category deleted (including any sub-categories)");
+            skillService.deleteSkill(editingId, currentUser.require());
+            notifySuccess("Skill deleted");
             reset();
+        } catch (AccessDeniedException denied) {
+            notifyError("You are not allowed to delete this skill.");
         } catch (RuntimeException ex) {
             notifyError(ex.getMessage());
         }
@@ -226,7 +246,7 @@ public class SkillCategoriesView extends SplitLayout {
     }
 
     private void refresh() {
-        grid.setItems(skillService.getAllCategorySummaries());
+        grid.setItems(skillService.getAllSkillSummaries());
     }
 
     private void showEditor(boolean visible) {

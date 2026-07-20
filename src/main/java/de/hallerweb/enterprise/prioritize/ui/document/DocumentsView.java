@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.document;
+import de.hallerweb.enterprise.prioritize.ui.group.GroupsView;
+import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;

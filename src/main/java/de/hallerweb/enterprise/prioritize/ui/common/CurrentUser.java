@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.common;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;

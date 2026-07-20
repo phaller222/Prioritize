@@ -17,7 +17,7 @@
 package de.hallerweb.enterprise.prioritize.config;
 
 import com.vaadin.flow.spring.security.VaadinSecurityConfigurer;
-import de.hallerweb.enterprise.prioritize.ui.LoginView;
+import de.hallerweb.enterprise.prioritize.ui.security.LoginView;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;

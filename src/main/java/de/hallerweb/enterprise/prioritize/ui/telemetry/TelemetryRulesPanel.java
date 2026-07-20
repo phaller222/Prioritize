@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.ui;
+package de.hallerweb.enterprise.prioritize.ui.telemetry;
+import de.hallerweb.enterprise.prioritize.ui.resource.ResourcesView;
+import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
