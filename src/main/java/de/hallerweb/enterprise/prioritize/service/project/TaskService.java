@@ -115,6 +115,33 @@ public class TaskService {
         return saved;
     }
 
+    /**
+     * Creates a task from a recurring schedule's template on {@code project}'s blackboard with status
+     * {@link TaskStatus#CREATED}. This is a <b>trusted system path</b> invoked by the scheduler, not a
+     * user: it performs <b>no membership check</b>, mirroring the user-less ingest paths (MQTT /
+     * telemetry). It stays decoupled from the scheduling model — the caller unpacks the template.
+     *
+     * @param project     the owning project (its blackboard receives the task)
+     * @param name        the generated task's name
+     * @param description the generated task's description
+     * @param priority    the generated task's priority
+     * @return the persisted task
+     */
+    public Task createScheduledTask(Project project, String name, String description, int priority) {
+        Blackboard blackboard = project.getBlackboard();
+        Task task = Task.builder()
+                .name(name)
+                .description(description)
+                .priority(priority)
+                .taskStatus(TaskStatus.CREATED)
+                .build();
+        blackboard.addTask(task);
+        Task saved = taskRepository.save(task);
+        log.info("Scheduled task '{}' (id={}) created in project '{}'.",
+                saved.getName(), saved.getId(), project.getName());
+        return saved;
+    }
+
     @Transactional(readOnly = true)
     public Task getTask(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
