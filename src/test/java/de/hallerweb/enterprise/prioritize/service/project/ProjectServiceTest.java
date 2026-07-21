@@ -125,6 +125,93 @@ class ProjectServiceTest {
                 () -> projectService.addMember(project.getId(), admin.getId(), outsider));
     }
 
+    // --- Manager-Übergabe ---
+
+    @Test
+    @DisplayName("transferManager: übergibt an ein Mitglied, der bisherige Manager bleibt im Team")
+    void transferManager_handsOverAndKeepsPreviousAsMember() {
+        Project project = newProject();
+        projectService.addMember(project.getId(), outsider.getId(), admin);
+
+        projectService.transferManager(project.getId(), outsider.getId(), admin);
+
+        Project reloaded = projectRepository.findById(project.getId()).orElseThrow();
+        assertEquals(outsider.getId(), reloaded.getManager().getId());
+        assertTrue(reloaded.getMembers().stream().anyMatch(m -> m.getId().equals(admin.getId())),
+                "der bisherige Manager bleibt Mitglied");
+        // The new manager may now do what only a manager may do.
+        assertDoesNotThrow(() -> projectService.updateProject(project.getId(),
+                new ProjectData("Apollo", "handed over", 5, null, null, 100), outsider));
+    }
+
+    @Test
+    @DisplayName("transferManager: erst nach der Übergabe ist der Alt-Manager entfernbar")
+    void transferManager_previousManagerBecomesRemovable() {
+        Project project = newProject();
+        projectService.addMember(project.getId(), outsider.getId(), admin);
+        // While admin is still the manager, the removal guard applies.
+        assertThrows(IllegalStateException.class,
+                () -> projectService.removeMember(project.getId(), admin.getId(), admin));
+
+        projectService.transferManager(project.getId(), outsider.getId(), admin);
+        projectService.removeMember(project.getId(), admin.getId(), outsider);
+
+        Project reloaded = projectRepository.findById(project.getId()).orElseThrow();
+        assertTrue(reloaded.getMembers().stream().noneMatch(m -> m.getId().equals(admin.getId())));
+    }
+
+    @Test
+    @DisplayName("transferManager: ein Nicht-Mitglied kann nicht Manager werden")
+    void transferManager_rejectsNonMember() {
+        Project project = newProject();
+        assertThrows(IllegalArgumentException.class,
+                () -> projectService.transferManager(project.getId(), outsider.getId(), admin));
+    }
+
+    @Test
+    @DisplayName("transferManager: ein gewöhnliches Mitglied darf nicht übergeben")
+    void transferManager_asOrdinaryMember_throwsAccessDenied() {
+        Project project = newProject();
+        projectService.addMember(project.getId(), outsider.getId(), admin);
+
+        assertThrows(AccessDeniedException.class,
+                () -> projectService.transferManager(project.getId(), outsider.getId(), outsider));
+    }
+
+    @Test
+    @DisplayName("transferManager: der Admin darf auch übergeben, wenn er nicht Manager ist")
+    void transferManager_allowedForAdminWhoIsNotManager() {
+        Project project = newProject();
+        projectService.addMember(project.getId(), outsider.getId(), admin);
+        projectService.transferManager(project.getId(), outsider.getId(), admin);
+        // admin is now an ordinary member — the rescue path for an orphaned project.
+
+        assertDoesNotThrow(
+                () -> projectService.transferManager(project.getId(), admin.getId(), admin));
+        assertEquals(admin.getId(),
+                projectRepository.findById(project.getId()).orElseThrow().getManager().getId());
+    }
+
+    @Test
+    @DisplayName("addMember: der Admin darf Mitglieder verwalten, ohne Manager zu sein")
+    void addMember_allowedForAdminWhoIsNotManager() {
+        Project project = newProject();
+        projectService.addMember(project.getId(), outsider.getId(), admin);
+        projectService.transferManager(project.getId(), outsider.getId(), admin);
+
+        PUser newcomer = userService.createUser(PUser.builder()
+                .username("project-newcomer-" + System.nanoTime())
+                .name("Newcomer")
+                .firstname("Nina")
+                .email("nina@example.com")
+                .password("plaintext123")
+                .admin(false)
+                .build());
+
+        assertDoesNotThrow(
+                () -> projectService.addMember(project.getId(), newcomer.getId(), admin));
+    }
+
     @Test
     @DisplayName("updateProject: ändert die Felder (nur Manager)")
     void updateProject_changesFields() {
