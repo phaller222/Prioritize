@@ -184,13 +184,13 @@ public class RoleView extends SplitLayout {
     private VerticalLayout buildMatrixSection() {
         permissionGrid.addColumn(this::labelFor).setHeader("Target type").setAutoWidth(true);
         permissionGrid.addComponentColumn(rec -> permissionCheckbox(rec,
-                PermissionRecord::isCreatePermission, PermissionRecord::setCreatePermission)).setHeader("Create");
+                PermissionRecord::isCreatePermission, PermissionRecord::setCreatePermission, true)).setHeader("Create");
         permissionGrid.addComponentColumn(rec -> permissionCheckbox(rec,
-                PermissionRecord::isReadPermission, PermissionRecord::setReadPermission)).setHeader("Read");
+                PermissionRecord::isReadPermission, PermissionRecord::setReadPermission, !isCreateOnly(rec))).setHeader("Read");
         permissionGrid.addComponentColumn(rec -> permissionCheckbox(rec,
-                PermissionRecord::isUpdatePermission, PermissionRecord::setUpdatePermission)).setHeader("Update");
+                PermissionRecord::isUpdatePermission, PermissionRecord::setUpdatePermission, !isCreateOnly(rec))).setHeader("Update");
         permissionGrid.addComponentColumn(rec -> permissionCheckbox(rec,
-                PermissionRecord::isDeletePermission, PermissionRecord::setDeletePermission)).setHeader("Delete");
+                PermissionRecord::isDeletePermission, PermissionRecord::setDeletePermission, !isCreateOnly(rec))).setHeader("Delete");
         permissionGrid.addComponentColumn(rec -> {
             Button remove = new Button(VaadinIcon.TRASH.create(), e -> removePermission(rec));
             remove.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_ICON);
@@ -212,8 +212,21 @@ public class RoleView extends SplitLayout {
         return matrixSection;
     }
 
-    private Checkbox permissionCheckbox(PermissionRecord rec, PermissionGetter getter, PermissionSetter setter) {
+    /** Whether this target only supports a Create permission (read/update/delete are not enforced). */
+    private boolean isCreateOnly(PermissionRecord rec) {
+        return TargetType.PROJECT.getCanonical().equals(rec.getAbsoluteObjectType());
+    }
+
+    private Checkbox permissionCheckbox(PermissionRecord rec, PermissionGetter getter, PermissionSetter setter,
+                                        boolean editable) {
         Checkbox box = new Checkbox(getter.get(rec));
+        if (!editable) {
+            // Shown for context but not enforced (e.g. read/update/delete on a Project) — keep it read-only.
+            box.setEnabled(false);
+            box.getElement().setProperty("title",
+                    "Projects are membership-based; only Create is permission-gated.");
+            return box;
+        }
         box.addValueChangeListener(e -> {
             setter.set(rec, e.getValue());
             try {
@@ -430,7 +443,10 @@ public class RoleView extends SplitLayout {
         DOCUMENT("Document", "de.hallerweb.enterprise.prioritize.model.document.DocumentInfo"),
         DOCUMENT_GROUP("Document group", "de.hallerweb.enterprise.prioritize.model.document.DocumentGroup"),
         SKILL("Skill", "de.hallerweb.enterprise.prioritize.model.skill.Skill"),
-        USER("User", "de.hallerweb.enterprise.prioritize.model.security.PUser");
+        USER("User", "de.hallerweb.enterprise.prioritize.model.security.PUser"),
+        // Projects have no owning container, so only a type-level CREATE gate applies; read/update/
+        // delete stay membership-based and are NOT enforced via PermissionRecord (see ProjectService).
+        PROJECT("Project", "de.hallerweb.enterprise.prioritize.model.project.Project");
 
         private final String label;
         private final String canonical;

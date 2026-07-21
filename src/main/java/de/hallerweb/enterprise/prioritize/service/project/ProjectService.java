@@ -20,10 +20,12 @@ import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.project.Blackboard;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.security.Action;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.project.ProjectRepository;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -52,6 +54,7 @@ public class ProjectService {
     private final UserService userService;
     private final ResourceService resourceService;
     private final DocumentService documentService;
+    private final AuthorizationService authService;
 
     /**
      * Immutable set of editable project fields, decoupling the service from HTTP DTOs.
@@ -64,12 +67,22 @@ public class ProjectService {
     /**
      * Creates a new project with an empty blackboard. The creator becomes the manager and is
      * added as the first member.
+     * <p>
+     * A project has no owning container to authorize against (unlike resources/documents, which are
+     * created into a department or group), so creation is gated by a <b>type-level</b>
+     * {@link Action#CREATE} permission on {@link Project} — a {@link
+     * de.hallerweb.enterprise.prioritize.model.security.PermissionRecord} with {@code objectId == 0}.
+     * Admins are allowed implicitly. Read/update/delete of an existing project stay membership-based.
      *
      * @param data    the project's initial field values
      * @param creator the authenticated user creating the project
      * @return the persisted project
+     * @throws AccessDeniedException if the creator may not create projects
      */
     public Project createProject(ProjectData data, PUser creator) {
+        if (!authService.hasPermission(creator, Project.class.getCanonicalName(), 0L, Action.CREATE)) {
+            throw new AccessDeniedException("No permission to create projects.");
+        }
         Blackboard blackboard = Blackboard.builder()
                 .title(data.name())
                 .description("Blackboard for project " + data.name())

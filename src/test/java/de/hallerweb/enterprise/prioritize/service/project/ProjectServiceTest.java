@@ -18,7 +18,9 @@ package de.hallerweb.enterprise.prioritize.service.project;
 
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.security.PermissionRecord;
 import de.hallerweb.enterprise.prioritize.repository.project.ProjectRepository;
+import de.hallerweb.enterprise.prioritize.repository.security.PermissionRecordRepository;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService.ProjectData;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +47,8 @@ class ProjectServiceTest {
     private ProjectRepository projectRepository;
     @Autowired
     private UserService userService;
+    @Autowired
+    private PermissionRecordRepository permissionRecordRepository;
 
     private PUser admin;
     private PUser outsider;
@@ -140,5 +144,30 @@ class ProjectServiceTest {
         Project project = newProject();
         projectService.deleteProject(project.getId(), admin);
         assertFalse(projectRepository.existsById(project.getId()));
+    }
+
+    @Test
+    @DisplayName("createProject: ohne Create-Permission verweigert (kein Admin)")
+    void createProject_deniedWithoutCreatePermission() {
+        ProjectData data = new ProjectData("Apollo", "Moon project", 5, null, null, 100);
+        assertThrows(AccessDeniedException.class, () -> projectService.createProject(data, outsider));
+    }
+
+    @Test
+    @DisplayName("createProject: mit typ-weiter Create-Permission erlaubt (kein Admin)")
+    void createProject_allowedWithTypeLevelCreatePermission() {
+        // A type-level (objectId 0) CREATE permission on Project, granted as a personal permission.
+        PermissionRecord perm = permissionRecordRepository.save(PermissionRecord.builder()
+                .absoluteObjectType(Project.class.getCanonicalName())
+                .objectId(0L)
+                .createPermission(true)
+                .build());
+        outsider.addPersonalPermission(perm);
+
+        Project project = projectService.createProject(
+                new ProjectData("Apollo", "Moon project", 5, null, null, 100), outsider);
+
+        assertNotNull(project.getId());
+        assertEquals(outsider.getId(), project.getManager().getId());
     }
 }
