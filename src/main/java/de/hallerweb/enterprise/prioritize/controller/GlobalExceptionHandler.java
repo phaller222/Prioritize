@@ -24,6 +24,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -79,6 +80,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of("The request conflicts with existing data (a related record still refers to it).",
                 HttpStatus.CONFLICT.value()));
+    }
+
+    /**
+     * A body that cannot be deserialized is a client mistake, so it must read as <b>400</b>. Without
+     * this mapping Spring's default resolver handles it outside the advice, the error dispatch is
+     * rejected by the security chain, and the caller sees a <b>403</b> instead — which has now bitten
+     * twice in practice: omitting {@code maxManDays} when creating a project, and omitting
+     * {@code active} when creating a user. Both are the same root cause, a missing JSON value for a
+     * primitive field.
+     * <p>
+     * The parser's own message is not echoed back: it names internal classes and fields. It goes to
+     * the log, where it is exactly what one needs while debugging a request.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        log.warn("Unreadable request body: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiError.of("The request body could not be read. Check for malformed JSON, or a "
+                + "missing/null value for a field that cannot be empty.",
+                HttpStatus.BAD_REQUEST.value()));
     }
 
     @ExceptionHandler(SlotNotReservedException.class)
