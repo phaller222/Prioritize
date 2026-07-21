@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.project;
 
+import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.project.Blackboard;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
@@ -179,14 +180,14 @@ public class ProjectService {
 
     public Project addMember(Long projectId, Long userId, PUser user) {
         Project project = findOrThrow(projectId);
-        requireManager(project, user);
+        requireManagerOrAdmin(project, user);
         project.getMembers().add(userService.getUserById(userId));
         return project;
     }
 
     public Project removeMember(Long projectId, Long userId, PUser user) {
         Project project = findOrThrow(projectId);
-        requireManager(project, user);
+        requireManagerOrAdmin(project, user);
         if (project.getManager() != null && userId.equals(project.getManager().getId())) {
             throw new IllegalStateException("The manager cannot be removed from the project.");
         }
@@ -221,6 +222,42 @@ public class ProjectService {
         Project project = findOrThrow(projectId);
         requireManager(project, user);
         project.getDocuments().removeIf(d -> documentInfoId.equals(d.getId()));
+        return project;
+    }
+
+    /**
+     * Hands the project over to another of its members. Allowed for the acting manager and for an
+     * administrator — the latter so a project whose manager has left the company does not stay
+     * unmanageable forever, since the manager is otherwise fixed at creation time.
+     * <p>
+     * The new manager must <b>already be a member</b>: a hand-over changes who is in charge, never who
+     * is on the team, and an administrator who wants the project for themselves joins it first (which
+     * {@link #addMember} lets them do). The outgoing manager stays a member and can afterwards be
+     * removed normally — which {@link #removeMember}'s guard prevents while they are still in charge.
+     *
+     * @param projectId    the project id
+     * @param newManagerId the id of the member taking over
+     * @param actor        the requesting user (current manager or an administrator)
+     * @return the updated project
+     * @throws AccessDeniedException    if the actor is neither the manager nor an administrator
+     * @throws IllegalArgumentException if the designated user is not a member of the project
+     */
+    public Project transferManager(Long projectId, Long newManagerId, PUser actor) {
+        Project project = findOrThrow(projectId);
+        requireManagerOrAdmin(project, actor);
+
+        PUser newManager = userService.getUserById(newManagerId);
+        if (!isMember(project, newManager)) {
+            throw new IllegalArgumentException(
+                    "The new manager must already be a member of the project. Add them first.");
+        }
+
+        PActor previous = project.getManager();
+        project.setManager(newManager);
+        log.info("Project '{}' (id={}) handed over from actor {} to '{}' by '{}'.",
+                project.getName(), projectId,
+                previous != null ? previous.getId() : null,
+                newManager.getUsername(), actor.getUsername());
         return project;
     }
 
@@ -260,11 +297,32 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Ensures the user is the manager of the project, or an administrator.
+     * <p>
+     * Deliberately narrower than it looks: only the team management and the hand-over accept an
+     * administrator. Editing or deleting a project stays with its manager alone, so that admin rights
+     * do not quietly turn into blanket access to every project's content — an administrator who needs
+     * that takes the project over first, which is a visible, logged act.
+     *
+     * @throws AccessDeniedException if the user is neither the manager nor an administrator
+     */
+    public void requireManagerOrAdmin(Project project, PUser user) {
+        boolean isManager = project.getManager() != null
+                && project.getManager().getId().equals(user.getId());
+        if (!isManager && !authService.isAdmin(user)) {
+            throw new AccessDeniedException(
+                    "Only the project manager or an administrator may perform this action.");
+        }
+    }
+
+    private boolean isMember(Project project, PUser user) {
+        return project.getMembers().stream().anyMatch(m -> m.getId().equals(user.getId()));
+    }
+
     private boolean isMemberOrManager(Project project, PUser user) {
         boolean isManager = project.getManager() != null
                 && project.getManager().getId().equals(user.getId());
-        boolean isMember = project.getMembers().stream()
-                .anyMatch(m -> m.getId().equals(user.getId()));
-        return isManager || isMember;
+        return isManager || isMember(project, user);
     }
 }

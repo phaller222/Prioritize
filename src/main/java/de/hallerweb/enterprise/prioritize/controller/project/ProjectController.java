@@ -99,6 +99,16 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.removeMember(id, userId, getCurrentUser(auth)));
     }
 
+    /**
+     * Hands the project over to another of its members. Allowed for the current manager and for an
+     * administrator; the designated user must already be a member (400 otherwise).
+     */
+    @PutMapping("/projects/{id}/manager/{userId}")
+    public ResponseEntity<Project> transferManager(
+        @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
+        return ResponseEntity.ok(projectService.transferManager(id, userId, getCurrentUser(auth)));
+    }
+
     @PostMapping("/projects/{id}/resources/{resourceId}")
     public ResponseEntity<Project> addResource(
         @PathVariable Long id, @PathVariable Long resourceId, Authentication auth) {

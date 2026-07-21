@@ -130,7 +130,13 @@ public class AuthorizationService {
         ).anyMatch(record -> isPermissionMatching(record, targetObject, action));
     }
 
-    private boolean isAdmin(PUser user) {
+    /**
+     * Whether the user is an administrator — either by the flag on the account or through a role named
+     * {@code ADMIN}. Public because the membership-based parts of the system (see {@code ProjectService})
+     * decide on admin overrides themselves: they are not expressed as {@link PermissionRecord}s and
+     * therefore never pass through {@link #hasPermission}.
+     */
+    public boolean isAdmin(PUser user) {
         return user.isAdmin() || user.getRoles().stream().anyMatch(
                 role -> role.getName().equalsIgnoreCase("ADMIN"));
     }
