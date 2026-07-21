@@ -29,6 +29,7 @@ import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +56,7 @@ public class ProjectService {
     private final ResourceService resourceService;
     private final DocumentService documentService;
     private final AuthorizationService authService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Immutable set of editable project fields, decoupling the service from HTTP DTOs.
@@ -156,6 +158,11 @@ public class ProjectService {
 
     /**
      * Deletes a project (and, by cascade, its blackboard and tasks). Manager only.
+     * <p>
+     * Entities that satellite packages attach to a project (task schedules, …) are not reachable
+     * from {@link Project} and would keep their foreign key pointing at the vanishing row, so a
+     * {@link ProjectDeletionEvent} is published first and its listeners clean up synchronously,
+     * inside this transaction.
      *
      * @param projectId the project id
      * @param user      the requesting user
@@ -163,6 +170,7 @@ public class ProjectService {
     public void deleteProject(Long projectId, PUser user) {
         Project project = findOrThrow(projectId);
         requireManager(project, user);
+        eventPublisher.publishEvent(new ProjectDeletionEvent(projectId));
         projectRepository.delete(project);
         log.info("Project '{}' (id={}) deleted by user '{}'.", project.getName(), projectId, user.getUsername());
     }

@@ -37,4 +37,12 @@ public interface TaskScheduleRepository extends JpaRepository<TaskSchedule, Long
 
     /** All schedules targeting a given project (enabled or not); used by admin/inspection paths. */
     List<TaskSchedule> findByProject_Id(Long projectId);
+
+    /**
+     * Removes every schedule of a project. Called while the project itself is being deleted — a schedule
+     * is not reachable from {@code Project}, so no JPA cascade covers it.
+     *
+     * @return how many schedules were removed
+     */
+    long deleteByProject_Id(Long projectId);
 }
