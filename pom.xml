@@ -10,7 +10,7 @@
     </parent>
     <groupId>de.hallerweb.enterprise</groupId>
     <artifactId>prioritize</artifactId>
-    <version>0.8.0-SNAPSHOT</version>
+    <version>0.8.0</version>
     <name/>
     <description/>
     <url/>
