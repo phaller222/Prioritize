@@ -22,6 +22,7 @@ import de.hallerweb.enterprise.prioritize.exception.ResourceOfflineException;
 import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -63,6 +64,21 @@ public class GlobalExceptionHandler {
         log.warn("Conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of(ex.getMessage(), HttpStatus.CONFLICT.value()));
+    }
+
+    /**
+     * A rejected constraint (a foreign key still pointing at the row being deleted, a unique violation)
+     * is a conflict with the current data — not a permission problem. Without this mapping such a
+     * failure escapes unhandled and Spring Security's translation filter turns it into a misleading
+     * <b>403</b>, which is what made the "cannot delete a project that still has task schedules" case so
+     * hard to read. The database message is not echoed back; it belongs in the log, not in the response.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ApiError.of("The request conflicts with existing data (a related record still refers to it).",
+                HttpStatus.CONFLICT.value()));
     }
 
     @ExceptionHandler(SlotNotReservedException.class)
