@@ -23,6 +23,7 @@ import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
@@ -100,6 +101,26 @@ public class GlobalExceptionHandler {
             .body(ApiError.of("The request body could not be read. Check for malformed JSON, or a "
                 + "missing/null value for a field that cannot be empty.",
                 HttpStatus.BAD_REQUEST.value()));
+    }
+
+    /**
+     * A lookup that must yield a single row found several. That is not the caller's fault and not a
+     * permission problem — it is inconsistent stored data, so it answers <b>500</b> and is logged at
+     * error level with the query's own message.
+     * <p>
+     * The realistic case is a database written before usernames became unique: two accounts share a
+     * name, and every lookup by that name — including the login path — fails from then on. New
+     * duplicates are rejected in {@code UserService}, but existing rows have to be cleaned up by hand,
+     * and until then this at least says so instead of showing a 403.
+     */
+    @ExceptionHandler(IncorrectResultSizeDataAccessException.class)
+    public ResponseEntity<ApiError> handleAmbiguousData(IncorrectResultSizeDataAccessException ex) {
+        log.error("Ambiguous data — a lookup that must be unique returned several rows: {}",
+            ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(ApiError.of("Stored data is ambiguous: a lookup that must return a single record "
+                + "found several. This needs an administrator to resolve.",
+                HttpStatus.INTERNAL_SERVER_ERROR.value()));
     }
 
     @ExceptionHandler(SlotNotReservedException.class)

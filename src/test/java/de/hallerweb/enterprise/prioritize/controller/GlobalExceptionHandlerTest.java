@@ -20,6 +20,7 @@ import de.hallerweb.enterprise.prioritize.dto.ApiError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -56,6 +57,20 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST.value(), body.status());
         assertFalse(body.message().contains("de.hallerweb"),
                 "die Antwort darf keine internen Klassen-/Feldnamen preisgeben");
+    }
+
+    @Test
+    @DisplayName("handleAmbiguousData: 500 — mehrdeutige Daten sind kein Rechteproblem")
+    void ambiguousData_isServerError() {
+        IncorrectResultSizeDataAccessException ex =
+                new IncorrectResultSizeDataAccessException("Query did not return a unique result", 1, 2);
+
+        ResponseEntity<ApiError> response = handler.handleAmbiguousData(ex);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        ApiError body = response.getBody();
+        assertNotNull(body);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), body.status());
     }
 
     @Test

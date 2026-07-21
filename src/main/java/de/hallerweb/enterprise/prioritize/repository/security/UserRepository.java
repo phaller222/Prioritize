@@ -30,6 +30,24 @@ public interface UserRepository extends JpaRepository<PUser, Long> {
     @QueryHints({@QueryHint(name = "org.hibernate.flushMode", value = "MANUAL")})
     Optional<PUser> findByUsername(String username);
 
+    /**
+     * Case-insensitive lookup used to keep usernames unique. Deliberately unfiltered: a deactivated
+     * account still occupies its name, because {@code findByUsername} — the login path — does not
+     * filter by {@code active} either and would break on a second row.
+     * <p>
+     * Returns a list rather than an {@code Optional} on purpose. A database written before the name
+     * was unique may still hold duplicates, and an {@code Optional} query would answer such legacy
+     * data with {@code IncorrectResultSizeDataAccessException} instead of the clean "taken" this is
+     * asked for.
+     * <p>
+     * {@code MANUAL} flush mode, like {@code findByUsername} above: the caller checks a name while an
+     * entity carrying the very change under test may be dirty in the persistence context. With the
+     * default flush-before-query that pending change would be written first and the query would find
+     * the collision it is supposed to prevent.
+     */
+    @QueryHints({@QueryHint(name = "org.hibernate.flushMode", value = "MANUAL")})
+    List<PUser> findAllByUsernameIgnoreCase(String username);
+
     // Authoritative "which users hold this role" via the user_roles join table (owning side).
     List<PUser> findByRoles_Id(Long roleId);
 }
