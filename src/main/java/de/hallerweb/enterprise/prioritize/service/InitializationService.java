@@ -66,7 +66,13 @@ public class InitializationService {
     }
 
     private PUser ensureAdminUser() {
-        if (userService.getAllUsers().isEmpty()) {
+        if (!userService.getAllUsers().isEmpty()) {
+            return userService.getAllUsers().get(0);
+        }
+        // No ACTIVE user left — but a deactivated 'admin' row may still be there, and it still owns
+        // the name. Reuse it instead of attempting a second one, which the now-unique username would
+        // reject and thereby break startup.
+        return userService.findOptionalByUsername("admin").orElseGet(() -> {
             PUser admin = new PUser();
             admin.setUsername("admin");
             admin.setPassword("p@ssword");
@@ -74,8 +80,7 @@ public class InitializationService {
             admin.setGender(PUser.Gender.OTHER);
             log.info("Initial admin user 'admin' created.");
             return userService.createUser(admin);
-        }
-        return userService.getAllUsers().get(0);
+        });
     }
 
     private Department ensureDefaultDepartment() {

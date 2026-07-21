@@ -58,6 +58,13 @@ public class PUser extends PActor implements PAuthorizedObject {
 
     public enum Gender {MALE, FEMALE, OTHER, TECHNICAL_USER}
 
+    /**
+     * Login name, unique across all accounts — including deactivated ones, which keep their name
+     * because a delete only clears {@link #active}. Enforced in {@code UserService} (case-insensitive,
+     * so {@code Admin} cannot shadow {@code admin}); the column constraint is the second line of
+     * defence and only reaches an existing database once its schema is regenerated.
+     */
+    @Column(unique = true)
     @ToString.Include
     @EqualsAndHashCode.Include
     private String username;

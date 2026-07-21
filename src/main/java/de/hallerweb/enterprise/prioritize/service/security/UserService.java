@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,10 +51,51 @@ public class UserService implements UserDetailsService {
                 .toList();
     }
 
+    /**
+     * Creates a user. The username must not be taken yet — see {@link #requireUsernameFree}.
+     *
+     * @throws IllegalStateException if the username is already in use (mapped to 409)
+     */
     public PUser createUser(PUser user) {
+        requireUsernameFree(user.getUsername(), null);
         // Encrypt the password before it goes into the DB
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
+    }
+
+    /**
+     * Looks a user up by name without hiding deactivated accounts, unlike
+     * {@link #findUserByUsername}. Used where the caller has to see that a name is occupied rather
+     * than whether the account is usable.
+     */
+    @Transactional(readOnly = true)
+    public Optional<PUser> findOptionalByUsername(String username) {
+        return userRepository.findAllByUsernameIgnoreCase(username).stream().findFirst();
+    }
+
+    /**
+     * Ensures no other account already uses {@code username}.
+     * <p>
+     * The check is <b>case-insensitive</b> so {@code Admin} cannot be registered next to
+     * {@code admin} — the login lookup is exact, which would make the two indistinguishable to a
+     * human reading a user list while resolving to different accounts. It also counts
+     * <b>deactivated</b> accounts: {@code DELETE /users/{id}} only clears the {@code active} flag, the
+     * row (and its name) stays, and {@code findByUsername} on the login path does not filter by
+     * {@code active} — a second row with the same name would make it fail outright.
+     *
+     * @param username  the desired name
+     * @param ownIdOrNull the id of the account being updated, so it may keep its own name
+     * @throws IllegalStateException if another account already holds the name (mapped to 409)
+     */
+    private void requireUsernameFree(String username, Long ownIdOrNull) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("username is required.");
+        }
+        boolean takenByAnother = userRepository.findAllByUsernameIgnoreCase(username.trim()).stream()
+                .anyMatch(existing -> !existing.getId().equals(ownIdOrNull));
+        if (takenByAnother) {
+            throw new IllegalStateException("Username '" + username + "' is already taken.");
+        }
     }
 
 
@@ -88,6 +130,8 @@ public class UserService implements UserDetailsService {
         if (!userRepository.existsById(user.getId())) {
             throw new NoSuchElementException("User with id " + user.getId() + " does not exist.");
         }
+        // A full update carries the username too, so it can collide just like a create can.
+        requireUsernameFree(user.getUsername(), user.getId());
         return userRepository.save(user);
     }
 

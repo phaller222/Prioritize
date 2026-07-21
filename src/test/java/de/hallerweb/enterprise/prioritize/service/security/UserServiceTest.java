@@ -68,6 +68,54 @@ class UserServiceTest {
         assertTrue(testUser.getPassword().startsWith("$2a$")); // BCrypt-Prefix
     }
 
+    /** A second user carrying the given name, ready to be handed to createUser. */
+    private PUser userNamed(String username) {
+        return PUser.builder()
+                .username(username)
+                .name("Zweiter")
+                .firstname("Max")
+                .email("max2.test@example.com")
+                .password("plaintext123")
+                .admin(false)
+                .build();
+    }
+
+    @Test
+    @DisplayName("createUser: ein vergebener Username wird abgelehnt")
+    void createUser_duplicateUsername_throws() {
+        PUser duplicate = userNamed(testUser.getUsername());
+        assertThrows(IllegalStateException.class, () -> userService.createUser(duplicate));
+    }
+
+    @Test
+    @DisplayName("createUser: die Prüfung ist case-insensitiv (kein 'Admin' neben 'admin')")
+    void createUser_duplicateUsernameIgnoringCase_throws() {
+        PUser duplicate = userNamed(testUser.getUsername().toUpperCase());
+        assertThrows(IllegalStateException.class, () -> userService.createUser(duplicate));
+    }
+
+    @Test
+    @DisplayName("createUser: ein deaktivierter Account belegt seinen Namen weiterhin")
+    void createUser_nameOfDeactivatedUserStaysTaken() {
+        userService.deactivateUser(testUser.getId());
+        PUser duplicate = userNamed(testUser.getUsername());
+
+        assertThrows(IllegalStateException.class, () -> userService.createUser(duplicate));
+    }
+
+    @Test
+    @DisplayName("updateUser: darf den eigenen Namen behalten, aber keinen fremden übernehmen")
+    void updateUser_usernameCollision() {
+        PUser other = userService.createUser(userNamed("test-other-" + System.nanoTime()));
+
+        // Keeping one's own name is not a collision.
+        testUser.setName("Umbenannt");
+        assertDoesNotThrow(() -> userService.updateUser(testUser));
+
+        other.setUsername(testUser.getUsername());
+        assertThrows(IllegalStateException.class, () -> userService.updateUser(other));
+    }
+
     @Test
     @DisplayName("createUser: User wird mit ID persistiert")
     void createUser_ShouldPersistWithId() {
