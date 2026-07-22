@@ -65,6 +65,7 @@ class ProcessDefinitionServiceTest {
     private DocumentService documentService;
     private BpmnDefinitionReader definitionReader;
     private AuthorizationService authService;
+    private org.flowable.engine.RepositoryService repositoryService;
     private ProcessDefinitionService service;
 
     private PUser user;
@@ -75,7 +76,9 @@ class ProcessDefinitionServiceTest {
         documentService = mock(DocumentService.class);
         definitionReader = mock(BpmnDefinitionReader.class);
         authService = mock(AuthorizationService.class);
-        service = new ProcessDefinitionService(definitionRepository, documentService, definitionReader, authService);
+        repositoryService = mock(org.flowable.engine.RepositoryService.class);
+        service = new ProcessDefinitionService(definitionRepository, documentService, definitionReader, authService,
+                repositoryService);
 
         user = PUser.builder().username("peter").build();
         when(definitionRepository.save(any(ProcessDefinition.class))).thenAnswer(i -> i.getArgument(0));
