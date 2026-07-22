@@ -41,10 +41,14 @@ import de.hallerweb.enterprise.prioritize.repository.process.ProcessDefinitionRe
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import org.flowable.engine.HistoryService;
 import org.flowable.engine.RuntimeService;
+import org.flowable.engine.history.HistoricProcessInstance;
+import org.flowable.engine.history.HistoricProcessInstanceQuery;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.runtime.ProcessInstanceQuery;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,10 +67,12 @@ import org.springframework.security.access.AccessDeniedException;
 class ProcessInstanceServiceTest {
 
     private RuntimeService runtimeService;
+    private HistoryService historyService;
     private ProcessDefinitionRepository definitionRepository;
     private ProjectService projectService;
     private TaskRepository taskRepository;
     private ProcessInstanceQuery instanceQuery;
+    private HistoricProcessInstanceQuery historicQuery;
     private ProcessInstanceService service;
 
     private PUser user;
@@ -75,10 +81,12 @@ class ProcessInstanceServiceTest {
     @BeforeEach
     void setUp() {
         runtimeService = mock(RuntimeService.class);
+        historyService = mock(HistoryService.class);
         definitionRepository = mock(ProcessDefinitionRepository.class);
         projectService = mock(ProjectService.class);
         taskRepository = mock(TaskRepository.class);
-        service = new ProcessInstanceService(runtimeService, definitionRepository, projectService, taskRepository);
+        service = new ProcessInstanceService(runtimeService, historyService, definitionRepository, projectService,
+                taskRepository);
 
         user = PUser.builder().username("peter").build();
         project = Project.builder().name("Inspection round").build();
@@ -89,7 +97,19 @@ class ProcessInstanceServiceTest {
         instanceQuery = mock(ProcessInstanceQuery.class);
         when(runtimeService.createProcessInstanceQuery()).thenReturn(instanceQuery);
         when(instanceQuery.processInstanceId(anyString())).thenReturn(instanceQuery);
+        when(instanceQuery.processInstanceBusinessKey(anyString())).thenReturn(instanceQuery);
+        when(instanceQuery.includeProcessVariables()).thenReturn(instanceQuery);
         when(instanceQuery.count()).thenReturn(0L);
+        when(instanceQuery.list()).thenReturn(List.of());
+        when(instanceQuery.singleResult()).thenReturn(null);
+
+        historicQuery = mock(HistoricProcessInstanceQuery.class);
+        when(historyService.createHistoricProcessInstanceQuery()).thenReturn(historicQuery);
+        when(historicQuery.processInstanceId(anyString())).thenReturn(historicQuery);
+        when(historicQuery.processInstanceBusinessKey(anyString())).thenReturn(historicQuery);
+        when(historicQuery.includeProcessVariables()).thenReturn(historicQuery);
+        when(historicQuery.list()).thenReturn(List.of());
+        when(historicQuery.singleResult()).thenReturn(null);
     }
 
     /** A registered, deployed definition the service will accept. */
@@ -250,5 +270,163 @@ class ProcessInstanceServiceTest {
         when(taskRepository.findById(43L)).thenReturn(Optional.of(task));
 
         assertThrows(IllegalStateException.class, () -> service.startForTask(43L, 3L, null, user));
+    }
+
+    // --- reading and cancelling ---
+
+    // Note: these helpers build their mock and only THEN feed it to a stub. Calling them inside
+    // when(...).thenReturn(...) would stub one mock while another stubbing is still open, which
+    // Mockito rejects as UnfinishedStubbing.
+
+    /** A running instance as the runtime tables would answer it, with the platform's variables. */
+    private ProcessInstance runningInstance(String id, String businessKey, Map<String, Object> variables) {
+        ProcessInstance instance = mock(ProcessInstance.class);
+        when(instance.getId()).thenReturn(id);
+        when(instance.getProcessDefinitionKey()).thenReturn("inspectionRound");
+        when(instance.getBusinessKey()).thenReturn(businessKey);
+        when(instance.getStartTime()).thenReturn(new Date());
+        when(instance.getProcessVariables()).thenReturn(variables);
+        return instance;
+    }
+
+    /** A finished instance as the history would answer it. */
+    private HistoricProcessInstance finishedInstance(String id, String businessKey, Map<String, Object> variables) {
+        HistoricProcessInstance instance = mock(HistoricProcessInstance.class);
+        when(instance.getId()).thenReturn(id);
+        when(instance.getProcessDefinitionKey()).thenReturn("inspectionRound");
+        when(instance.getBusinessKey()).thenReturn(businessKey);
+        when(instance.getStartTime()).thenReturn(new Date());
+        when(instance.getEndTime()).thenReturn(new Date());
+        when(instance.getProcessVariables()).thenReturn(variables);
+        return instance;
+    }
+
+    @Test
+    @DisplayName("reads the instance a task is linked to while it runs")
+    void readsRunningInstanceOfTask() {
+        taskInProject(42L, "pi-2");
+        ProcessInstance running =
+                runningInstance("pi-2", "task:42", Map.of("projectId", 7L, "taskId", 42L, "startedBy", "peter"));
+        when(instanceQuery.singleResult()).thenReturn(running);
+
+        ProcessInstanceDTO instance = service.getForTask(42L, user).orElseThrow();
+
+        assertEquals("pi-2", instance.id());
+        assertTrue(instance.running());
+        assertEquals(42L, instance.taskId());
+        assertEquals("peter", instance.startedBy());
+    }
+
+    @Test
+    @DisplayName("falls back to the history once the linked instance has finished")
+    void readsFinishedInstanceFromHistory() {
+        taskInProject(42L, "pi-2");
+        HistoricProcessInstance finished = finishedInstance("pi-2", "task:42", Map.of("projectId", 7L, "taskId", 42L));
+        when(historicQuery.singleResult()).thenReturn(finished);
+
+        ProcessInstanceDTO instance = service.getForTask(42L, user).orElseThrow();
+
+        assertFalse(instance.running());
+    }
+
+    @Test
+    @DisplayName("answers empty for a task that never ran a process")
+    void readsNothingForUnlinkedTask() {
+        taskInProject(42L, null);
+
+        assertTrue(service.getForTask(42L, user).isEmpty());
+    }
+
+    @Test
+    @DisplayName("collects a project's own instances and those of its tasks")
+    void collectsProjectInstances() {
+        Blackboard blackboard = Blackboard.builder().project(project).build();
+        blackboard.setId(9L);
+        project.setBlackboard(blackboard);
+        Task task = Task.builder().name("Check pump").blackboard(blackboard).processInstanceId("pi-task").build();
+        task.setId(42L);
+        when(taskRepository.findByBlackboard_Id(9L)).thenReturn(List.of(task));
+        ProcessInstance projectLevel = runningInstance("pi-project", "project:7", Map.of());
+        ProcessInstance taskLevel = runningInstance("pi-task", "task:42", Map.of("projectId", 7L, "taskId", 42L));
+        when(instanceQuery.list()).thenReturn(List.of(projectLevel));
+        when(instanceQuery.singleResult()).thenReturn(taskLevel);
+
+        List<ProcessInstanceDTO> instances = service.getForProject(7L, user);
+
+        assertEquals(2, instances.size());
+        assertEquals("pi-project", instances.get(0).id());
+        assertEquals(7L, instances.get(0).projectId()); // derived from the business key, no variables needed
+        assertEquals("pi-task", instances.get(1).id());
+    }
+
+    @Test
+    @DisplayName("refuses to show an instance to somebody outside its project")
+    void refusesForeignInstance() {
+        ProcessInstance running = runningInstance("pi-9", "project:7", Map.of());
+        when(instanceQuery.singleResult()).thenReturn(running);
+        org.mockito.Mockito.doThrow(new AccessDeniedException("not a member"))
+                .when(projectService).requireMemberOrManager(project, user);
+
+        assertThrows(AccessDeniedException.class, () -> service.get("pi-9", user));
+    }
+
+    @Test
+    @DisplayName("does not serve instances the platform did not start")
+    void refusesForeignlyStartedInstance() {
+        ProcessInstance foreign = runningInstance("pi-x", "somebody-elses-key", Map.of());
+        when(instanceQuery.singleResult()).thenReturn(foreign);
+
+        assertThrows(NoSuchElementException.class, () -> service.get("pi-x", user));
+    }
+
+    @Test
+    @DisplayName("reports an unknown instance as not found")
+    void unknownInstance() {
+        assertThrows(NoSuchElementException.class, () -> service.get("pi-nope", user));
+    }
+
+    @Test
+    @DisplayName("cancels a running instance with a reason, manager only")
+    void cancelsRunningInstance() {
+        ProcessInstance running = runningInstance("pi-9", "project:7", Map.of());
+        when(instanceQuery.singleResult()).thenReturn(running);
+
+        service.cancel("pi-9", "wrong process picked", user);
+
+        verify(projectService).requireManager(project, user);
+        verify(runtimeService).deleteProcessInstance("pi-9", "wrong process picked");
+    }
+
+    @Test
+    @DisplayName("records who cancelled when no reason is given")
+    void cancelsWithDefaultReason() {
+        ProcessInstance running = runningInstance("pi-9", "project:7", Map.of());
+        when(instanceQuery.singleResult()).thenReturn(running);
+
+        service.cancel("pi-9", "  ", user);
+
+        verify(runtimeService).deleteProcessInstance("pi-9", "cancelled by peter");
+    }
+
+    @Test
+    @DisplayName("refuses to cancel an instance that has already finished")
+    void refusesCancellingFinishedInstance() {
+        HistoricProcessInstance finished = finishedInstance("pi-9", "project:7", Map.of());
+        when(historicQuery.singleResult()).thenReturn(finished);
+
+        assertThrows(IllegalStateException.class, () -> service.cancel("pi-9", "too late", user));
+        verify(runtimeService, never()).deleteProcessInstance(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("refuses cancelling to a member who is not the manager")
+    void refusesCancellingAsMember() {
+        ProcessInstance running = runningInstance("pi-9", "project:7", Map.of());
+        when(instanceQuery.singleResult()).thenReturn(running);
+        org.mockito.Mockito.doThrow(new AccessDeniedException("not the manager"))
+                .when(projectService).requireManager(project, user);
+
+        assertThrows(AccessDeniedException.class, () -> service.cancel("pi-9", "no", user));
+        verify(runtimeService, never()).deleteProcessInstance(anyString(), anyString());
     }
 }
