@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinition;
@@ -101,7 +102,7 @@ class ProcessDefinitionActivationTest {
     }
 
     /** Persists a document carrying BPMN and registers it, bypassing the upload path. */
-    private ProcessDefinition registeredDefinition(byte[] content) {
+    private ProcessDefinitionDTO registeredDefinition(byte[] content) {
         Document document = Document.builder()
                 .name(KEY + ".bpmn").version(1).mimeType("text/xml").data(content).build();
         DocumentInfo info = DocumentInfo.builder().currentDocument(document).build();
@@ -120,17 +121,17 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("activate: deploys the document version and makes the process startable")
     void activateDeploysAndStarts() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
-        assertEquals(ProcessDefinitionState.DRAFT, definition.getState());
-        assertNull(definition.getDeploymentId(), "registering must not deploy anything");
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
+        assertEquals(ProcessDefinitionState.DRAFT, definition.state());
+        assertNull(definition.deploymentId(), "registering must not deploy anything");
 
-        ProcessDefinition activated = service.activate(definition.getId(), admin);
+        ProcessDefinitionDTO activated = service.activate(definition.id(), admin);
 
-        assertEquals(ProcessDefinitionState.ACTIVE, activated.getState());
-        assertNotNull(activated.getDeploymentId());
-        assertEquals(1, activated.getDeployedVersion());
-        assertNotNull(activated.getDeployedAt());
-        assertEquals(admin.getId(), activated.getDeployedBy().getId());
+        assertEquals(ProcessDefinitionState.ACTIVE, activated.state());
+        assertNotNull(activated.deploymentId());
+        assertEquals(1, activated.deployedVersion());
+        assertNotNull(activated.deployedAt());
+        assertEquals(admin.getUsername(), activated.deployedBy());
         assertTrue(isDeployedAndStartable());
 
         // The real proof: the engine can start it.
@@ -140,10 +141,10 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("activate: is idempotent while the document has not changed")
     void activateIsIdempotent() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
-        String firstDeployment = service.activate(definition.getId(), admin).getDeploymentId();
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
+        String firstDeployment = service.activate(definition.id(), admin).deploymentId();
 
-        String secondDeployment = service.activate(definition.getId(), admin).getDeploymentId();
+        String secondDeployment = service.activate(definition.id(), admin).deploymentId();
 
         assertEquals(firstDeployment, secondDeployment, "re-activating an unchanged definition must not redeploy");
         assertEquals(1, repositoryService.createProcessDefinitionQuery().processDefinitionKey(KEY).count());
@@ -152,14 +153,14 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("deactivate: stops new instances, leaves running ones alone")
     void deactivateSuspendsWithoutKillingInstances() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
-        service.activate(definition.getId(), admin);
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
+        service.activate(definition.id(), admin);
         String runningInstance = runtimeService.startProcessInstanceByKey(KEY).getId();
 
-        ProcessDefinition suspended = service.deactivate(definition.getId(), admin);
+        ProcessDefinitionDTO suspended = service.deactivate(definition.id(), admin);
 
-        assertEquals(ProcessDefinitionState.SUSPENDED, suspended.getState());
-        assertNotNull(suspended.getDeploymentId(), "the deployment must survive deactivation");
+        assertEquals(ProcessDefinitionState.SUSPENDED, suspended.state());
+        assertNotNull(suspended.deploymentId(), "the deployment must survive deactivation");
         assertFalse(isDeployedAndStartable());
         // Narrow on purpose: a broad "throws anything" would also pass if starting failed for an
         // unrelated reason, and then this test would prove nothing about suspension.
@@ -179,14 +180,14 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("activate: resumes a suspended definition instead of deploying it again")
     void activateResumesWithoutRedeploying() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
-        String deploymentId = service.activate(definition.getId(), admin).getDeploymentId();
-        service.deactivate(definition.getId(), admin);
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
+        String deploymentId = service.activate(definition.id(), admin).deploymentId();
+        service.deactivate(definition.id(), admin);
 
-        ProcessDefinition resumed = service.activate(definition.getId(), admin);
+        ProcessDefinitionDTO resumed = service.activate(definition.id(), admin);
 
-        assertEquals(ProcessDefinitionState.ACTIVE, resumed.getState());
-        assertEquals(deploymentId, resumed.getDeploymentId(), "resuming must not create a second deployment");
+        assertEquals(ProcessDefinitionState.ACTIVE, resumed.state());
+        assertEquals(deploymentId, resumed.deploymentId(), "resuming must not create a second deployment");
         assertEquals(1, repositoryService.createProcessDefinitionQuery().processDefinitionKey(KEY).count());
         assertTrue(isDeployedAndStartable());
     }
@@ -194,19 +195,19 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("activate: deploys a new engine version once the document has a newer one")
     void activateDeploysNewDocumentVersion() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
-        String firstDeployment = service.activate(definition.getId(), admin).getDeploymentId();
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
+        String firstDeployment = service.activate(definition.id(), admin).deploymentId();
 
         // A new document revision, as the documents subsystem would produce it.
-        DocumentInfo info = definition.getDocumentInfo();
+        DocumentInfo info = documentInfoRepository.findById(definition.documentInfoId()).orElseThrow();
         info.getCurrentDocument().setVersion(2);
         info.getCurrentDocument().setData(bpmn(KEY, "Probe, revised"));
         documentInfoRepository.save(info);
 
-        ProcessDefinition reactivated = service.activate(definition.getId(), admin);
+        ProcessDefinitionDTO reactivated = service.activate(definition.id(), admin);
 
-        assertEquals(2, reactivated.getDeployedVersion());
-        org.junit.jupiter.api.Assertions.assertNotEquals(firstDeployment, reactivated.getDeploymentId(),
+        assertEquals(2, reactivated.deployedVersion());
+        org.junit.jupiter.api.Assertions.assertNotEquals(firstDeployment, reactivated.deploymentId(),
                 "a newer document version must redeploy");
         assertEquals(2, repositoryService.createProcessDefinitionQuery().processDefinitionKey(KEY).count(),
                 "the engine keeps both versions — running instances stay on the one they started with");
@@ -215,26 +216,26 @@ class ProcessDefinitionActivationTest {
     @Test
     @DisplayName("activate: refuses a document whose process key has changed since registration")
     void activateRefusesChangedKey() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
 
-        DocumentInfo info = definition.getDocumentInfo();
+        DocumentInfo info = documentInfoRepository.findById(definition.documentInfoId()).orElseThrow();
         info.getCurrentDocument().setVersion(2);
         info.getCurrentDocument().setData(bpmn("somethingElse", "Different process"));
         documentInfoRepository.save(info);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> service.activate(definition.getId(), admin));
+                () -> service.activate(definition.id(), admin));
 
         assertTrue(ex.getMessage().contains("somethingElse"), ex.getMessage());
-        assertEquals(ProcessDefinitionState.DRAFT, definitionRepository.findById(definition.getId())
+        assertEquals(ProcessDefinitionState.DRAFT, definitionRepository.findById(definition.id())
                 .orElseThrow().getState(), "a refused activation must leave the definition a draft");
     }
 
     @Test
     @DisplayName("deactivate: refuses a definition that is not active")
     void deactivateRefusesDraft() {
-        ProcessDefinition definition = registeredDefinition(bpmn(KEY, "Probe"));
+        ProcessDefinitionDTO definition = registeredDefinition(bpmn(KEY, "Probe"));
 
-        assertThrows(IllegalStateException.class, () -> service.deactivate(definition.getId(), admin));
+        assertThrows(IllegalStateException.class, () -> service.deactivate(definition.id(), admin));
     }
 }

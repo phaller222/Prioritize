@@ -29,6 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinition;
@@ -104,15 +105,18 @@ class ProcessDefinitionServiceTest {
         when(definitionRepository.findByProcessKey("orderHandling")).thenReturn(Optional.empty());
         when(definitionRepository.findByDocumentInfo_Id(1L)).thenReturn(List.of());
 
-        ProcessDefinition registered = service.register(1L, user);
+        ProcessDefinitionDTO registered = service.register(1L, user);
 
-        assertEquals("orderHandling", registered.getProcessKey());
-        assertEquals("Order handling", registered.getName());
-        assertEquals(ProcessDefinitionState.DRAFT, registered.getState());
-        assertSame(info, registered.getDocumentInfo());
+        assertEquals("orderHandling", registered.processKey());
+        assertEquals("Order handling", registered.name());
+        assertEquals(ProcessDefinitionState.DRAFT, registered.state());
         // Nothing is deployed by registering.
-        assertNull(registered.getDeploymentId());
-        assertNull(registered.getDeployedVersion());
+        assertNull(registered.deploymentId());
+        assertNull(registered.deployedVersion());
+
+        ArgumentCaptor<ProcessDefinition> saved = ArgumentCaptor.forClass(ProcessDefinition.class);
+        verify(definitionRepository).save(saved.capture());
+        assertSame(info, saved.getValue().getDocumentInfo(), "the definition must point at the source document");
     }
 
     @Test
@@ -124,7 +128,7 @@ class ProcessDefinitionServiceTest {
         when(definitionRepository.findByProcessKey("orderHandling")).thenReturn(Optional.empty());
         when(definitionRepository.findByDocumentInfo_Id(1L)).thenReturn(List.of());
 
-        assertEquals("order-handling.bpmn", service.register(1L, user).getName());
+        assertEquals("order-handling.bpmn", service.register(1L, user).name());
     }
 
     @Test

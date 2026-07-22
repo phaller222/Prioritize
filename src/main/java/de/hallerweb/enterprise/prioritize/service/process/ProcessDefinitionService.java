@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.process;
 
+import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinition;
@@ -94,7 +95,7 @@ public class ProcessDefinitionService {
      * @throws IllegalStateException    if the key is taken or the document is already registered
      */
     @Transactional
-    public ProcessDefinition register(Long documentInfoId, PUser user) {
+    public ProcessDefinitionDTO register(Long documentInfoId, PUser user) {
         requirePermission(user, Action.CREATE, "register process definitions");
 
         DocumentInfo info = documentService.getDocument(documentInfoId, user);
@@ -123,14 +124,14 @@ public class ProcessDefinitionService {
         ProcessDefinition saved = definitionRepository.save(definition);
         log.info("Registered process definition '{}' from document {} (version {}) as draft.",
                 saved.getProcessKey(), documentInfoId, current.getVersion());
-        return saved;
+        return ProcessDefinitionDTO.from(saved);
     }
 
     /** All registered definitions, deployed or not. */
     @Transactional(readOnly = true)
-    public List<ProcessDefinition> getAll(PUser user) {
+    public List<ProcessDefinitionDTO> getAll(PUser user) {
         requirePermission(user, Action.READ, "read process definitions");
-        return definitionRepository.findAll();
+        return definitionRepository.findAll().stream().map(ProcessDefinitionDTO::from).toList();
     }
 
     /**
@@ -139,9 +140,9 @@ public class ProcessDefinitionService {
      * @throws NoSuchElementException if there is none with that id
      */
     @Transactional(readOnly = true)
-    public ProcessDefinition get(Long id, PUser user) {
+    public ProcessDefinitionDTO get(Long id, PUser user) {
         requirePermission(user, Action.READ, "read process definitions");
-        return findOrThrow(id);
+        return ProcessDefinitionDTO.from(findOrThrow(id));
     }
 
     /**
@@ -162,7 +163,7 @@ public class ProcessDefinitionService {
      * @throws IllegalStateException  if the document's process key no longer matches
      */
     @Transactional
-    public ProcessDefinition activate(Long id, PUser user) {
+    public ProcessDefinitionDTO activate(Long id, PUser user) {
         requirePermission(user, Action.UPDATE, "activate process definitions");
 
         ProcessDefinition definition = findOrThrow(id);
@@ -191,13 +192,13 @@ public class ProcessDefinitionService {
             repositoryService.activateProcessDefinitionByKey(definition.getProcessKey());
             log.info("Resumed suspended process definition '{}'.", definition.getProcessKey());
         } else {
-            return definition; // already active on this very version — nothing to do, not an error
+            return ProcessDefinitionDTO.from(definition); // already active on this version — not an error
         }
 
         definition.setState(ProcessDefinitionState.ACTIVE);
         definition.setDeployedAt(LocalDateTime.now());
         definition.setDeployedBy(user);
-        return definitionRepository.save(definition);
+        return ProcessDefinitionDTO.from(definitionRepository.save(definition));
     }
 
     /**
@@ -208,7 +209,7 @@ public class ProcessDefinitionService {
      * @throws IllegalStateException if the definition is not currently active
      */
     @Transactional
-    public ProcessDefinition deactivate(Long id, PUser user) {
+    public ProcessDefinitionDTO deactivate(Long id, PUser user) {
         requirePermission(user, Action.UPDATE, "deactivate process definitions");
 
         ProcessDefinition definition = findOrThrow(id);
@@ -220,7 +221,7 @@ public class ProcessDefinitionService {
         repositoryService.suspendProcessDefinitionByKey(definition.getProcessKey());
         definition.setState(ProcessDefinitionState.SUSPENDED);
         log.info("Suspended process definition '{}'; running instances continue.", definition.getProcessKey());
-        return definitionRepository.save(definition);
+        return ProcessDefinitionDTO.from(definitionRepository.save(definition));
     }
 
     /**
