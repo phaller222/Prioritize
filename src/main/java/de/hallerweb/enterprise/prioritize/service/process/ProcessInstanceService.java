@@ -342,6 +342,9 @@ public class ProcessInstanceService {
     }
 
     private ProcessDefinition requireActiveDefinition(Long definitionId) {
+        if (definitionId == null) {
+            throw new IllegalArgumentException("Which process definition should be started? None was given.");
+        }
         ProcessDefinition definition = definitionRepository.findById(definitionId)
                 .orElseThrow(() -> new NoSuchElementException("No process definition with id " + definitionId));
         if (definition.getState() != ProcessDefinitionState.ACTIVE) {
