@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -44,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import org.flowable.engine.repository.ProcessDefinitionQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,6 +69,7 @@ class ProcessDefinitionServiceTest {
     private BpmnDefinitionReader definitionReader;
     private AuthorizationService authService;
     private org.flowable.engine.RepositoryService repositoryService;
+    private ProcessDefinitionQuery engineQuery;
     private ProcessDefinitionService service;
 
     private PUser user;
@@ -83,6 +86,12 @@ class ProcessDefinitionServiceTest {
 
         user = PUser.builder().username("peter").build();
         when(definitionRepository.save(any(ProcessDefinition.class))).thenAnswer(i -> i.getArgument(0));
+
+        // The engine is queried on every registration to catch keys deployed outside the registry.
+        engineQuery = mock(ProcessDefinitionQuery.class);
+        when(repositoryService.createProcessDefinitionQuery()).thenReturn(engineQuery);
+        when(engineQuery.processDefinitionKey(anyString())).thenReturn(engineQuery);
+        when(engineQuery.count()).thenReturn(0L);
     }
 
     private void allow(Action action) {
@@ -163,6 +172,21 @@ class ProcessDefinitionServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.register(1L, user));
 
         assertTrue(ex.getMessage().contains("already registered"), ex.getMessage());
+        verify(definitionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("refuses a key the engine already answers to — the classpath trusted root deploys too")
+    void refusesKeyAlreadyDeployedInTheEngine() {
+        allow(Action.CREATE);
+        documentWith(CONTENT, "impostor.bpmn", 1);
+        when(definitionReader.read(CONTENT)).thenReturn(new BpmnDefinitionInfo("orderHandling", null));
+        when(definitionRepository.findByProcessKey("orderHandling")).thenReturn(Optional.empty());
+        when(engineQuery.count()).thenReturn(1L); // deployed, but no registry entry claims it
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.register(1L, user));
+
+        assertTrue(ex.getMessage().contains("outside the registry"), ex.getMessage());
         verify(definitionRepository, never()).save(any());
     }
 

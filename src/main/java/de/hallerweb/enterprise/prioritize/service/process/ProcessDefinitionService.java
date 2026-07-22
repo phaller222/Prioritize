@@ -110,6 +110,14 @@ public class ProcessDefinitionService {
             throw new IllegalStateException("The process key '" + parsed.processKey()
                     + "' is already registered by definition " + existing.getId() + ".");
         });
+        // The registry is not the only source of definitions: the classpath directory stays the trusted
+        // root a platform admin can deploy from directly (it is the bootstrap and the break-glass path).
+        // Checking the registry alone would let a document claim a key the engine already answers to, and
+        // which of the two wins would then depend on deployment order.
+        if (repositoryService.createProcessDefinitionQuery().processDefinitionKey(parsed.processKey()).count() > 0) {
+            throw new IllegalStateException("The process key '" + parsed.processKey()
+                    + "' is already deployed in the engine, outside the registry (classpath definition?).");
+        }
         if (!definitionRepository.findByDocumentInfo_Id(documentInfoId).isEmpty()) {
             throw new IllegalStateException("Document " + documentInfoId + " is already registered as a process definition.");
         }
