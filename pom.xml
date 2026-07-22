@@ -213,9 +213,9 @@
                          public API docs are browsable on GitHub without a CI pipeline. Run it with
                          `mvn javadoc:javadoc` after setting the release version, so the generated
                          pages carry that version and not a -SNAPSHOT. -->
-                    <outputDirectory>${project.basedir}/docs/javadoc</outputDirectory>
-                    <reportOutputDirectory>${project.basedir}/docs/javadoc</reportOutputDirectory>
-                    <destDir>.</destDir>
+                    <!-- The standalone goal always appends "apidocs" to outputDirectory and ignores
+                         destDir, so the pages land in docs/apidocs. -->
+                    <outputDirectory>${project.basedir}/docs</outputDirectory>
                     <!-- Documentation is for humans reading the API; a missing @param on an internal
                          helper must not fail the build. Real syntax errors still do. -->
                     <doclint>none</doclint>
