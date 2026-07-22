@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -113,14 +114,17 @@ public class ProcessDefinitionController {
     }
 
     /**
-     * Removes a draft definition from the registry. A definition that has been deployed cannot be
-     * removed — deactivate it instead.
+     * Removes a definition from the registry. A draft goes right away; a deployed one is refused (409)
+     * unless {@code ?force=true} is given, which tears down its engine deployment as well. Forcing
+     * still refuses while instances are running (409) — cancel them first.
      *
      * @return 204 No Content
      */
     @DeleteMapping("/process-definitions/{id}")
-    public ResponseEntity<Void> unregister(@PathVariable Long id, Authentication auth) {
-        processDefinitionService.unregister(id, getCurrentUser(auth));
+    public ResponseEntity<Void> unregister(@PathVariable Long id,
+                                           @RequestParam(name = "force", defaultValue = "false") boolean force,
+                                           Authentication auth) {
+        processDefinitionService.unregister(id, force, getCurrentUser(auth));
         return ResponseEntity.noContent().build();
     }
 }

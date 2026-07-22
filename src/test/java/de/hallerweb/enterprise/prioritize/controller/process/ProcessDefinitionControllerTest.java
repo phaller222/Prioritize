@@ -134,10 +134,19 @@ class ProcessDefinitionControllerTest {
     @Test
     @DisplayName("unregister: delegiert und antwortet mit 204 No Content")
     void unregister_noContent() {
-        ResponseEntity<Void> response = controller.unregister(42L, auth);
+        ResponseEntity<Void> response = controller.unregister(42L, false, auth);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         assertNull(response.getBody());
-        verify(service).unregister(42L, user);
+        verify(service).unregister(42L, false, user);
+    }
+
+    @Test
+    @DisplayName("unregister?force=true: reicht das Flag durch")
+    void unregister_force() {
+        ResponseEntity<Void> response = controller.unregister(42L, true, auth);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(service).unregister(42L, true, user);
     }
 }
