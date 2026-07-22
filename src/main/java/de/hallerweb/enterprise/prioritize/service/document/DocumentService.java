@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.mime.MimeType;
 import org.apache.tika.mime.MimeTypes;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -50,6 +51,7 @@ public class DocumentService {
     private final DocumentGroupRepository documentGroupRepository;
     private final AuthorizationService authService;
     private final UserService userService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * ---------- Creates a new logical document (DocumentInfo) and the first version (Document). ----------
@@ -309,6 +311,10 @@ public class DocumentService {
         if (info.isLocked() && !user.isAdmin()) {
             throw new IllegalStateException("Locked documents cannot be deleted.");
         }
+
+        // Published before the delete and handled synchronously: satellites that reference this document
+        // either clean up their own rows or veto the deletion by throwing (see DocumentDeletionEvent).
+        eventPublisher.publishEvent(new DocumentDeletionEvent(documentInfoId));
 
         documentInfoRepository.delete(info);
         log.info("Document {} deleted by user {}.", documentInfoId, user.getUsername());
