@@ -32,4 +32,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByBlackboard_IdAndAssigneeIsNull(Long blackboardId);
 
     List<Task> findByGoal_Id(Long goalId);
+
+    /**
+     * The tasks linked to a BPMN process instance. Normally at most one, but queried as a list so a
+     * stale duplicate answers the question instead of throwing (same reasoning as the unique-username
+     * lookup).
+     */
+    List<Task> findByProcessInstanceId(String processInstanceId);
 }

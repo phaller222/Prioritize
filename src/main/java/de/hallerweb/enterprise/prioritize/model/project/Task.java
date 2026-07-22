@@ -90,6 +90,15 @@ public class Task extends PObject {
     private Blackboard blackboard;
 
     /**
+     * Id of the BPMN process instance this task belongs to, or {@code null} when no process is
+     * involved. Deliberately a plain String and not a relation: the engine owns its instances, this
+     * is only a pointer into them, and the task keeps working exactly as before if Flowable is never
+     * used. The reverse direction — which task a running instance is about — is carried by the
+     * instance's business key and its {@code taskId} variable.
+     */
+    private String processInstanceId;
+
+    /**
      * Completed time-tracking spans. Each entry is a closed {@link TimeSpan} of type
      * {@link TimeSpan.TimeSpanType#TIME_TRACKER}. Owned by the task and stored via a
      * {@code task_id} column. A {@code List} (not a {@code Set}) on purpose: a transient span's
