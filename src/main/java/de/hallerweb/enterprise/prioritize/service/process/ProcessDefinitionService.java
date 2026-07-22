@@ -31,7 +31,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.flowable.engine.RepositoryService;
+import org.flowable.engine.RuntimeService;
 import org.flowable.engine.repository.Deployment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,17 +68,20 @@ public class ProcessDefinitionService {
     private final BpmnDefinitionReader definitionReader;
     private final AuthorizationService authService;
     private final RepositoryService repositoryService;
+    private final RuntimeService runtimeService;
 
     public ProcessDefinitionService(ProcessDefinitionRepository definitionRepository,
                                     DocumentService documentService,
                                     BpmnDefinitionReader definitionReader,
                                     AuthorizationService authService,
-                                    RepositoryService repositoryService) {
+                                    RepositoryService repositoryService,
+                                    RuntimeService runtimeService) {
         this.definitionRepository = definitionRepository;
         this.documentService = documentService;
         this.definitionReader = definitionReader;
         this.authService = authService;
         this.repositoryService = repositoryService;
+        this.runtimeService = runtimeService;
     }
 
     /**
@@ -233,27 +239,81 @@ public class ProcessDefinitionService {
     }
 
     /**
-     * Removes a definition from the registry.
-     * <p>
-     * Only a {@link ProcessDefinitionState#DRAFT} definition can be unregistered. Once it has been
-     * deployed, the engine holds a deployment and possibly running instances, and this entity is the
-     * only thing mapping them back to their document — dropping it would leave that deployment
-     * unattributable. Deactivating a definition is the way to take it out of service.
+     * Removes a {@link ProcessDefinitionState#DRAFT} definition from the registry. A definition that
+     * has been deployed is refused — use {@link #unregister(Long, boolean, PUser)} with {@code force}
+     * to tear one down completely.
      *
      * @throws IllegalStateException if the definition has been deployed
      */
     @Transactional
     public void unregister(Long id, PUser user) {
+        unregister(id, false, user);
+    }
+
+    /**
+     * Removes a definition from the registry, optionally tearing down its engine deployment too.
+     * <p>
+     * Without {@code force} only a {@link ProcessDefinitionState#DRAFT} definition can go: once it has
+     * been deployed, the engine holds a deployment and possibly running instances, and this entity is
+     * the only thing mapping them back to their document — dropping it alone would leave that
+     * deployment unattributable. Deactivating is the everyday way to take a definition out of service.
+     * <p>
+     * With {@code force} a deployed definition is removed completely: every engine deployment carrying
+     * its key (redeploys included) is deleted along with the registry entry. This is the deliberate
+     * "I really want it gone" path that deactivation intentionally does not provide. It still refuses
+     * while <b>running instances</b> exist — those are real work, and no flag discards them silently;
+     * cancel them first. Once the definition is gone its source document is an ordinary document again
+     * and can be deleted normally (the cleanup veto no longer applies).
+     *
+     * @param force whether to also delete a deployed definition's engine deployment
+     * @throws IllegalStateException if the definition is deployed and {@code force} is false, or if it
+     *                               still has running instances
+     */
+    @Transactional
+    public void unregister(Long id, boolean force, PUser user) {
         requirePermission(user, Action.DELETE, "remove process definitions");
 
         ProcessDefinition definition = findOrThrow(id);
-        if (definition.getState() != ProcessDefinitionState.DRAFT) {
+        boolean deployed = definition.getState() != ProcessDefinitionState.DRAFT;
+
+        if (deployed && !force) {
             throw new IllegalStateException("Process definition '" + definition.getProcessKey()
-                    + "' has been deployed and cannot be unregistered; deactivate it instead.");
+                    + "' has been deployed and cannot be unregistered; deactivate it, or force its removal.");
+        }
+
+        if (deployed) {
+            purgeEngineDeployments(definition);
         }
 
         definitionRepository.delete(definition);
-        log.info("Unregistered draft process definition '{}'.", definition.getProcessKey());
+        log.info("Unregistered {} process definition '{}'.", deployed ? "deployed" : "draft",
+                definition.getProcessKey());
+    }
+
+    /**
+     * Deletes every engine deployment that carries this definition's key — across redeploys, since a
+     * definition entity only remembers its last deployment. Refuses while any instance is still
+     * running: the pre-check gives a clean message and, because it passes, the cascading delete only
+     * ever clears finished-instance history, never live work.
+     */
+    private void purgeEngineDeployments(ProcessDefinition definition) {
+        String key = definition.getProcessKey();
+        long running = runtimeService.createProcessInstanceQuery().processDefinitionKey(key).count();
+        if (running > 0) {
+            throw new IllegalStateException("Process definition '" + key + "' still has " + running
+                    + " running instance(s); cancel them before removing it.");
+        }
+
+        Set<String> deploymentIds = repositoryService.createProcessDefinitionQuery()
+                .processDefinitionKey(key).list().stream()
+                .map(org.flowable.engine.repository.ProcessDefinition::getDeploymentId)
+                .collect(Collectors.toSet());
+        for (String deploymentId : deploymentIds) {
+            repositoryService.deleteDeployment(deploymentId, true); // cascade: clears this key's history too
+        }
+        if (!deploymentIds.isEmpty()) {
+            log.info("Force-removed {} engine deployment(s) for process '{}'.", deploymentIds.size(), key);
+        }
     }
 
     private void requirePermission(PUser user, Action action, String what) {

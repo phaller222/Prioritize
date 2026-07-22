@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -69,7 +70,9 @@ class ProcessDefinitionServiceTest {
     private BpmnDefinitionReader definitionReader;
     private AuthorizationService authService;
     private org.flowable.engine.RepositoryService repositoryService;
+    private org.flowable.engine.RuntimeService runtimeService;
     private ProcessDefinitionQuery engineQuery;
+    private org.flowable.engine.runtime.ProcessInstanceQuery instanceQuery;
     private ProcessDefinitionService service;
 
     private PUser user;
@@ -81,8 +84,9 @@ class ProcessDefinitionServiceTest {
         definitionReader = mock(BpmnDefinitionReader.class);
         authService = mock(AuthorizationService.class);
         repositoryService = mock(org.flowable.engine.RepositoryService.class);
+        runtimeService = mock(org.flowable.engine.RuntimeService.class);
         service = new ProcessDefinitionService(definitionRepository, documentService, definitionReader, authService,
-                repositoryService);
+                repositoryService, runtimeService);
 
         user = PUser.builder().username("peter").build();
         when(definitionRepository.save(any(ProcessDefinition.class))).thenAnswer(i -> i.getArgument(0));
@@ -92,6 +96,13 @@ class ProcessDefinitionServiceTest {
         when(repositoryService.createProcessDefinitionQuery()).thenReturn(engineQuery);
         when(engineQuery.processDefinitionKey(anyString())).thenReturn(engineQuery);
         when(engineQuery.count()).thenReturn(0L);
+        when(engineQuery.list()).thenReturn(List.of());
+
+        // Running-instance count consulted before a forced removal.
+        instanceQuery = mock(org.flowable.engine.runtime.ProcessInstanceQuery.class);
+        when(runtimeService.createProcessInstanceQuery()).thenReturn(instanceQuery);
+        when(instanceQuery.processDefinitionKey(anyString())).thenReturn(instanceQuery);
+        when(instanceQuery.count()).thenReturn(0L);
     }
 
     private void allow(Action action) {
@@ -243,9 +254,60 @@ class ProcessDefinitionServiceTest {
             when(definitionRepository.findById(5L)).thenReturn(Optional.of(deployed));
 
             IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.unregister(5L, user));
-            assertTrue(ex.getMessage().contains("deactivate it instead"), ex.getMessage());
+            assertTrue(ex.getMessage().contains("force its removal"), ex.getMessage());
         }
         verify(definitionRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("force-unregisters a deployed definition: deletes its engine deployment and the registry row")
+    void forceUnregistersDeployed() {
+        allow(Action.DELETE);
+        ProcessDefinition deployed = ProcessDefinition.builder()
+                .processKey("orderHandling").state(ProcessDefinitionState.SUSPENDED).deploymentId("dep-1").build();
+        when(definitionRepository.findById(5L)).thenReturn(Optional.of(deployed));
+        // two engine versions of the same key (a redeploy) sit on two deployments
+        org.flowable.engine.repository.ProcessDefinition v1 = mock(org.flowable.engine.repository.ProcessDefinition.class);
+        org.flowable.engine.repository.ProcessDefinition v2 = mock(org.flowable.engine.repository.ProcessDefinition.class);
+        when(v1.getDeploymentId()).thenReturn("dep-0");
+        when(v2.getDeploymentId()).thenReturn("dep-1");
+        when(engineQuery.list()).thenReturn(List.of(v1, v2));
+
+        service.unregister(5L, true, user);
+
+        verify(repositoryService).deleteDeployment("dep-0", true);
+        verify(repositoryService).deleteDeployment("dep-1", true);
+        verify(definitionRepository).delete(deployed);
+    }
+
+    @Test
+    @DisplayName("force-unregister refuses while instances are still running — no flag discards live work")
+    void forceUnregisterRefusesWithRunningInstances() {
+        allow(Action.DELETE);
+        ProcessDefinition deployed = ProcessDefinition.builder()
+                .processKey("orderHandling").state(ProcessDefinitionState.ACTIVE).deploymentId("dep-1").build();
+        when(definitionRepository.findById(5L)).thenReturn(Optional.of(deployed));
+        when(instanceQuery.count()).thenReturn(2L);
+
+        IllegalStateException ex =
+                assertThrows(IllegalStateException.class, () -> service.unregister(5L, true, user));
+        assertTrue(ex.getMessage().contains("running instance"), ex.getMessage());
+        verify(repositoryService, never()).deleteDeployment(anyString(), anyBoolean());
+        verify(definitionRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("force on a draft behaves like a plain unregister — no engine call")
+    void forceOnDraftIsPlainUnregister() {
+        allow(Action.DELETE);
+        ProcessDefinition draft = ProcessDefinition.builder()
+                .processKey("orderHandling").state(ProcessDefinitionState.DRAFT).build();
+        when(definitionRepository.findById(5L)).thenReturn(Optional.of(draft));
+
+        service.unregister(5L, true, user);
+
+        verify(repositoryService, never()).deleteDeployment(anyString(), anyBoolean());
+        verify(definitionRepository).delete(draft);
     }
 
     @Test

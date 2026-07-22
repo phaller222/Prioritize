@@ -40,6 +40,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import org.flowable.engine.RepositoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,6 +79,8 @@ class ProcessInstanceLinkTest {
     private TaskService taskService;
     @Autowired
     private TaskRepository taskRepository;
+    @Autowired
+    private RepositoryService repositoryService;
     @Autowired
     private UserService userService;
 
@@ -200,5 +204,31 @@ class ProcessInstanceLinkTest {
 
         assertThrows(IllegalStateException.class,
                 () -> instanceService.startForTask(task.getId(), definition.id(), null, admin));
+    }
+
+    @Test
+    @DisplayName("force-unregister tears the definition out of the engine and frees its key")
+    void forceUnregisterRemovesFromEngine() {
+        definitionService.unregister(definition.id(), true, admin); // no running instances
+
+        assertThrows(NoSuchElementException.class, () -> definitionService.get(definition.id(), admin));
+        assertEquals(0, repositoryService.createProcessDefinitionQuery().processDefinitionKey(KEY).count(),
+                "the engine must no longer answer to the key");
+
+        // the key is free again: a fresh document defining the same process registers cleanly
+        Document document = Document.builder().name(KEY + ".bpmn").version(1).mimeType("text/xml").data(bpmn()).build();
+        DocumentInfo info = DocumentInfo.builder().currentDocument(document).build();
+        document.setDocumentInfo(info);
+        info = documentInfoRepository.save(info);
+        assertEquals(KEY, definitionService.register(info.getId(), admin).processKey());
+    }
+
+    @Test
+    @DisplayName("force-unregister refuses while an instance is still running")
+    void forceUnregisterRefusesWithRunningInstance() {
+        instanceService.startForTask(task.getId(), definition.id(), null, admin);
+
+        assertThrows(IllegalStateException.class, () -> definitionService.unregister(definition.id(), true, admin));
+        assertEquals(KEY, definitionService.get(definition.id(), admin).processKey()); // still there
     }
 }
