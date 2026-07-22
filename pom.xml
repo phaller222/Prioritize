@@ -206,6 +206,24 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <!-- Writes straight into docs/javadoc, which is committed once per release so the
+                         public API docs are browsable on GitHub without a CI pipeline. Run it with
+                         `mvn javadoc:javadoc` after setting the release version, so the generated
+                         pages carry that version and not a -SNAPSHOT. -->
+                    <outputDirectory>${project.basedir}/docs/javadoc</outputDirectory>
+                    <reportOutputDirectory>${project.basedir}/docs/javadoc</reportOutputDirectory>
+                    <destDir>.</destDir>
+                    <!-- Documentation is for humans reading the API; a missing @param on an internal
+                         helper must not fail the build. Real syntax errors still do. -->
+                    <doclint>none</doclint>
+                    <notimestamp>true</notimestamp>
+                    <windowtitle>Prioritize ${project.version} API</windowtitle>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>com.vaadin</groupId>
                 <artifactId>vaadin-maven-plugin</artifactId>
                 <version>${vaadin.version}</version>

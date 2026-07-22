@@ -51,4 +51,6 @@ package-lock.json
 KI_Antworten/
 # Generated documentation output
 README.pdf
-index.html
+# Root-scoped on purpose: a bare "index.html" matches in EVERY directory and would
+# silently swallow docs/javadoc/index.html, the entry page of the published API docs.
+/index.html
