@@ -30,10 +30,13 @@ import static org.mockito.Mockito.when;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
+import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlService;
 import de.hallerweb.enterprise.prioritize.service.security.SystemIdentityProvider;
 import java.util.NoSuchElementException;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +55,8 @@ class PlatformGatewayTest {
     private ProjectService projectService;
     private TaskService taskService;
     private DocumentService documentService;
+    private ResourceService resourceService;
+    private ResourceControlService resourceControlService;
     private SystemIdentityProvider systemIdentity;
     private PlatformGateway gateway;
 
@@ -62,8 +67,11 @@ class PlatformGatewayTest {
         projectService = mock(ProjectService.class);
         taskService = mock(TaskService.class);
         documentService = mock(DocumentService.class);
+        resourceService = mock(ResourceService.class);
+        resourceControlService = mock(ResourceControlService.class);
         systemIdentity = mock(SystemIdentityProvider.class);
-        gateway = new PlatformGateway(projectService, taskService, documentService, systemIdentity);
+        gateway = new PlatformGateway(projectService, taskService, documentService,
+                resourceService, resourceControlService, systemIdentity);
 
         system = new PUser();
         system.setUsername(SystemIdentityProvider.SYSTEM_USERNAME);
@@ -110,5 +118,19 @@ class PlatformGatewayTest {
         assertSame(stored, result);
         // The author is the system principal, not a caller-supplied user.
         verify(documentService).createDocument("report", 5L, system, content, "application/pdf");
+    }
+
+    @Test
+    @DisplayName("controlResource loads and controls the resource as the system principal")
+    void controlResource_actsAsSystemPrincipal() {
+        Resource resource = new Resource();
+        resource.setId(42L);
+        when(resourceService.getResource(42L, system)).thenReturn(resource);
+
+        gateway.controlResource(42L, "ON", "1", 0);
+
+        // Loaded and controlled under the system identity, with the explicit slot.
+        verify(resourceService).getResource(42L, system);
+        verify(resourceControlService).sendCommand(resource, "ON", "1", 0, system);
     }
 }

@@ -87,10 +87,31 @@ public class InitializationService {
             system.setAdmin(false);
             system.setActive(false);
             system.setGender(PUser.Gender.OTHER);
-            log.info("System principal '{}' created (deactivated, non-admin).",
+            PUser saved = userService.createUser(system);
+
+            // The capability the platform lends to processes: read and control resources (ID 0 = all
+            // instances). Deliberately not create/delete — a process may operate resources, not manage
+            // them. This is the "checked identity" that bounds what a BPMN process can do.
+            grantResourceControl(saved);
+
+            log.info("System principal '{}' created (deactivated, non-admin, resource control granted).",
                     SystemIdentityProvider.SYSTEM_USERNAME);
-            return userService.createUser(system);
+            return saved;
         });
+    }
+
+    private void grantResourceControl(PUser user) {
+        PermissionRecord perm = PermissionRecord.builder()
+                .absoluteObjectType(Resource.class.getCanonicalName())
+                .objectId(0L)
+                .createPermission(false)
+                .readPermission(true)
+                .updatePermission(true)
+                .deletePermission(false)
+                .build();
+        permissionRepository.save(perm);
+        user.addPersonalPermission(perm);
+        userService.updateUser(user);
     }
 
     private PUser ensureAdminUser() {

@@ -72,4 +72,22 @@ public interface ResourceReservationRepository extends JpaRepository<ResourceRes
         @Param("resId") Long resourceId,
         @Param("userId") Long userId,
         @Param("now") Instant now);
+
+    /**
+     * Finds the reservations of a resource active at {@code now} on a specific slot, regardless of who
+     * holds them. Basis for the platform's trusted control path: a BPMN process may only command a slot
+     * that no active reservation currently occupies, so it can never seize a human's reserved window.
+     *
+     * @param resourceId resource the reservation refers to
+     * @param slot       the slot number in question
+     * @param now        reference point in time (usually {@code Instant.now()})
+     * @return active reservations on this slot, empty if the slot is free
+     */
+    @Query("SELECT r FROM ResourceReservation r WHERE r.resource.id = :resId " +
+        "AND r.slotNumber = :slot " +
+        "AND r.timespan.dateFrom <= :now AND r.timespan.dateUntil > :now")
+    List<ResourceReservation> findActiveReservationsOnSlot(
+        @Param("resId") Long resourceId,
+        @Param("slot") int slot,
+        @Param("now") Instant now);
 }
