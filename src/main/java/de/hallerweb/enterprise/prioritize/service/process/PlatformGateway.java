@@ -46,6 +46,16 @@ import org.springframework.transaction.annotation.Transactional;
  * <b>Orchestration, not ownership</b> (the line held throughout the Flowable work): the facade lets a
  * process <em>start</em> work and <em>record</em> results; it never becomes the owner of a task's
  * lifecycle. Remove Flowable and none of these operations lose their non-facade, user-driven form.
+ * <p>
+ * <b>How a BPMN process reaches it.</b> This class is a Spring bean named {@code platformGateway}, so a
+ * service task invokes it directly by expression — no per-operation delegate class is needed, the facade
+ * itself is the delegate surface:
+ * <pre>{@code
+ * <serviceTask id="create"
+ *     flowable:expression="${platformGateway.createTask(projectId, 'Round', 'inspect', 2)}"/>
+ * }</pre>
+ * where {@code projectId} is a process variable the platform set at start (see
+ * {@link ProcessInstanceService}).
  *
  * @author peter haller
  */
