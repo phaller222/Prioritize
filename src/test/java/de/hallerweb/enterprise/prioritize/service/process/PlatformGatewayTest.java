@@ -27,9 +27,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.security.SystemIdentityProvider;
@@ -39,9 +41,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pure unit tests for {@link PlatformGateway#createTask}: it resolves the project, delegates to the
- * trusted (user-less) create path, and never performs a membership check. No Spring context, no
- * database, no engine.
+ * Pure unit tests for {@link PlatformGateway}: each operation resolves its target, delegates to the
+ * trusted (user-less) path, attributes the act to the system principal, and never performs a
+ * membership check. No Spring context, no database, no engine.
  *
  * @author peter haller
  */
@@ -49,17 +51,21 @@ class PlatformGatewayTest {
 
     private ProjectService projectService;
     private TaskService taskService;
+    private DocumentService documentService;
     private SystemIdentityProvider systemIdentity;
     private PlatformGateway gateway;
+
+    private PUser system;
 
     @BeforeEach
     void setUp() {
         projectService = mock(ProjectService.class);
         taskService = mock(TaskService.class);
+        documentService = mock(DocumentService.class);
         systemIdentity = mock(SystemIdentityProvider.class);
-        gateway = new PlatformGateway(projectService, taskService, systemIdentity);
+        gateway = new PlatformGateway(projectService, taskService, documentService, systemIdentity);
 
-        PUser system = new PUser();
+        system = new PUser();
         system.setUsername(SystemIdentityProvider.SYSTEM_USERNAME);
         when(systemIdentity.get()).thenReturn(system);
     }
@@ -89,5 +95,20 @@ class PlatformGatewayTest {
         assertThrows(NoSuchElementException.class, () -> gateway.createTask(99L, "x", "y", 1));
 
         verify(taskService, never()).createScheduledTask(any(), anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("storeDocument authors the document as the system principal")
+    void storeDocument_authoredBySystemPrincipal() {
+        byte[] content = {1, 2, 3};
+        DocumentInfo stored = new DocumentInfo();
+        when(documentService.createDocument("report", 5L, system, content, "application/pdf"))
+                .thenReturn(stored);
+
+        DocumentInfo result = gateway.storeDocument("report", 5L, content, "application/pdf");
+
+        assertSame(stored, result);
+        // The author is the system principal, not a caller-supplied user.
+        verify(documentService).createDocument("report", 5L, system, content, "application/pdf");
     }
 }

@@ -16,8 +16,10 @@
 
 package de.hallerweb.enterprise.prioritize.service.process;
 
+import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.security.SystemIdentityProvider;
@@ -50,13 +52,16 @@ public class PlatformGateway {
 
     private final ProjectService projectService;
     private final TaskService taskService;
+    private final DocumentService documentService;
     private final SystemIdentityProvider systemIdentity;
 
     public PlatformGateway(ProjectService projectService,
                            TaskService taskService,
+                           DocumentService documentService,
                            SystemIdentityProvider systemIdentity) {
         this.projectService = projectService;
         this.taskService = taskService;
+        this.documentService = documentService;
         this.systemIdentity = systemIdentity;
     }
 
@@ -81,5 +86,29 @@ public class PlatformGateway {
         log.info("PlatformGateway: task '{}' (id={}) created on project '{}' as '{}'.",
                 task.getName(), task.getId(), project.getName(), systemIdentity.get().getUsername());
         return task;
+    }
+
+    /**
+     * Stores a new document in a document group on behalf of the platform — the trusted inbound path a
+     * BPMN process uses to record a result (a report, an acknowledgement, a snapshot).
+     * <p>
+     * The document is authored by the <b>system principal</b>: {@code lastModifiedBy} carries the
+     * platform's own identity, so "who produced this?" has a real, queryable answer rather than a null.
+     * The document is versioned by the Documents subsystem like any other, and what goes <em>inside</em>
+     * it (PDF rendering, templates) is a vertical's concern, not the platform's.
+     *
+     * @param name     the document's name; an extension is derived from {@code mimeType} if absent
+     * @param groupId  the target document group's id
+     * @param content  the raw bytes of the first version
+     * @param mimeType the content's MIME type
+     * @return the created document
+     * @throws java.util.NoSuchElementException if no document group has that id
+     */
+    @Transactional
+    public DocumentInfo storeDocument(String name, Long groupId, byte[] content, String mimeType) {
+        DocumentInfo stored = documentService.createDocument(name, groupId, systemIdentity.get(), content, mimeType);
+        log.info("PlatformGateway: document '{}' (id={}) stored in group {} as '{}'.",
+                name, stored.getId(), groupId, systemIdentity.get().getUsername());
+        return stored;
     }
 }
