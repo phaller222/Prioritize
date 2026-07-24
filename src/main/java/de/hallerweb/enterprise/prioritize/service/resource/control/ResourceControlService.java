@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.service.resource.control;
 
 import de.hallerweb.enterprise.prioritize.exception.ResourceOfflineException;
 import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
+import de.hallerweb.enterprise.prioritize.exception.SlotOccupiedException;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
@@ -104,6 +105,55 @@ public class ResourceControlService {
         log.info("Command '{}' an Resource {} (Slot {}) via {} (User: {}).",
             command, resource.getId(), slot, adapter.getTransportName(), user.getUsername());
         adapter.sendCommand(resource, command, param, slot);
+    }
+
+    /**
+     * Trusted control path for the platform itself — a BPMN process acting under the system principal
+     * (see {@code PlatformGateway}), not a user working under a reservation.
+     * <p>
+     * The difference to {@link #sendCommand(Resource, String, String, PUser)} is where the slot comes
+     * from: a process holds no reservation, so it <b>supplies the slot explicitly</b> instead of having
+     * it derived. To keep the reservation promise intact, the command is <b>refused</b>
+     * ({@link SlotOccupiedException}, 409) when that slot currently holds an active reservation held by
+     * anyone — a process may only ever command a free slot, never seize a human's reserved window. The
+     * permission is still checked against the acting principal: controlling counts as a state change and
+     * requires {@link Action#UPDATE}, so what a process may control stays a checked property of the
+     * system principal rather than an unbounded bypass.
+     *
+     * @param resource target resource
+     * @param command  command identifier
+     * @param param    optional free parameter (may be {@code null})
+     * @param slot     the slot to address, supplied by the process
+     * @param actor    the acting principal (permission check)
+     * @throws AccessDeniedException    if the principal is not allowed to control the resource
+     * @throws SlotOccupiedException    if the slot currently holds an active reservation
+     * @throws ResourceOfflineException if no reachable transport exists
+     */
+    public void sendCommand(Resource resource, String command, String param, int slot, PUser actor) {
+        if (!authService.hasPermission(actor, resource, Action.UPDATE)) {
+            throw new AccessDeniedException("No permission to control this resource.");
+        }
+
+        requireSlotFree(resource, slot);
+
+        ResourceControlAdapter adapter = resolveAdapter(resource);
+        log.info("Command '{}' an Resource {} (Slot {}, explicit) via {} (Principal: {}).",
+            command, resource.getId(), slot, adapter.getTransportName(), actor.getUsername());
+        adapter.sendCommand(resource, command, param, slot);
+    }
+
+    /**
+     * Guards the trusted path: the target slot must not currently hold an active reservation, no matter
+     * whose. A free slot is the only slot a process is allowed onto.
+     */
+    private void requireSlotFree(Resource resource, int slot) {
+        List<ResourceReservation> active =
+            reservationRepository.findActiveReservationsOnSlot(resource.getId(), slot, Instant.now());
+        if (!active.isEmpty()) {
+            throw new SlotOccupiedException(
+                "Slot " + slot + " on resource " + resource.getId() + " currently holds an active "
+                    + "reservation and cannot be controlled by the platform. Target a free slot.");
+        }
     }
 
     /**

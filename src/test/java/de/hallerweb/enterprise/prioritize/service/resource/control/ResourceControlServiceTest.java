@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.service.resource.control;
 
 import de.hallerweb.enterprise.prioritize.exception.ResourceOfflineException;
 import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
+import de.hallerweb.enterprise.prioritize.exception.SlotOccupiedException;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.Action;
@@ -38,6 +39,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -175,5 +177,41 @@ class ResourceControlServiceTest {
         assertThrows(SlotNotReservedException.class,
             () -> service.sendCommand(resource, "ON", null, user));
         verify(restAdapter, never()).sendCommand(any(), any(), any(), anyInt());
+    }
+
+    // ---- Trusted platform path: explicit slot, no reservation held by the caller ----
+
+    @Test
+    @DisplayName("Trusted path: freier Slot → Command geht mit dem explizit gelieferten Slot raus")
+    void trustedPath_freeSlot_sendsWithExplicitSlot() {
+        when(mqttProvider.getIfAvailable()).thenReturn(null);
+        when(restAdapter.isAvailable(resource)).thenReturn(true);
+        // findActiveReservationsOnSlot defaults to an empty list (Mockito) → slot is free.
+
+        service.sendCommand(resource, "ON", "1", 5, user);
+
+        verify(restAdapter).sendCommand(resource, "ON", "1", 5);
+    }
+
+    @Test
+    @DisplayName("Trusted path: belegter Slot → SlotOccupiedException, kein Transport berührt")
+    void trustedPath_occupiedSlot_throws() {
+        when(reservationRepository.findActiveReservationsOnSlot(eq(42L), eq(5), any(Instant.class)))
+            .thenReturn(List.of(reservationWithSlot(5)));
+
+        assertThrows(SlotOccupiedException.class,
+            () -> service.sendCommand(resource, "ON", null, 5, user));
+        verifyNoInteractions(restAdapter, mqttAdapter);
+    }
+
+    @Test
+    @DisplayName("Trusted path: fehlende Berechtigung → AccessDeniedException, Slot nicht einmal geprüft")
+    void trustedPath_noPermission_throws() {
+        when(authService.hasPermission(eq(user), eq(resource), eq(Action.UPDATE))).thenReturn(false);
+
+        assertThrows(AccessDeniedException.class,
+            () -> service.sendCommand(resource, "ON", null, 5, user));
+        verifyNoInteractions(restAdapter, mqttAdapter);
+        verify(reservationRepository, never()).findActiveReservationsOnSlot(anyLong(), anyInt(), any());
     }
 }

@@ -27,7 +27,9 @@ import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepositor
 import de.hallerweb.enterprise.prioritize.repository.document.DocumentGroupRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
 import de.hallerweb.enterprise.prioritize.repository.security.PermissionRecordRepository;
+import de.hallerweb.enterprise.prioritize.service.security.SystemIdentityProvider;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -63,6 +65,53 @@ public class InitializationService {
 
         // 5. Global permissions for resource management (ID 0 = all instances)
         ensureGeneralResourcePermissions(admin);
+
+        // 6. The platform's own principal, under which BPMN processes act (see SystemIdentityProvider)
+        ensureSystemUser();
+    }
+
+    /**
+     * Ensures the platform's system principal exists — the identity the inbound process facade acts
+     * under. It is created <b>deactivated</b> (can never log in, hidden from user lists) and
+     * <b>non-admin</b> (it holds only the permissions the platform deliberately lends to processes).
+     * Idempotent and safe against the unique-username rule: a deactivated row keeps the name, so we
+     * reuse it rather than attempt a second one.
+     */
+    private void ensureSystemUser() {
+        userService.findOptionalByUsername(SystemIdentityProvider.SYSTEM_USERNAME).orElseGet(() -> {
+            PUser system = new PUser();
+            system.setUsername(SystemIdentityProvider.SYSTEM_USERNAME);
+            system.setName("System");
+            // A random, never-shared password; the account is deactivated anyway, so nothing authenticates it.
+            system.setPassword(UUID.randomUUID().toString());
+            system.setAdmin(false);
+            system.setActive(false);
+            system.setGender(PUser.Gender.OTHER);
+            PUser saved = userService.createUser(system);
+
+            // The capability the platform lends to processes: read and control resources (ID 0 = all
+            // instances). Deliberately not create/delete — a process may operate resources, not manage
+            // them. This is the "checked identity" that bounds what a BPMN process can do.
+            grantResourceControl(saved);
+
+            log.info("System principal '{}' created (deactivated, non-admin, resource control granted).",
+                    SystemIdentityProvider.SYSTEM_USERNAME);
+            return saved;
+        });
+    }
+
+    private void grantResourceControl(PUser user) {
+        PermissionRecord perm = PermissionRecord.builder()
+                .absoluteObjectType(Resource.class.getCanonicalName())
+                .objectId(0L)
+                .createPermission(false)
+                .readPermission(true)
+                .updatePermission(true)
+                .deletePermission(false)
+                .build();
+        permissionRepository.save(perm);
+        user.addPersonalPermission(perm);
+        userService.updateUser(user);
     }
 
     private PUser ensureAdminUser() {

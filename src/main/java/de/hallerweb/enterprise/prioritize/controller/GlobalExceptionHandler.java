@@ -20,6 +20,7 @@ import de.hallerweb.enterprise.prioritize.dto.ApiError;
 import de.hallerweb.enterprise.prioritize.exception.ResourceCommandFailedException;
 import de.hallerweb.enterprise.prioritize.exception.ResourceOfflineException;
 import de.hallerweb.enterprise.prioritize.exception.SlotNotReservedException;
+import de.hallerweb.enterprise.prioritize.exception.SlotOccupiedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -126,6 +127,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(SlotNotReservedException.class)
     public ResponseEntity<ApiError> handleSlotNotReserved(SlotNotReservedException ex) {
         log.warn("Slot not reserved: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ApiError.of(ex.getMessage(), HttpStatus.CONFLICT.value()));
+    }
+
+    @ExceptionHandler(SlotOccupiedException.class)
+    public ResponseEntity<ApiError> handleSlotOccupied(SlotOccupiedException ex) {
+        log.warn("Slot occupied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of(ex.getMessage(), HttpStatus.CONFLICT.value()));
     }
