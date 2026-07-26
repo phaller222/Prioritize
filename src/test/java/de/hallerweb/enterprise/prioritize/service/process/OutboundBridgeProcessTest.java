@@ -24,22 +24,19 @@ import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.dto.process.ProcessInstanceDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
-import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.document.DocumentInfoRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
-import de.hallerweb.enterprise.prioritize.service.nfc.NfcScannedEvent;
-import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.ScanResult;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService.ProjectData;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import org.flowable.engine.RuntimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,14 +47,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The outbound bridge's acceptance test against the <b>real Flowable engine</b>: a process that
- * <em>waits</em> for an NFC scan of a resource is woken by an actual {@link NfcScannedEvent} through
- * {@link EngineEventBridge}, and then does real platform work. This is the "it does something" proof
- * for slice 5 — from here a real-world signal can drive a running process forward.
+ * <em>waits</em> for an NFC scan of a resource is correlated to that scan by
+ * {@link EngineEventBridge#matchingExecutionIds} and, once the message is delivered, runs on to do real
+ * platform work. This is the "it does something" proof for slice 5 — from here a real-world signal can
+ * drive a running process forward.
  * <p>
- * The bridge method is invoked directly (rather than through the {@code AFTER_COMMIT} event dispatch,
- * which by design fires only after a real commit and so is exercised by the unit tests' contract): what
- * this test proves is the part that needs the real engine — that the one correlation rule finds the one
- * waiting execution among the engine's subscriptions and continues it.
+ * The test exercises the correlation against the real engine and delivers the message within its own
+ * transaction, so the started instance and the created task are visible to the assertions. The bridge's
+ * production path additionally wraps each delivery in a <em>new</em> transaction (it fires in the source
+ * event's {@code AFTER_COMMIT} phase, where the committed instance is already visible) — that wrapper is
+ * covered by the unit test's REQUIRES_NEW guard and the live smoke, and cannot be exercised here because
+ * a new transaction would not see the instance this test starts in its own uncommitted one.
  *
  * @author peter haller
  */
@@ -76,6 +76,8 @@ class OutboundBridgeProcessTest {
     private ProcessDefinitionService definitionService;
     @Autowired
     private EngineEventBridge bridge;
+    @Autowired
+    private RuntimeService runtimeService;
     @Autowired
     private DocumentInfoRepository documentInfoRepository;
     @Autowired
@@ -135,11 +137,6 @@ class OutboundBridgeProcessTest {
         return definitionService.activate(registered.id(), admin);
     }
 
-    private static NfcScannedEvent scanOf(Long resourceId) {
-        ScanResult result = new ScanResult("probe-tag", NfcUnitType.CHECKPOINT, "RECORDED", null, null, 1L);
-        return new NfcScannedEvent(result, resourceId, "field-tech", Instant.now());
-    }
-
     @Test
     @DisplayName("a scan of the awaited resource wakes the waiting instance, which then creates a task")
     void scanWakesWaitingInstanceAndItWorks() {
@@ -152,8 +149,17 @@ class OutboundBridgeProcessTest {
         assertFalse(before.stream().anyMatch(t -> WOKEN_TASK_NAME.equals(t.getName())),
                 "precondition: the woken task does not exist while the process still waits");
 
-        // The real-world signal arrives: a scan of the awaited resource. The bridge correlates and wakes it.
-        bridge.onNfcScan(scanOf(AWAITED_RESOURCE_ID));
+        // The real-world signal arrives: a scan of the awaited resource. The bridge's correlation finds
+        // exactly the one waiting execution among the engine's subscriptions.
+        List<String> targets = bridge.matchingExecutionIds(EngineEventBridge.MSG_NFC_SCAN, AWAITED_RESOURCE_ID);
+        assertEquals(List.of(started.id()), execProcessInstanceIds(targets),
+                "correlation resolves to exactly the waiting instance");
+
+        // Deliver the message (in this test's transaction, so the continuation is visible to the asserts).
+        for (String executionId : targets) {
+            runtimeService.messageEventReceived(EngineEventBridge.MSG_NFC_SCAN, executionId,
+                    Map.of(EngineEventBridge.VAR_NFC_SCAN_RESOURCE_ID, AWAITED_RESOURCE_ID));
+        }
 
         assertFalse(instanceService.get(started.id(), admin).running(),
                 "the woken process ran on to its end");
@@ -163,18 +169,26 @@ class OutboundBridgeProcessTest {
     }
 
     @Test
-    @DisplayName("a scan of a different resource leaves the instance waiting")
+    @DisplayName("a scan of a different resource correlates to no instance")
     void scanOfOtherResourceDoesNotWake() {
         ProcessInstanceDTO started = instanceService.startForProject(project.getId(), definition.id(),
                 Map.of(EngineEventBridge.VAR_AWAITED_RESOURCE_ID, AWAITED_RESOURCE_ID), admin);
         assertTrue(started.running());
 
-        bridge.onNfcScan(scanOf(9999L)); // some other resource
+        List<String> targets = bridge.matchingExecutionIds(EngineEventBridge.MSG_NFC_SCAN, 9999L);
+        assertTrue(targets.isEmpty(),
+                "an unrelated scan must not correlate to a process waiting for another resource");
 
-        assertTrue(instanceService.get(started.id(), admin).running(),
-                "an unrelated scan must not wake a process waiting for another resource");
+        assertTrue(instanceService.get(started.id(), admin).running(), "the instance is still waiting");
         List<Task> after = taskRepository.findByBlackboard_Id(project.getBlackboard().getId());
         assertFalse(after.stream().anyMatch(t -> WOKEN_TASK_NAME.equals(t.getName())),
                 "no task is created while the process is still waiting");
+    }
+
+    /** The process-instance id each matched execution belongs to (an execution is not its instance). */
+    private List<String> execProcessInstanceIds(List<String> executionIds) {
+        return executionIds.stream()
+                .map(id -> runtimeService.createExecutionQuery().executionId(id).singleResult().getProcessInstanceId())
+                .toList();
     }
 }

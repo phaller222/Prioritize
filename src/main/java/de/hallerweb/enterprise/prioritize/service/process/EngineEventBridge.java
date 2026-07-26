@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.service.process;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcScannedEvent;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.ScanResult;
 import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryThresholdEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +28,11 @@ import org.flowable.engine.runtime.Execution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The outbound bridge: the one place where a domain event reaches into a running BPMN process. It turns
@@ -59,10 +63,15 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * (an inspection round and an alarm escalation, say), so the message is delivered to every waiting
  * execution whose awaited resource matches, not just one.
  * <p>
- * <b>After commit, best effort.</b> Like the MQTT bridges, delivery is handled
+ * <b>After commit, in a fresh transaction, best effort.</b> Like the MQTT bridges, delivery is handled
  * {@link TransactionPhase#AFTER_COMMIT AFTER_COMMIT} so only persisted signals propagate, and a
- * delivery failure is logged, never propagated back to the already-committed source operation. The
- * engine runs each {@code messageEventReceived} in its own transaction.
+ * delivery failure is logged, never propagated back to the already-committed source operation. Each
+ * {@code messageEventReceived} is wrapped in its own Spring transaction: the woken process runs on
+ * synchronously and may reach back into the platform through the facade (create a task, store a
+ * document), and those JPA writes must share one committing transaction with the engine's own — without
+ * it the process advances but its platform effects are silently lost (the AFTER_COMMIT phase has no
+ * active transaction of its own). One transaction per instance also keeps the failure isolation: one
+ * instance rolling back does not drag the others down.
  *
  * @author peter haller
  */
@@ -104,9 +113,16 @@ public class EngineEventBridge {
     public static final String VAR_TELEMETRY_SEVERITY = "telemetrySeverity";
 
     private final RuntimeService runtimeService;
+    private final TransactionTemplate transactionTemplate;
 
-    public EngineEventBridge(RuntimeService runtimeService) {
+    public EngineEventBridge(RuntimeService runtimeService, PlatformTransactionManager transactionManager) {
         this.runtimeService = runtimeService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        // REQUIRES_NEW, not the default REQUIRED: we run in the AFTER_COMMIT phase of the source event's
+        // transaction, which is still bound to the thread while it completes. REQUIRED would join that
+        // already-committed transaction, and the woken process's platform writes would never be flushed.
+        // A brand-new transaction with its own session is what makes the engine and JPA state commit together.
+        this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
@@ -151,28 +167,23 @@ public class EngineEventBridge {
     }
 
     /**
-     * Delivers a message to every instance waiting on {@code messageName} for {@code resourceId}. The
-     * candidate set — executions holding a subscription with that name — is small, and each is checked
-     * against the awaited resource with a numeric compare before the message is delivered.
+     * Delivers a message to every instance waiting on {@code messageName} for {@code resourceId}, each in
+     * its own new transaction so the woken process's platform effects commit together with the engine's
+     * state (see the class note). One instance failing does not stop the others.
      */
     private void deliver(String messageName, Long resourceId, Map<String, Object> payload) {
-        List<Execution> waiting = runtimeService.createExecutionQuery()
-                .messageEventSubscriptionName(messageName)
-                .list();
+        List<String> targets = matchingExecutionIds(messageName, resourceId);
         int delivered = 0;
-        for (Execution execution : waiting) {
-            Object awaited = runtimeService.getVariable(execution.getId(), VAR_AWAITED_RESOURCE_ID);
-            if (!matchesResource(awaited, resourceId)) {
-                continue;
-            }
+        for (String executionId : targets) {
             try {
-                runtimeService.messageEventReceived(messageName, execution.getId(), payload);
+                transactionTemplate.executeWithoutResult(status ->
+                        runtimeService.messageEventReceived(messageName, executionId, payload));
                 delivered++;
             } catch (RuntimeException ex) {
                 // One instance failing to receive must not stop the others, nor bubble back to the
                 // already-committed source event.
                 log.warn("Delivering '{}' for resource {} to execution {} failed: {}",
-                        messageName, resourceId, execution.getId(), ex.getMessage());
+                        messageName, resourceId, executionId, ex.getMessage());
             }
         }
         if (delivered > 0) {
@@ -181,6 +192,25 @@ public class EngineEventBridge {
         } else {
             log.debug("Outbound '{}' for resource {}: no instance was waiting.", messageName, resourceId);
         }
+    }
+
+    /**
+     * The ids of the executions waiting on {@code messageName} for {@code resourceId} — the correlation
+     * itself, separate from delivery. The candidate set (executions holding a subscription with that name)
+     * is small, and each is checked against the awaited resource with a numeric compare. Package-visible
+     * so the correlation can be verified against the real engine without going through the per-instance
+     * transaction wrapper, which the unit test and the live smoke cover instead.
+     */
+    List<String> matchingExecutionIds(String messageName, Long resourceId) {
+        List<String> ids = new ArrayList<>();
+        for (Execution execution : runtimeService.createExecutionQuery()
+                .messageEventSubscriptionName(messageName).list()) {
+            Object awaited = runtimeService.getVariable(execution.getId(), VAR_AWAITED_RESOURCE_ID);
+            if (matchesResource(awaited, resourceId)) {
+                ids.add(execution.getId());
+            }
+        }
+        return ids;
     }
 
     /**

@@ -40,6 +40,8 @@ import org.flowable.engine.runtime.ExecutionQuery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
  * Unit test for the correlation core of {@link EngineEventBridge}: an NFC scan wakes exactly the
@@ -52,6 +54,7 @@ class EngineEventBridgeTest {
 
     private RuntimeService runtimeService;
     private ExecutionQuery executionQuery;
+    private PlatformTransactionManager txManager;
     private EngineEventBridge bridge;
 
     @BeforeEach
@@ -60,7 +63,10 @@ class EngineEventBridgeTest {
         executionQuery = mock(ExecutionQuery.class);
         when(runtimeService.createExecutionQuery()).thenReturn(executionQuery);
         when(executionQuery.messageEventSubscriptionName(anyString())).thenReturn(executionQuery);
-        bridge = new EngineEventBridge(runtimeService);
+        txManager = mock(PlatformTransactionManager.class);
+        when(txManager.getTransaction(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new SimpleTransactionStatus());
+        bridge = new EngineEventBridge(runtimeService, txManager);
     }
 
     private static Execution execution(String id) {
@@ -103,6 +109,27 @@ class EngineEventBridgeTest {
         org.junit.jupiter.api.Assertions.assertEquals("COUNTED", payload.get(EngineEventBridge.VAR_NFC_SCAN_ACTION));
         org.junit.jupiter.api.Assertions.assertEquals(42L, payload.get(EngineEventBridge.VAR_NFC_SCAN_RESOURCE_ID));
         org.junit.jupiter.api.Assertions.assertEquals("scanner-user", payload.get(EngineEventBridge.VAR_NFC_SCAN_BY));
+    }
+
+    @Test
+    @DisplayName("delivers in its own new transaction (REQUIRES_NEW), not the source event's")
+    void deliversInItsOwnNewTransaction() {
+        // Regression guard: the bridge fires in the AFTER_COMMIT phase of the scan's transaction, which is
+        // still bound to the thread. Only a REQUIRES_NEW transaction gives the woken process a fresh,
+        // committing session — with the default REQUIRED its platform writes are silently lost.
+        Execution waiting = execution("exec-1");
+        when(executionQuery.list()).thenReturn(List.of(waiting));
+        when(runtimeService.getVariable("exec-1", EngineEventBridge.VAR_AWAITED_RESOURCE_ID)).thenReturn(42L);
+
+        bridge.onNfcScan(scanOf(42L));
+
+        var defCaptor = org.mockito.ArgumentCaptor.forClass(
+                org.springframework.transaction.TransactionDefinition.class);
+        verify(txManager).getTransaction(defCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW,
+                defCaptor.getValue().getPropagationBehavior(),
+                "delivery must run in a brand-new transaction, or the woken process's writes are lost");
     }
 
     @Test
