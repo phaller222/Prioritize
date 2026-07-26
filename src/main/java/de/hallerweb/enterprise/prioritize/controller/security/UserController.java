@@ -26,8 +26,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 
+@Tag(name = "Users", description = "Manage users and their assigned skills.")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -58,6 +61,12 @@ public class UserController {
         return ResponseEntity.ok(userService.findUserByUsername(username));
     }
 
+    @Operation(summary = "Create a user",
+            description = "Creates a local user record. The password field is write-ignored (@JsonIgnore) "
+                    + "and is NOT set here by design: in production Keycloak owns credentials, and a local "
+                    + "record created via REST is passwordless (it exists to carry app relationships). A "
+                    + "login-able local user for the Basic-auth/dev mode is created via the admin GUI, which "
+                    + "has a password field. See the user-provisioning notes in the project docs.")
     @PostMapping
     public ResponseEntity<PUser> create(@RequestBody PUser user) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(user));

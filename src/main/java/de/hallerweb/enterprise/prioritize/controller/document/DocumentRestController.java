@@ -34,8 +34,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
+@Tag(name = "Documents", description = "Upload, version, check out/in, download, search and delete documents.")
 @RestController
 @RequestMapping("/api/v1/documents")
 @RequiredArgsConstructor
