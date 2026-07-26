@@ -26,6 +26,7 @@ import de.hallerweb.enterprise.prioritize.ui.document.DocumentsView;
 import de.hallerweb.enterprise.prioritize.ui.company.DepartmentView;
 import de.hallerweb.enterprise.prioritize.ui.company.CompanyView;
 import de.hallerweb.enterprise.prioritize.ui.scheduling.TaskSchedulesView;
+import de.hallerweb.enterprise.prioritize.ui.process.ProcessDefinitionsView;
 
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
@@ -88,6 +89,7 @@ public class MainLayout extends AppLayout {
         nav.addItem(new SideNavItem("Skills", SkillsView.class));
         nav.addItem(new SideNavItem("Skill Categories", SkillCategoriesView.class));
         nav.addItem(new SideNavItem("Task Schedules", TaskSchedulesView.class));
+        nav.addItem(new SideNavItem("Process Definitions", ProcessDefinitionsView.class));
         addToDrawer(nav);
     }
 }
