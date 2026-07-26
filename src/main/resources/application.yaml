@@ -22,3 +22,9 @@ logging:
     org.flowable: INFO
   #file:
     #name: logs/Prioritize.log
+
+# Application metadata. `version` is filtered from the Maven project version at build time
+# (spring-boot-starter-parent filters application.yaml with @...@ delimiters) so the OpenAPI
+# document's info.version tracks the release without a second place to bump. See OpenApiConfig.
+prioritize:
+  version: @project.version@
