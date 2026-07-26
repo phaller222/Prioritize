@@ -30,6 +30,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
 /**
@@ -38,6 +39,7 @@ import java.util.List;
  *
  * @author peter haller
  */
+@Tag(name = "Projects", description = "Manage projects, their manager, team members, resources and documents.")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

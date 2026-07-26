@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * @author peter haller
  */
+@Tag(name = "Process Instances", description = "Start, read and cancel BPMN process instances for projects and tasks.")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

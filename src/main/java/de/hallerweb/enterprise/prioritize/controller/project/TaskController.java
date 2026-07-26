@@ -28,6 +28,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
 /**
@@ -36,6 +37,7 @@ import java.util.List;
  *
  * @author peter haller
  */
+@Tag(name = "Tasks", description = "Manage tasks: assignment, status, goals and time tracking.")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

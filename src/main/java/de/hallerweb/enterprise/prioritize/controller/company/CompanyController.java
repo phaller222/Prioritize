@@ -27,8 +27,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
+@Tag(name = "Companies", description = "Create, read, update and delete companies.")
 @RestController
 @RequestMapping("/api/v1/companies")
 @RequiredArgsConstructor

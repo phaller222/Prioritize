@@ -35,8 +35,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 
+@Tag(name = "Resources", description = "Manage resources and groups, reservations, control commands and telemetry ingest.")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

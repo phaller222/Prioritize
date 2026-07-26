@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.model.skill;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -39,6 +40,10 @@ import lombok.*;
         @JsonSubTypes.Type(value = SkillPropertyNumeric.class, name = "NUMERIC"), // Associates the name "NUMERIC" with the class
         @JsonSubTypes.Type(value = SkillPropertyText.class, name = "TEXT") // Associates the name "TEXT" with the class
 })
+@Schema(description = "EXPERIMENTAL — subject to change within the 1.x line. Skill properties are "
+        + "carried polymorphically inside the Skill payload (type NUMERIC or TEXT) and have no dedicated "
+        + "endpoint or GUI yet. The shape may still evolve (e.g. for the academy vertical) and is NOT "
+        + "part of the 1.0 stability promise.")
 public abstract class SkillProperty {
 
     @Id
