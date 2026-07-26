@@ -26,8 +26,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
+import de.hallerweb.enterprise.prioritize.model.telemetry.Severity;
+import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryState;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcScannedEvent;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.ScanResult;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryThresholdEvent;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -164,6 +167,37 @@ class EngineEventBridgeTest {
     @DisplayName("a scan not bound to a resource never queries the engine")
     void ignoresResourcelessScan() {
         bridge.onNfcScan(scanOf(null));
+
+        verify(runtimeService, never()).createExecutionQuery();
+    }
+
+    @Test
+    @DisplayName("a telemetry flank wakes the instance awaiting that resource on the threshold message")
+    void telemetryFlankWakesAwaitingInstance() {
+        Execution waiting = execution("exec-1");
+        when(executionQuery.list()).thenReturn(List.of(waiting));
+        when(runtimeService.getVariable("exec-1", EngineEventBridge.VAR_AWAITED_RESOURCE_ID)).thenReturn(42L);
+
+        bridge.onTelemetryThreshold(new TelemetryThresholdEvent(
+                7L, 42L, "temperature", 91.5, TelemetryState.ALARM, Severity.WARNING, Instant.now()));
+
+        @SuppressWarnings("unchecked")
+        var payloadCaptor = org.mockito.ArgumentCaptor.forClass(Map.class);
+        verify(runtimeService).messageEventReceived(
+                eq(EngineEventBridge.MSG_TELEMETRY_THRESHOLD), eq("exec-1"), payloadCaptor.capture());
+        Map<String, Object> payload = payloadCaptor.getValue();
+        org.junit.jupiter.api.Assertions.assertEquals("ALARM", payload.get(EngineEventBridge.VAR_TELEMETRY_STATE));
+        org.junit.jupiter.api.Assertions.assertEquals("temperature", payload.get(EngineEventBridge.VAR_TELEMETRY_DATAPOINT));
+        org.junit.jupiter.api.Assertions.assertEquals(91.5, payload.get(EngineEventBridge.VAR_TELEMETRY_VALUE));
+        org.junit.jupiter.api.Assertions.assertEquals(42L, payload.get(EngineEventBridge.VAR_TELEMETRY_RESOURCE_ID));
+        org.junit.jupiter.api.Assertions.assertEquals("WARNING", payload.get(EngineEventBridge.VAR_TELEMETRY_SEVERITY));
+    }
+
+    @Test
+    @DisplayName("a telemetry flank not bound to a resource never queries the engine")
+    void ignoresResourcelessThreshold() {
+        bridge.onTelemetryThreshold(new TelemetryThresholdEvent(
+                7L, null, "temperature", 91.5, TelemetryState.ALARM, Severity.WARNING, Instant.now()));
 
         verify(runtimeService, never()).createExecutionQuery();
     }

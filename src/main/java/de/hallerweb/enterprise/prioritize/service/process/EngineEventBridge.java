@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.service.process;
 
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcScannedEvent;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.ScanResult;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryThresholdEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * The outbound bridge: the one place where a domain event reaches into a running BPMN process. It turns
- * {@link NfcScannedEvent} (and, from slice 5b, {@code TelemetryThresholdEvent}) into a Flowable message
- * so a process that was <em>waiting</em> for that real-world signal can continue.
+ * {@link NfcScannedEvent} and {@link TelemetryThresholdEvent} into a Flowable message so a process that
+ * was <em>waiting</em> for that real-world signal can continue.
  * <p>
  * <b>Orchestration, not ownership</b> (the line held throughout the Flowable work): the bridge only
  * wakes a process that already chose to wait. Nothing here starts a process, owns a lifecycle, or
@@ -73,6 +74,9 @@ public class EngineEventBridge {
     /** Message name a process waits on to be woken by an NFC scan of its awaited resource. */
     public static final String MSG_NFC_SCAN = "nfcScan";
 
+    /** Message name a process waits on to be woken by a telemetry OK&harr;ALARM flank of its resource. */
+    public static final String MSG_TELEMETRY_THRESHOLD = "telemetryThreshold";
+
     /**
      * Process variable through which a waiting instance names the resource it waits for. The one
      * correlation axis for every outbound event, compared numerically against the event's resource id.
@@ -87,6 +91,17 @@ public class EngineEventBridge {
     public static final String VAR_NFC_SCAN_RESOURCE_ID = "nfcScanResourceId";
     /** Payload variable: who scanned the tag. */
     public static final String VAR_NFC_SCAN_BY = "nfcScanBy";
+
+    /** Payload variable: the new telemetry state, {@code OK} or {@code ALARM}. */
+    public static final String VAR_TELEMETRY_STATE = "telemetryState";
+    /** Payload variable: the resource whose rule changed state. */
+    public static final String VAR_TELEMETRY_RESOURCE_ID = "telemetryResourceId";
+    /** Payload variable: the data point that crossed the threshold. */
+    public static final String VAR_TELEMETRY_DATAPOINT = "telemetryDatapoint";
+    /** Payload variable: the value that triggered the transition. */
+    public static final String VAR_TELEMETRY_VALUE = "telemetryValue";
+    /** Payload variable: the transition's severity. */
+    public static final String VAR_TELEMETRY_SEVERITY = "telemetrySeverity";
 
     private final RuntimeService runtimeService;
 
@@ -112,6 +127,27 @@ public class EngineEventBridge {
         payload.put(VAR_NFC_SCAN_BY, event.scannedBy());
 
         deliver(MSG_NFC_SCAN, event.resourceId(), payload);
+    }
+
+    /**
+     * Wakes every process instance that waits (on {@value #MSG_TELEMETRY_THRESHOLD}) for the resource
+     * whose telemetry rule just changed state, injecting the transition (new state, value, data point,
+     * severity) so the diagram can branch on it. Fired only on the OK&harr;ALARM flank, so a woken
+     * process reacts to a real change, not to every reading.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onTelemetryThreshold(TelemetryThresholdEvent event) {
+        if (event.resourceId() == null) {
+            return; // a transition not bound to a resource cannot correlate to a waiting instance
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put(VAR_TELEMETRY_STATE, event.newState() != null ? event.newState().name() : null);
+        payload.put(VAR_TELEMETRY_RESOURCE_ID, event.resourceId());
+        payload.put(VAR_TELEMETRY_DATAPOINT, event.datapoint());
+        payload.put(VAR_TELEMETRY_VALUE, event.value());
+        payload.put(VAR_TELEMETRY_SEVERITY, event.severity() != null ? event.severity().name() : null);
+
+        deliver(MSG_TELEMETRY_THRESHOLD, event.resourceId(), payload);
     }
 
     /**
