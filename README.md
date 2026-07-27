@@ -354,6 +354,68 @@ Centralized in `GlobalExceptionHandler`:
 - **ProcessDefinition / ProcessInstance** — a registered, explicitly activated BPMN definition and its running orchestration, linked generically to a project or task.
 - **Address** — embedded value object, managed exclusively through its owners (Company, Department, PUser).
 
+<details>
+<summary><strong>Class diagrams per subsystem</strong> (click to expand)</summary>
+
+Each subsystem is documented as a focused UML class diagram — curated, entities only, with
+cross-package neighbours shown as «external» for context. PlantUML sources live under
+[`docs/diagrams/uml`](docs/diagrams/uml); the rendered PNGs under
+[`docs/diagrams/images`](docs/diagrams/images).
+
+### Organization & security
+
+**Companies & departments**
+
+![Company and Department subsystem class diagram](docs/diagrams/images/company-model.png)
+
+**Users, roles & permissions**
+
+![Security subsystem class diagram](docs/diagrams/images/security-model.png)
+
+### Content & knowledge
+
+**Documents (versioning, check-in/out)**
+
+![Document subsystem class diagram](docs/diagrams/images/document-model.png)
+
+**Skills (for people and devices)**
+
+![Skill subsystem class diagram](docs/diagrams/images/skill-model.png)
+
+### Work & operations
+
+**Projects, blackboards, tasks & goals**
+
+![Project subsystem class diagram](docs/diagrams/images/project-model.png)
+
+**Resources, reservations & control**
+
+![Resource subsystem class diagram](docs/diagrams/images/resource-model.png)
+
+**Time spans (reservations & time tracking)**
+
+![Calendar subsystem class diagram](docs/diagrams/images/calendar-model.png)
+
+### Platform, IoT & automation
+
+**Telemetry monitoring rules**
+
+![Telemetry subsystem class diagram](docs/diagrams/images/telemetry-model.png)
+
+**Recurring task schedules**
+
+![Scheduling subsystem class diagram](docs/diagrams/images/scheduling-model.png)
+
+**BPMN process orchestration (Flowable)**
+
+![Process subsystem class diagram](docs/diagrams/images/process-model.png)
+
+**NFC tags as physical triggers**
+
+![NFC subsystem class diagram](docs/diagrams/images/nfc-model.png)
+
+</details>
+
 ---
 
 ## Contributing
