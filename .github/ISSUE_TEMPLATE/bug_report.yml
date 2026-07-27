@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a problem so it can be reproduced and fixed
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please fill in as much as you can.
+        For **security vulnerabilities, do not open an issue** — see our [Security Policy](../blob/develop/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: The release tag (e.g. `v1.0.0`) or commit SHA you are running.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Active profile(s)
+      description: Which Spring profile(s) were active? This is often the key to reproducing.
+      multiple: true
+      options:
+        - h2 (default)
+        - postgres
+        - keycloak
+        - mqtt
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps (requests, GUI actions, config) to trigger the problem.
+      placeholder: |
+        1. Start with `mvn spring-boot:run`
+        2. POST /api/v1/...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs. actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / stack trace
+      description: Paste any relevant log output. **Remove secrets, tokens and passwords.**
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: JDK version, OS, database version, and anything else relevant.
+      placeholder: "JDK 21, Windows 11, PostgreSQL 16"
+    validations:
+      required: false
