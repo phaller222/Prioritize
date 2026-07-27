@@ -309,6 +309,20 @@ All core endpoints live under `/api/v1`. The table below is an overview, not a c
 
 ---
 
+## API stability
+
+From `1.0.0` onward the project follows [semantic versioning](https://semver.org/): the version number communicates what a consumer can rely on.
+
+- **The REST API under `/api/v1` is the stable contract.** These endpoints — their paths, methods, request/response shapes and documented status codes — are the public surface that external clients build against. Backward-incompatible changes to them will not happen within the `1.x` line; they would come with a new major version (and, where practical, a new path prefix such as `/api/v2`). Additive changes (new endpoints, new optional fields) are minor releases and are safe to adopt. The authoritative, always-current description is the OpenAPI document served by the running application (see [API documentation](#api-documentation)); the tables above are only an overview.
+
+- **The Vaadin admin GUI and its routes are an implementation detail — not part of the contract.** The `@Route` URLs (`/process-definitions`, `/task-schedules`, …) exist for the browser UI and may change at any time without a major bump. Do not script or link against them; drive automation through `/api/v1` instead.
+
+- **`SkillProperty` is experimental.** The skill *property* model (typed key/value attributes on a skill) is exposed for early feedback and is marked `EXPERIMENTAL` in the OpenAPI schema. It has no admin GUI yet and its shape may change in a minor release without the usual stability guarantee. Everything else in the skill subsystem (skills, categories, assignments) is stable.
+
+- **`POST /api/v1/users` creates users without a password, by design.** In production the identity provider (Keycloak) owns credentials, so the local account is provisioned password-less; `PUser.password` carries `@JsonIgnore` and is never accepted or returned over REST. A REST-created user therefore cannot log in via Basic auth — that is intended for the Keycloak deployment model, not a missing feature. To create a login-capable local user (for a Basic-auth / development setup), use the admin GUI's user view, which has a password field. Just-in-time provisioning of local users on first Keycloak login is a planned post-1.0 addition.
+
+---
+
 ## Error semantics (HTTP status)
 
 Centralized in `GlobalExceptionHandler`:
