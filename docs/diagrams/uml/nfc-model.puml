@@ -1,0 +1,52 @@
+@startuml NFC-Subsystem
+' Scoped to the "nfc" subsystem (model/nfc). An NfcUnit is a physical NFC tag bound to a
+' Resource and optionally to a single Task, acting as a physical trigger. Neighbouring classes
+' (Resource, Task) are «external». NfcUnit does not extend PObject but carries its own Long id
+' and implements the PAuthorizedObject marker interface.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class NfcUnit {
+  uuid : String {unique}
+  name : String
+  description : String
+  type : NfcUnitType
+  payload : String
+  sequenceNumber : long
+  lastScanTime : Instant
+}
+
+enum NfcUnitType {
+  COUNTER
+  CHECKPOINT
+  TIMETRACKER
+  INFOPOINT
+  OTHER
+}
+
+class Resource <<external>>
+class Task <<external>>
+
+' Plain arrow = ManyToOne / OneToOne reference. Dashed arrow = enum typing.
+NfcUnit --> "1" Resource : resource
+NfcUnit --> "0..1" Task : task
+NfcUnit --> NfcUnitType : type
+
+note bottom of NfcUnit
+  Implements PAuthorizedObject (marker interface) so a tag can be
+  permission-checked like any other secured object.
+end note
+
+@enduml

@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -69,6 +70,7 @@ public class ProcessInstanceController {
      *
      * @return 201 Created with the started instance
      */
+    @Operation(summary = "Starts a process for a whole project")
     @PostMapping("/projects/{projectId}/process-instances")
     public ResponseEntity<ProcessInstanceDTO> startForProject(@PathVariable Long projectId,
                                                               @RequestBody StartProcessInstanceRequest request,
@@ -83,6 +85,7 @@ public class ProcessInstanceController {
      *
      * @return 201 Created with the started instance
      */
+    @Operation(summary = "Starts a process for a single task and links the two")
     @PostMapping("/tasks/{taskId}/process-instances")
     public ResponseEntity<ProcessInstanceDTO> startForTask(@PathVariable Long taskId,
                                                            @RequestBody StartProcessInstanceRequest request,
@@ -97,6 +100,7 @@ public class ProcessInstanceController {
      *
      * @return 200 OK with the instances
      */
+    @Operation(summary = "All instances belonging to a project — its own and those of its tasks, running or finished")
     @GetMapping("/projects/{projectId}/process-instances")
     public ResponseEntity<List<ProcessInstanceDTO>> getForProject(@PathVariable Long projectId, Authentication auth) {
         return ResponseEntity.ok(processInstanceService.getForProject(projectId, getCurrentUser(auth)));
@@ -107,6 +111,7 @@ public class ProcessInstanceController {
      *
      * @return 200 OK with the instance, 404 if the task never ran one
      */
+    @Operation(summary = "The instance a task is linked to")
     @GetMapping("/tasks/{taskId}/process-instance")
     public ResponseEntity<ProcessInstanceDTO> getForTask(@PathVariable Long taskId, Authentication auth) {
         return processInstanceService.getForTask(taskId, getCurrentUser(auth))
@@ -119,6 +124,7 @@ public class ProcessInstanceController {
      *
      * @return 200 OK with the instance
      */
+    @Operation(summary = "A single instance by its engine id")
     @GetMapping("/process-instances/{id}")
     public ResponseEntity<ProcessInstanceDTO> get(@PathVariable String id, Authentication auth) {
         return ResponseEntity.ok(processInstanceService.get(id, getCurrentUser(auth)));
@@ -129,6 +135,7 @@ public class ProcessInstanceController {
      *
      * @return 204 No Content
      */
+    @Operation(summary = "Stops a running instance")
     @PostMapping("/process-instances/{id}/cancel")
     public ResponseEntity<Void> cancel(@PathVariable String id,
                                        @RequestBody(required = false) CancelProcessInstanceRequest request,

@@ -27,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -40,27 +41,32 @@ public class CompanyController {
     private final CompanyService companyService;
     private final CurrentUserResolver currentUserResolver;
 
+    @Operation(summary = "Get all companies")
     @GetMapping
     public ResponseEntity<List<Company>> getAllCompanies() {
         return ResponseEntity.ok(companyService.findAll());
     }
 
+    @Operation(summary = "Get company by id")
     @GetMapping("/{id}")
     public ResponseEntity<Company> getById(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(companyService.findById(id, currentUserResolver.resolve(auth)));
     }
 
+    @Operation(summary = "Find companies matching a filter")
     @PostMapping("/filter")
     public ResponseEntity<Collection<Company>> findByFilter(@RequestBody Company filter) {
         return ResponseEntity.ok(companyService.searchCompanies(filter));
     }
 
+    @Operation(summary = "Create company")
     @PostMapping
     public ResponseEntity<Company> create(@RequestBody Company company, Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(companyService.createCompany(company, currentUserResolver.resolve(auth)));
     }
 
+    @Operation(summary = "Update company")
     @PutMapping("/{id}")
     public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Company company, Authentication auth) {
         if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
@@ -70,6 +76,7 @@ public class CompanyController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Delete company")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         companyService.deleteCompany(id, currentUserResolver.resolve(auth));

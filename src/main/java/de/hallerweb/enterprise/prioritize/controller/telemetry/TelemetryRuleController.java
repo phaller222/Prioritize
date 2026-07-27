@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -63,6 +64,7 @@ public class TelemetryRuleController {
      *
      * @return 201 Created with the new rule
      */
+    @Operation(summary = "Creates a monitoring rule on a resource")
     @PostMapping("/resources/{resourceId}/telemetry-rules")
     public ResponseEntity<TelemetryRuleDTO> createRule(
         @PathVariable Long resourceId,
@@ -79,6 +81,7 @@ public class TelemetryRuleController {
      *
      * @return 200 OK with the rules
      */
+    @Operation(summary = "Lists all monitoring rules of a resource (any data point, enabled or not)")
     @GetMapping("/resources/{resourceId}/telemetry-rules")
     public ResponseEntity<List<TelemetryRuleDTO>> getRules(
         @PathVariable Long resourceId,
@@ -92,6 +95,7 @@ public class TelemetryRuleController {
      *
      * @return 200 OK with the rule
      */
+    @Operation(summary = "Returns a single rule by id")
     @GetMapping("/telemetry-rules/{id}")
     public ResponseEntity<TelemetryRuleDTO> getRule(
         @PathVariable Long id,
@@ -105,6 +109,7 @@ public class TelemetryRuleController {
      *
      * @return 200 OK with the updated rule
      */
+    @Operation(summary = "Partially updates a rule (only the fields present in the body are changed)")
     @PatchMapping("/telemetry-rules/{id}")
     public ResponseEntity<TelemetryRuleDTO> updateRule(
         @PathVariable Long id,
@@ -119,6 +124,7 @@ public class TelemetryRuleController {
      *
      * @return 204 No Content
      */
+    @Operation(summary = "Deletes a rule")
     @DeleteMapping("/telemetry-rules/{id}")
     public ResponseEntity<Void> deleteRule(
         @PathVariable Long id,

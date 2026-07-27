@@ -1,0 +1,58 @@
+@startuml Telemetry-Subsystem
+' Scoped to the "telemetry" subsystem (model/telemetry). A TelemetryRule watches one datapoint
+' of a Resource and holds a small state machine (OK/ALARM) with hysteresis. The single
+' neighbouring class (Resource) is «external». Base class PObject omitted — every entity
+' carries a Long id.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class TelemetryRule {
+  datapoint : String
+  operator : TelemetryOperator
+  threshold : Double
+  thresholdHigh : Double
+  hysteresis : Double
+  severity : Severity
+  enabled : boolean
+  state : TelemetryState
+  lastTransitionAt : LocalDateTime
+}
+
+enum TelemetryOperator {
+  GT
+  LT
+  RANGE
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum TelemetryState {
+  OK
+  ALARM
+}
+
+class Resource <<external>>
+
+' Plain arrow = ManyToOne reference. Dashed arrow = enum typing.
+TelemetryRule --> "1" Resource : resource
+TelemetryRule --> TelemetryOperator : operator
+TelemetryRule --> Severity : severity
+TelemetryRule --> TelemetryState : state
+
+@enduml

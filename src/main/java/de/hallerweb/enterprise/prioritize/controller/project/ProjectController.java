@@ -30,6 +30,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -56,6 +57,7 @@ public class ProjectController {
     /**
      * Creates a new project (the caller becomes manager and first member).
      */
+    @Operation(summary = "Creates a new project (the caller becomes manager and first member)")
     @PostMapping("/projects")
     public ResponseEntity<Project> createProject(@RequestBody ProjectRequest request, Authentication auth) {
         Project project = projectService.createProject(request.toData(), getCurrentUser(auth));
@@ -65,22 +67,26 @@ public class ProjectController {
     /**
      * Returns the projects the caller manages or participates in.
      */
+    @Operation(summary = "Returns the projects the caller manages or participates in")
     @GetMapping("/projects")
     public ResponseEntity<List<Project>> getMyProjects(Authentication auth) {
         return ResponseEntity.ok(projectService.getMyProjects(getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Get project")
     @GetMapping("/projects/{id}")
     public ResponseEntity<Project> getProject(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(projectService.getProject(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Update project")
     @PatchMapping("/projects/{id}")
     public ResponseEntity<Project> updateProject(
         @PathVariable Long id, @RequestBody ProjectRequest request, Authentication auth) {
         return ResponseEntity.ok(projectService.updateProject(id, request.toData(), getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Delete project")
     @DeleteMapping("/projects/{id}")
     public ResponseEntity<Void> deleteProject(@PathVariable Long id, Authentication auth) {
         projectService.deleteProject(id, getCurrentUser(auth));
@@ -89,12 +95,14 @@ public class ProjectController {
 
     // --- Team / resources / documents (manager only) ---
 
+    @Operation(summary = "Add member")
     @PostMapping("/projects/{id}/members/{userId}")
     public ResponseEntity<Project> addMember(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
         return ResponseEntity.ok(projectService.addMember(id, userId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Remove member")
     @DeleteMapping("/projects/{id}/members/{userId}")
     public ResponseEntity<Project> removeMember(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
@@ -105,30 +113,35 @@ public class ProjectController {
      * Hands the project over to another of its members. Allowed for the current manager and for an
      * administrator; the designated user must already be a member (400 otherwise).
      */
+    @Operation(summary = "Hands the project over to another of its members")
     @PutMapping("/projects/{id}/manager/{userId}")
     public ResponseEntity<Project> transferManager(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
         return ResponseEntity.ok(projectService.transferManager(id, userId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Add resource")
     @PostMapping("/projects/{id}/resources/{resourceId}")
     public ResponseEntity<Project> addResource(
         @PathVariable Long id, @PathVariable Long resourceId, Authentication auth) {
         return ResponseEntity.ok(projectService.addResource(id, resourceId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Remove resource")
     @DeleteMapping("/projects/{id}/resources/{resourceId}")
     public ResponseEntity<Project> removeResource(
         @PathVariable Long id, @PathVariable Long resourceId, Authentication auth) {
         return ResponseEntity.ok(projectService.removeResource(id, resourceId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Add document")
     @PostMapping("/projects/{id}/documents/{documentInfoId}")
     public ResponseEntity<Project> addDocument(
         @PathVariable Long id, @PathVariable Long documentInfoId, Authentication auth) {
         return ResponseEntity.ok(projectService.addDocument(id, documentInfoId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Remove document")
     @DeleteMapping("/projects/{id}/documents/{documentInfoId}")
     public ResponseEntity<Project> removeDocument(
         @PathVariable Long id, @PathVariable Long documentInfoId, Authentication auth) {
@@ -138,6 +151,7 @@ public class ProjectController {
     /**
      * Returns all tasks of a project (caller must be manager or member).
      */
+    @Operation(summary = "Returns all tasks of a project (caller must be manager or member)")
     @GetMapping("/projects/{id}/tasks")
     public ResponseEntity<List<Task>> getTasks(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.getTasksForProject(id, getCurrentUser(auth)));

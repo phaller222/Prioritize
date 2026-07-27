@@ -26,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -42,6 +43,7 @@ public class DepartmentController {
         return userService.findUserByUsername(auth.getName());
     }
 
+    @Operation(summary = "Create department")
     @PostMapping("/companies/{companyId}/departments")
     public ResponseEntity<Department> create(
             @PathVariable Long companyId,
@@ -51,6 +53,7 @@ public class DepartmentController {
                 .body(departmentService.saveDepartment(department, companyId, currentUser(auth)));
     }
 
+    @Operation(summary = "Get departments by company")
     @GetMapping("/companies/{companyId}/departments")
     public ResponseEntity<List<Department>> getDepartmentsByCompany(
             @PathVariable Long companyId,
@@ -58,11 +61,13 @@ public class DepartmentController {
         return ResponseEntity.ok(departmentService.getDepartmentsByCompany(companyId, currentUser(auth)));
     }
 
+    @Operation(summary = "Get department by id")
     @GetMapping("/departments/{id}")
     public ResponseEntity<Department> getById(@PathVariable Long id) {
         return ResponseEntity.ok(departmentService.getDepartmentById(id));
     }
 
+    @Operation(summary = "Update department")
     @PutMapping("/departments/{id}")
     public ResponseEntity<Department> update(
             @PathVariable Long id,
@@ -71,6 +76,7 @@ public class DepartmentController {
         return ResponseEntity.ok(departmentService.updateDepartment(id, department, currentUser(auth)));
     }
 
+    @Operation(summary = "Delete department")
     @DeleteMapping("/departments/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         departmentService.deleteDepartment(id, currentUser(auth));

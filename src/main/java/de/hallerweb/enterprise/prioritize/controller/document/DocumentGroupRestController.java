@@ -26,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -38,23 +39,27 @@ public class DocumentGroupRestController {
     private final DocumentService documentService;
     private final CurrentUserResolver currentUserResolver;
 
+    @Operation(summary = "Create document group")
     @PostMapping
     public ResponseEntity<DocumentGroup> createGroup(@RequestBody DocumentGroup group) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(documentService.createDocumentGroup(group));
     }
 
+    @Operation(summary = "Get all document groups")
     @GetMapping
     public ResponseEntity<List<DocumentGroup>> getAllGroups() {
         return ResponseEntity.ok(documentService.getAllDocumentGroups());
     }
 
+    @Operation(summary = "Get the documents in a document group")
     @GetMapping("/{groupId}/documents")
     public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId, Authentication auth) {
         return ResponseEntity.ok(
                 documentService.getDocumentsInGroupAsDTO(groupId, currentUserResolver.resolve(auth)));
     }
 
+    @Operation(summary = "Delete document group")
     @DeleteMapping("/{groupId}")
     public ResponseEntity<Void> deleteGroup(@PathVariable Long groupId, Authentication auth) {
         documentService.deleteDocumentGroup(groupId, currentUserResolver.resolve(auth));

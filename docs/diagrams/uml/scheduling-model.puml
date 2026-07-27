@@ -1,0 +1,46 @@
+@startuml Scheduling-Subsystem
+' Scoped to the "scheduling" subsystem (model/scheduling). A TaskSchedule is a cron-driven
+' template: when it is due, the runner creates a Task on the target project's blackboard via
+' the trusted create path — the schedule holds no reference to the tasks it produces.
+' Neighbouring classes (Project, Task) are «external». Base class PObject omitted — every
+' entity carries a Long id.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class TaskSchedule {
+  name : String
+  taskName : String
+  taskDescription : String
+  taskPriority : int
+  cronExpression : String
+  zoneId : String
+  enabled : boolean
+  nextFireAt : LocalDateTime
+  lastFiredAt : LocalDateTime
+}
+
+class Project <<external>>
+class Task <<external>>
+
+' Plain arrow = ManyToOne reference. Dashed arrow = produced at runtime (no persisted relation).
+TaskSchedule --> "1" Project : project
+TaskSchedule ..> Task : fires → creates
+
+note bottom of TaskSchedule
+  cronExpression is evaluated in zoneId; nextFireAt is stored normalized to the
+  server zone so the poller compares all schedules against one wall clock.
+end note
+
+@enduml

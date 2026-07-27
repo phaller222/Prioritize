@@ -1,0 +1,53 @@
+@startuml Process-Subsystem
+' Scoped to the "process" subsystem (model/process). The BPMN process *instances*
+' are owned by the Flowable engine, not persisted here; a definition only points at the
+' document it was made of and records its deployment. Neighbouring classes (DocumentInfo,
+' PUser, Task) are «external», shown for connection context. Base class PObject omitted —
+' every entity carries a Long id.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class ProcessDefinition {
+  processKey : String {unique}
+  name : String
+  state : ProcessDefinitionState
+  deploymentId : String
+  deployedVersion : Integer
+  deployedAt : LocalDateTime
+}
+
+enum ProcessDefinitionState {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+class DocumentInfo <<external>>
+class PUser <<external>>
+class Task <<external>>
+
+' Plain arrow = ManyToOne reference. Dashed arrow = runtime link (no persisted relation).
+ProcessDefinition --> "1" DocumentInfo : documentInfo
+ProcessDefinition --> "0..1" PUser : deployedBy
+ProcessDefinition --> ProcessDefinitionState : state
+Task ..> ProcessDefinition : runtime instance\n(via processInstanceId /\nbusiness key)
+
+note bottom of ProcessDefinition
+  A definition is registered from a document (DRAFT), then ACTIVE once
+  deployed to the engine. Running instances live in Flowable; a Task links
+  to one only through its String processInstanceId — no JPA relation.
+end note
+
+@enduml

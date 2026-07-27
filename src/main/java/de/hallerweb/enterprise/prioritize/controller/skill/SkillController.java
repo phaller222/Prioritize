@@ -26,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -42,22 +43,26 @@ public class SkillController {
     // 1. GLOBALES SKILL-VERZEICHNIS & KATEGORIEN
     // ==========================================
 
+    @Operation(summary = "Get all skills")
     @GetMapping("/skills")
     public ResponseEntity<List<Skill>> getAllSkills() {
         return ResponseEntity.ok(skillService.getAllSkills());
     }
 
+    @Operation(summary = "Create skill")
     @PostMapping("/skills")
     public ResponseEntity<Skill> createSkill(@RequestBody Skill skill, Authentication auth) {
         Skill createdSkill = skillService.createSkill(skill, currentUserResolver.resolve(auth));
         return ResponseEntity.status(HttpStatus.CREATED).body(createdSkill);
     }
 
+    @Operation(summary = "Get skill by id")
     @GetMapping("/skills/{skillId}")
     public ResponseEntity<Skill> getSkillById(@PathVariable Long skillId, Authentication auth) {
         return ResponseEntity.ok(skillService.getSkillById(skillId, currentUserResolver.resolve(auth)));
     }
 
+    @Operation(summary = "Update skill")
     @PutMapping("/skills/{skillId}")
     public ResponseEntity<Skill> updateSkill(
             @PathVariable Long skillId,
@@ -66,22 +71,26 @@ public class SkillController {
         return ResponseEntity.ok(skillService.updateSkill(skillId, skill, currentUserResolver.resolve(auth)));
     }
 
+    @Operation(summary = "Get all categories")
     @GetMapping("/skills/categories")
     public ResponseEntity<List<SkillCategory>> getAllCategories() {
         return ResponseEntity.ok(skillService.getAllCategories());
     }
 
+    @Operation(summary = "Create category")
     @PostMapping("/skills/categories")
     public ResponseEntity<SkillCategory> createCategory(@RequestBody SkillCategory category) {
         SkillCategory createdCategory = skillService.createCategory(category);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdCategory);
     }
 
+    @Operation(summary = "Get category by id")
     @GetMapping("/skills/categories/{categoryId}")
     public ResponseEntity<SkillCategory> getCategoryById(@PathVariable Long categoryId) {
         return ResponseEntity.ok(skillService.getCategoryById(categoryId));
     }
 
+    @Operation(summary = "Update category")
     @PutMapping("/skills/categories/{categoryId}")
     public ResponseEntity<SkillCategory> updateCategory(
             @PathVariable Long categoryId,
@@ -93,12 +102,14 @@ public class SkillController {
     // DELETE ENDPOINTS
     // ==========================================
 
+    @Operation(summary = "Delete skill")
     @DeleteMapping("/skills/{skillId}")
     public ResponseEntity<Void> deleteSkill(@PathVariable Long skillId, Authentication auth) {
         skillService.deleteSkill(skillId, currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build(); // 204 No Content is standard for a successful delete
     }
 
+    @Operation(summary = "Delete category")
     @DeleteMapping("/skills/categories/{categoryId}")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long categoryId) {
         skillService.deleteCategory(categoryId);
