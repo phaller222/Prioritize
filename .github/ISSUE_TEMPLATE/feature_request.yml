@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest an idea or enhancement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! For larger changes, opening this issue first helps
+        align on direction before any code is written.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to achieve? What is missing or painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you'd like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why you prefer the proposal.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the platform does this touch?
+      options:
+        - Projects / tasks / goals
+        - Resources / reservations / control
+        - Documents
+        - Skills
+        - Telemetry
+        - Scheduling
+        - Process orchestration (Flowable / BPMN)
+        - NFC
+        - Security / users / roles
+        - Admin GUI (Vaadin)
+        - REST API / OpenAPI
+        - Build / docs / other
+    validations:
+      required: false

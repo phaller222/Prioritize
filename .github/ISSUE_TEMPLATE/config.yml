@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/phaller222/Prioritize/blob/develop/SECURITY.md
+    about: Please report security issues privately — do not open a public issue.
+  - name: Questions & ideas
+    url: https://github.com/phaller222/Prioritize/discussions
+    about: For general questions and open-ended discussion, use Discussions (or email peter.haller@prioritize-iot.de).

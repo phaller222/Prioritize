@@ -360,6 +360,11 @@ Centralized in `GlobalExceptionHandler`:
 
 Pull requests are welcome. For major changes, please open an issue first to discuss the direction.
 
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to build, test and submit changes (branch
+model, commit conventions, code style, API-stability rules). Please also read our
+[Code of Conduct](CODE_OF_CONDUCT.md). For security issues, follow the [Security Policy](SECURITY.md)
+— do not open a public issue.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE). Source files carry the corresponding Apache 2.0 headers.
