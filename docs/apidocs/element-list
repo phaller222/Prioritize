@@ -65,6 +65,7 @@ de.hallerweb.enterprise.prioritize.ui.common
 de.hallerweb.enterprise.prioritize.ui.company
 de.hallerweb.enterprise.prioritize.ui.document
 de.hallerweb.enterprise.prioritize.ui.group
+de.hallerweb.enterprise.prioritize.ui.process
 de.hallerweb.enterprise.prioritize.ui.resource
 de.hallerweb.enterprise.prioritize.ui.scheduling
 de.hallerweb.enterprise.prioritize.ui.security
