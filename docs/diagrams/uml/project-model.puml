@@ -1,0 +1,115 @@
+@startuml Project-Subsystem
+' Scoped to the "project" subsystem (model/project + model/project/goal).
+' Neighbouring classes from other packages (PActor, PUser, Resource, Document(Info),
+' SkillGroup, SkillRecord, TimeSpan) are shown as «external» purely for connection
+' context. Base classes (PObject / PActor) are omitted as supertypes — every entity
+' carries a Long id. Only the most relevant attributes are listed.
+
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFCC
+  BorderColor #8B0000
+  ArrowColor #8B0000
+  AttributeFontColor #333333
+}
+skinparam class<<external>> {
+  BackgroundColor #EEEEEE
+  BorderColor #999999
+}
+hide circle
+hide empty methods
+
+class Project {
+  name : String
+  description : String
+  priority : int
+  beginDate : LocalDate
+  dueDate : LocalDate
+  maxManDays : int
+}
+
+class Blackboard {
+  title : String
+  description : String
+  frozen : boolean
+}
+
+class Task {
+  name : String
+  description : String
+  priority : int
+  taskStatus : TaskStatus
+  processInstanceId : String
+}
+
+enum TaskStatus {
+  CREATED
+  ESTIMATED
+  OPEN
+  ASSIGNED
+  STARTED
+  STOPPED
+  FINISHED
+  CANCELLED
+  CLOSED
+}
+
+class ProjectGoal {
+  name : String
+  description : String
+}
+
+abstract class ProjectGoalProperty {
+  name : String
+  description : String
+}
+
+class ProjectGoalPropertyNumeric {
+  min : double
+  max : double
+}
+
+class ProjectGoalPropertyDocument {
+  tag : String
+}
+
+class PActor <<external>>
+class PUser <<external>>
+class Resource <<external>>
+class DocumentInfo <<external>>
+class Document <<external>>
+class SkillGroup <<external>>
+class SkillRecord <<external>>
+class TimeSpan <<external>>
+
+' Composition (filled diamond) = owned lifecycle (cascade / orphanRemoval).
+' Plain arrow = ManyToOne / ManyToMany reference. Hollow triangle = inheritance.
+Project "1" *-- "1" Blackboard : blackboard
+Project "1" *-- "0..*" ProjectGoal : goals
+Blackboard "1" *-- "0..*" Task : tasks
+ProjectGoal "1" *-- "0..*" ProjectGoalProperty : properties
+Task "1" *-- "0..*" TimeSpan : timeSpent
+Task "1" *-- "0..1" TimeSpan : activeTimeSpan
+
+Project "0..*" --> "1" PActor : manager
+Project "0..*" --> "0..*" PUser : members
+Project "0..*" --> "0..*" Resource : resources
+Project "0..*" --> "0..*" DocumentInfo : documents
+Project "0..*" --> "0..*" SkillGroup : requiredSkills
+
+Task "0..*" --> "1" PActor : assignee
+Task "0..*" --> "0..1" ProjectGoal : goal
+Task "0..*" --> "0..*" Resource : resources
+Task "0..*" --> "0..*" Document : documents
+Task "0..*" --> "0..*" SkillRecord : requiredSkills
+Task --> TaskStatus : status
+
+ProjectGoalProperty <|-- ProjectGoalPropertyNumeric
+ProjectGoalProperty <|-- ProjectGoalPropertyDocument
+
+note right of Task::processInstanceId
+  Plain String pointer into the BPMN
+  engine (Flowable) — not a JPA relation.
+end note
+
+@enduml
