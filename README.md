@@ -355,7 +355,7 @@ Centralized in `GlobalExceptionHandler`:
 - **Address** — embedded value object, managed exclusively through its owners (Company, Department, PUser).
 
 <details>
-<summary><strong>Class diagrams per subsystem</strong> (click to expand)</summary>
+<summary><h3>🗂️&nbsp; Class diagrams per subsystem &nbsp;<sub>(click to expand)</sub></h3></summary>
 
 Each subsystem is documented as a focused UML class diagram — curated, entities only, with
 cross-package neighbours shown as «external» for context. PlantUML sources live under
