@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -51,6 +52,7 @@ public class NfcUnitController {
         return currentUserResolver.resolve(auth);
     }
 
+    @Operation(summary = "Register an NFC unit")
     @PostMapping("/resources/{resourceId}/nfc-units")
     public ResponseEntity<NfcUnit> registerNfcUnit(
         @PathVariable Long resourceId, @RequestBody NfcUnitRequest request, Authentication auth) {
@@ -58,22 +60,26 @@ public class NfcUnitController {
         return ResponseEntity.status(HttpStatus.CREATED).body(unit);
     }
 
+    @Operation(summary = "Get the NFC units")
     @GetMapping("/resources/{resourceId}/nfc-units")
     public ResponseEntity<List<NfcUnit>> getNfcUnits(@PathVariable Long resourceId, Authentication auth) {
         return ResponseEntity.ok(nfcUnitService.getNfcUnitsForResource(resourceId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Bind task")
     @PutMapping("/nfc-units/{id}/task/{taskId}")
     public ResponseEntity<NfcUnit> bindTask(
         @PathVariable Long id, @PathVariable Long taskId, Authentication auth) {
         return ResponseEntity.ok(nfcUnitService.bindTask(id, taskId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Unbind task")
     @DeleteMapping("/nfc-units/{id}/task")
     public ResponseEntity<NfcUnit> unbindTask(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(nfcUnitService.unbindTask(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Delete an NFC unit")
     @DeleteMapping("/nfc-units/{id}")
     public ResponseEntity<Void> deleteNfcUnit(@PathVariable Long id, Authentication auth) {
         nfcUnitService.deleteNfcUnit(id, getCurrentUser(auth));
@@ -84,6 +90,7 @@ public class NfcUnitController {
      * Processes a scan of the tag with the given uuid (e.g. from a reader device). For a
      * TIMETRACKER this toggles the bound task's time tracking.
      */
+    @Operation(summary = "Process an NFC tag scan by its uuid")
     @PostMapping("/nfc/scan/{uuid}")
     public ResponseEntity<ScanResult> scan(@PathVariable String uuid, Authentication auth) {
         return ResponseEntity.ok(nfcUnitService.scan(uuid, getCurrentUser(auth)));

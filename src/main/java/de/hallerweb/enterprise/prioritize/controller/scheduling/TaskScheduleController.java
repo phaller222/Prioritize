@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -63,6 +64,7 @@ public class TaskScheduleController {
      *
      * @return 201 Created with the new schedule
      */
+    @Operation(summary = "Creates a recurring task schedule on a project")
     @PostMapping("/projects/{projectId}/task-schedules")
     public ResponseEntity<TaskScheduleDTO> createSchedule(
         @PathVariable Long projectId,
@@ -79,6 +81,7 @@ public class TaskScheduleController {
      *
      * @return 200 OK with the schedules
      */
+    @Operation(summary = "Lists all schedules of a project (enabled or not)")
     @GetMapping("/projects/{projectId}/task-schedules")
     public ResponseEntity<List<TaskScheduleDTO>> getSchedules(
         @PathVariable Long projectId,
@@ -92,6 +95,7 @@ public class TaskScheduleController {
      *
      * @return 200 OK with the schedule
      */
+    @Operation(summary = "Returns a single schedule by id")
     @GetMapping("/task-schedules/{id}")
     public ResponseEntity<TaskScheduleDTO> getSchedule(
         @PathVariable Long id,
@@ -105,6 +109,7 @@ public class TaskScheduleController {
      *
      * @return 200 OK with the updated schedule
      */
+    @Operation(summary = "Partially updates a schedule (only the fields present in the body are changed)")
     @PatchMapping("/task-schedules/{id}")
     public ResponseEntity<TaskScheduleDTO> updateSchedule(
         @PathVariable Long id,
@@ -119,6 +124,7 @@ public class TaskScheduleController {
      *
      * @return 204 No Content
      */
+    @Operation(summary = "Deletes a schedule")
     @DeleteMapping("/task-schedules/{id}")
     public ResponseEntity<Void> deleteSchedule(
         @PathVariable Long id,

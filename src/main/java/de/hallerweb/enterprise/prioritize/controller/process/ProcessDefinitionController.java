@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -68,6 +69,7 @@ public class ProcessDefinitionController {
      *
      * @return 201 Created with the new definition
      */
+    @Operation(summary = "Register a document as a process definition (draft, not yet deployed)")
     @PostMapping("/documents/{documentInfoId}/process-definition")
     public ResponseEntity<ProcessDefinitionDTO> register(@PathVariable Long documentInfoId, Authentication auth) {
         ProcessDefinitionDTO registered = processDefinitionService.register(documentInfoId, getCurrentUser(auth));
@@ -79,6 +81,7 @@ public class ProcessDefinitionController {
      *
      * @return 200 OK with the definitions
      */
+    @Operation(summary = "List all process definitions (deployed or draft)")
     @GetMapping("/process-definitions")
     public ResponseEntity<List<ProcessDefinitionDTO>> getAll(Authentication auth) {
         return ResponseEntity.ok(processDefinitionService.getAll(getCurrentUser(auth)));
@@ -89,6 +92,7 @@ public class ProcessDefinitionController {
      *
      * @return 200 OK with the definition
      */
+    @Operation(summary = "Get a process definition")
     @GetMapping("/process-definitions/{id}")
     public ResponseEntity<ProcessDefinitionDTO> get(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(processDefinitionService.get(id, getCurrentUser(auth)));
@@ -100,6 +104,7 @@ public class ProcessDefinitionController {
      *
      * @return 200 OK with the activated definition
      */
+    @Operation(summary = "Activate a definition (deploy it to the engine and make it startable)")
     @PostMapping("/process-definitions/{id}/activate")
     public ResponseEntity<ProcessDefinitionDTO> activate(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(processDefinitionService.activate(id, getCurrentUser(auth)));
@@ -110,6 +115,7 @@ public class ProcessDefinitionController {
      *
      * @return 200 OK with the suspended definition
      */
+    @Operation(summary = "Deactivate a definition (stop new instances; running ones continue)")
     @PostMapping("/process-definitions/{id}/deactivate")
     public ResponseEntity<ProcessDefinitionDTO> deactivate(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(processDefinitionService.deactivate(id, getCurrentUser(auth)));
@@ -122,6 +128,7 @@ public class ProcessDefinitionController {
      *
      * @return 204 No Content
      */
+    @Operation(summary = "Remove a definition (drafts freely; deployed only with ?force=true)")
     @DeleteMapping("/process-definitions/{id}")
     public ResponseEntity<Void> unregister(@PathVariable Long id,
                                            @RequestParam(name = "force", defaultValue = "false") boolean force,

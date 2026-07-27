@@ -43,11 +43,13 @@ public class UserController {
     // USER CRUD
     // ==========================================
 
+    @Operation(summary = "Get all users")
     @GetMapping
     public ResponseEntity<List<PUser>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
+    @Operation(summary = "Get user by id")
     @GetMapping("/{id}")
     public ResponseEntity<PUser> getById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
@@ -56,6 +58,7 @@ public class UserController {
     /**
      * Search by username: GET /api/v1/users?username=peter
      */
+    @Operation(summary = "Search a user by username")
     @GetMapping(params = "username")
     public ResponseEntity<PUser> getByUsername(@RequestParam String username) {
         return ResponseEntity.ok(userService.findUserByUsername(username));
@@ -77,6 +80,7 @@ public class UserController {
      * Note: password, roles and permissions are ignored.
      * Dedicated endpoints exist for those.
      */
+    @Operation(summary = "Update a user (full replace)")
     @PutMapping("/{id}")
     public ResponseEntity<PUser> update(@PathVariable Long id, @RequestBody PUser user) {
         user.setId(id);
@@ -88,6 +92,7 @@ public class UserController {
      * The password is encrypted if supplied.
      * Roles and the admin flag are not modifiable.
      */
+    @Operation(summary = "Partially update a user")
     @PatchMapping("/{id}")
     public ResponseEntity<PUser> partialUpdate(
             @PathVariable Long id,
@@ -95,6 +100,7 @@ public class UserController {
         return ResponseEntity.ok(userService.partialUpdateUser(id, patch));
     }
 
+    @Operation(summary = "Deactivate user")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deactivate(@PathVariable Long id) {
         userService.deactivateUser(id);
@@ -105,11 +111,13 @@ public class UserController {
     // SKILL RECORDS
     // ==========================================
 
+    @Operation(summary = "Get skills for user")
     @GetMapping("/{userId}/skills")
     public ResponseEntity<Set<SkillRecord>> getSkillsForUser(@PathVariable Long userId) {
         return ResponseEntity.ok(skillService.getSkillsForUser(userId));
     }
 
+    @Operation(summary = "Assign skill to user")
     @PostMapping("/{userId}/skills")
     public ResponseEntity<SkillRecord> assignSkillToUser(
             @PathVariable Long userId,

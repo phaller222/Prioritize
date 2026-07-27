@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -55,6 +56,7 @@ public class DocumentRestController {
      * Upload of a new document into a DocumentGroup.
      * POST /api/v1/documents/upload/{groupId}
      */
+    @Operation(summary = "Upload of a new document into a DocumentGroup")
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> uploadDocument(
             @PathVariable Long groupId,
@@ -74,6 +76,7 @@ public class DocumentRestController {
      * Download of the current version of a document.
      * GET /api/v1/documents/download/{documentInfoId}
      */
+    @Operation(summary = "Download of the current version of a document")
     @GetMapping("/download/{documentInfoId}")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentInfoId, Authentication auth) {
         PUser currentUser = getCurrentUser(auth);
@@ -89,6 +92,7 @@ public class DocumentRestController {
      * Download of a specific version of a document.
      * GET /api/v1/documents/{id}/version/{versionNumber}
      */
+    @Operation(summary = "Download of a specific version of a document")
     @GetMapping("/{id}/version/{versionNumber}")
     public ResponseEntity<byte[]> downloadSpecificVersion(
             @PathVariable Long id,
@@ -106,6 +110,7 @@ public class DocumentRestController {
      * All documents of a DocumentGroup as a DTO list.
      * GET /api/v1/documents/group/{groupId}
      */
+    @Operation(summary = "All documents of a DocumentGroup as a DTO list")
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId, Authentication auth) {
         PUser currentUser = getCurrentUser(auth);
@@ -126,6 +131,7 @@ public class DocumentRestController {
      * Versionshistorie eines Dokuments.
      * GET /api/v1/documents/{id}/history
      */
+    @Operation(summary = "Version history of a document")
     @GetMapping("/{id}/history")
     public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable Long id, Authentication auth) {
         PUser currentUser = getCurrentUser(auth);
@@ -146,6 +152,7 @@ public class DocumentRestController {
      * Delete document.
      * DELETE /api/v1/documents/{id}
      */
+    @Operation(summary = "Delete document")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id, Authentication auth) {
         log.info("Delete request for document: {}", id);
@@ -158,6 +165,7 @@ public class DocumentRestController {
      * Dokument auschecken (sperren).
      * POST /api/v1/documents/{id}/check-out
      */
+    @Operation(summary = "Check out a document (lock it)")
     @PostMapping("/{id}/check-out")
     public ResponseEntity<Void> checkOut(@PathVariable Long id, Authentication auth) {
         log.info("Checking out document: {}", id);
@@ -169,6 +177,7 @@ public class DocumentRestController {
      * Dokument einchecken (neue Version hochladen + entsperren).
      * POST /api/v1/documents/{id}/check-in
      */
+    @Operation(summary = "Check in a document (upload a new version and unlock)")
     @PostMapping("/{id}/check-in")
     public ResponseEntity<DocumentInfo> checkIn(
             @PathVariable Long id,
@@ -186,6 +195,7 @@ public class DocumentRestController {
      * Cancel checkout (unlock without a new version).
      * POST /api/v1/documents/{id}/cancel-check-out
      */
+    @Operation(summary = "Cancel checkout (unlock without a new version)")
     @PostMapping("/{id}/cancel-check-out")
     public ResponseEntity<Void> cancelCheckOut(@PathVariable Long id, Authentication auth) {
         documentService.cancelCheckOut(id, getCurrentUser(auth));
@@ -196,6 +206,7 @@ public class DocumentRestController {
      * Search documents by name.
      * GET /api/v1/documents/search?name=...
      */
+    @Operation(summary = "Search documents by name")
     @GetMapping("/search")
     public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name, Authentication auth) {
         return ResponseEntity.ok(documentService.searchDocumentsByName(name, getCurrentUser(auth)));
@@ -205,6 +216,7 @@ public class DocumentRestController {
      * The 10 most recently modified documents.
      * GET /api/v1/documents/recent
      */
+    @Operation(summary = "The 10 most recently modified documents")
     @GetMapping("/recent")
     public ResponseEntity<List<DocumentSummaryDTO>> getRecent(Authentication auth) {
         return ResponseEntity.ok(documentService.getRecentDocuments(getCurrentUser(auth)));

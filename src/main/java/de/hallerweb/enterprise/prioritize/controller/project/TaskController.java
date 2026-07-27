@@ -28,6 +28,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -53,6 +54,7 @@ public class TaskController {
     /**
      * Creates a task on the given project's blackboard.
      */
+    @Operation(summary = "Creates a task on the given project's blackboard")
     @PostMapping("/projects/{projectId}/tasks")
     public ResponseEntity<Task> createTask(
         @PathVariable Long projectId, @RequestBody TaskRequest request, Authentication auth) {
@@ -60,34 +62,40 @@ public class TaskController {
         return ResponseEntity.status(HttpStatus.CREATED).body(task);
     }
 
+    @Operation(summary = "Get task")
     @GetMapping("/tasks/{id}")
     public ResponseEntity<Task> getTask(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.getTask(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Update task")
     @PatchMapping("/tasks/{id}")
     public ResponseEntity<Task> updateTask(
         @PathVariable Long id, @RequestBody TaskRequest request, Authentication auth) {
         return ResponseEntity.ok(taskService.updateTask(id, request.toData(), getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Delete task")
     @DeleteMapping("/tasks/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable Long id, Authentication auth) {
         taskService.deleteTask(id, getCurrentUser(auth));
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Assign task")
     @PutMapping("/tasks/{id}/assignee/{actorId}")
     public ResponseEntity<Task> assignTask(
         @PathVariable Long id, @PathVariable Long actorId, Authentication auth) {
         return ResponseEntity.ok(taskService.assignTask(id, actorId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Unassign task")
     @DeleteMapping("/tasks/{id}/assignee")
     public ResponseEntity<Task> unassignTask(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.unassignTask(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Change status")
     @PutMapping("/tasks/{id}/status")
     public ResponseEntity<Task> changeStatus(
         @PathVariable Long id, @RequestBody TaskStatusRequest request, Authentication auth) {
@@ -97,39 +105,46 @@ public class TaskController {
         return ResponseEntity.ok(taskService.changeStatus(id, request.status(), getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Assign goal")
     @PutMapping("/tasks/{id}/goal/{goalId}")
     public ResponseEntity<Task> assignGoal(
         @PathVariable Long id, @PathVariable Long goalId, Authentication auth) {
         return ResponseEntity.ok(taskService.assignGoal(id, goalId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Unassign goal")
     @DeleteMapping("/tasks/{id}/goal")
     public ResponseEntity<Task> unassignGoal(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.unassignGoal(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Start tracking")
     @PostMapping("/tasks/{id}/tracking/start")
     public ResponseEntity<Task> startTracking(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.startTracking(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Stop tracking")
     @PostMapping("/tasks/{id}/tracking/stop")
     public ResponseEntity<Task> stopTracking(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.stopTracking(id, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Toggle tracking")
     @PostMapping("/tasks/{id}/tracking/toggle")
     public ResponseEntity<Task> toggleTracking(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.toggleTracking(id, getCurrentUser(auth)));
     }
 
     /** Returns the total time tracked on the task (completed spans plus the running one, live). */
+    @Operation(summary = "Returns the total time tracked on the task (completed spans plus the running one, live)")
     @GetMapping("/tasks/{id}/tracking")
     public ResponseEntity<TaskService.TrackingSummary> getTracking(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.getTrackingSummary(id, getCurrentUser(auth)));
     }
 
     /** Returns the individual tracked work sessions of the task (completed spans plus the running one). */
+    @Operation(summary = "Returns the individual tracked work sessions of the task (completed spans plus the running one)")
     @GetMapping("/tasks/{id}/tracking/sessions")
     public ResponseEntity<List<TaskService.WorkSession>> getTrackingSessions(@PathVariable Long id, Authentication auth) {
         return ResponseEntity.ok(taskService.getWorkSessions(id, getCurrentUser(auth)));

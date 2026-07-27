@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 
@@ -64,6 +65,7 @@ public class ResourceController {
      * @param groupId ID of the resource group
      * @return ResponseEntity with the set of resources
      */
+    @Operation(summary = "Returns all resources of a specific resource group")
     @GetMapping("/resourcegroups/{groupId}/resources")
     public ResponseEntity<Set<Resource>> getResourcesByResourceGroup(@PathVariable Long groupId) {
         Set<Resource> resources = resourceService.getResourcesByGroupId(groupId);
@@ -78,6 +80,7 @@ public class ResourceController {
      * @param name   name of the new resource group
      * @return ResponseEntity with the newly created resource group
      */
+    @Operation(summary = "Creates a new resource group for a specific department")
     @PostMapping("/departments/{deptId}/resourcegroups")
     public ResponseEntity<ResourceGroup> createResourceGroup(
         @PathVariable Long deptId,
@@ -96,6 +99,7 @@ public class ResourceController {
      * @param groupId ID of the resource group to delete
      * @return ResponseEntity without body
      */
+    @Operation(summary = "Deletes a resource group, if the current user is authorized")
     @DeleteMapping("/resourcegroups/{groupId}")
     public ResponseEntity<Void> deleteResourceGroup(
         @PathVariable Long groupId,
@@ -113,6 +117,7 @@ public class ResourceController {
      * @param resource resource to be created
      * @return ResponseEntity with the newly created resource
      */
+    @Operation(summary = "Creates a new resource in a specific resource group")
     @PostMapping("/resourcegroups/{groupId}/resources")
     public ResponseEntity<Resource> createResource(
         @PathVariable Long groupId,
@@ -130,6 +135,7 @@ public class ResourceController {
      * @param id ID of the resource
      * @return ResponseEntity with the resource
      */
+    @Operation(summary = "Retrieves a resource, if the current user is authorized")
     @GetMapping("/resources/{id}")
     public ResponseEntity<Resource> getResource(
         @PathVariable Long id,
@@ -145,6 +151,7 @@ public class ResourceController {
      * @param patch resource with the fields to be changed
      * @return the updated resource
      */
+    @Operation(summary = "Updates individual fields of a resource (PATCH semantics: null = unchanged)")
     @PatchMapping("/resources/{id}")
     public ResponseEntity<Resource> partialUpdateResource(
         @PathVariable Long id,
@@ -160,6 +167,7 @@ public class ResourceController {
      * @param id ID of the resource to delete
      * @return ResponseEntity without body
      */
+    @Operation(summary = "Deletes a resource, if the current user is authorized")
     @DeleteMapping("/resources/{id}")
     public ResponseEntity<Void> deleteResource(
         @PathVariable Long id,
@@ -178,6 +186,7 @@ public class ResourceController {
      * @param untilIsoDate end date in ISO format (e.g. 2026-05-15T16:00:00Z)
      * @return ResponseEntity with the new reservation
      */
+    @Operation(summary = "Reserves a resource for a specific time span")
     @PostMapping("/resources/{id}/reserve")
     public ResponseEntity<ResourceReservation> reserveResource(
         @PathVariable Long id,
@@ -206,6 +215,7 @@ public class ResourceController {
      * @param id ID of the resource
      * @return list of the caller's own active reservations (possibly empty)
      */
+    @Operation(summary = "Returns the caller's own currently active reservations on this resource")
     @GetMapping("/resources/{id}/reservations/mine")
     public ResponseEntity<List<ResourceReservation>> getMyActiveReservations(
         @PathVariable Long id,
@@ -221,6 +231,7 @@ public class ResourceController {
      * @param id ID of the resource
      * @return list of all reservations of the resource
      */
+    @Operation(summary = "Returns all reservations of a resource (occupancy overview)")
     @GetMapping("/resources/{id}/reservations")
     public ResponseEntity<List<ResourceReservation>> getReservationsForResource(
         @PathVariable Long id,
@@ -236,6 +247,7 @@ public class ResourceController {
      * @param reservationId ID of the reservation to cancel
      * @return 204 No Content on success
      */
+    @Operation(summary = "Cancels a reservation and releases the occupied slot")
     @DeleteMapping("/reservations/{reservationId}")
     public ResponseEntity<Void> cancelReservation(
         @PathVariable Integer reservationId,
@@ -259,6 +271,7 @@ public class ResourceController {
      * @param request command and optional free parameter
      * @return 202 Accepted, if the command was handed off
      */
+    @Operation(summary = "Sends a control command to a resource")
     @PostMapping("/resources/{id}/command")
     public ResponseEntity<Void> sendCommand(
         @PathVariable Long id,
@@ -290,6 +303,7 @@ public class ResourceController {
      * @param request data point name and value (both mandatory)
      * @return 202 Accepted once the reading has been recorded
      */
+    @Operation(summary = "Records a telemetry reading for a resource (REST ingest)")
     @PostMapping("/resources/{id}/values")
     public ResponseEntity<Void> recordValue(
         @PathVariable Long id,
@@ -320,6 +334,7 @@ public class ResourceController {
      * @param resourceId ID of the resource
      * @return ResponseEntity with the set of SkillRecords
      */
+    @Operation(summary = "Returns all skills of a resource")
     @GetMapping("/resources/{resourceId}/skills")
     public ResponseEntity<Set<SkillRecord>> getSkillsForResource(@PathVariable Long resourceId) {
         return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
@@ -333,6 +348,7 @@ public class ResourceController {
      * @param resourceId ID of the resource
      * @return ResponseEntity with the set of SkillRecords
      */
+    @Operation(summary = "Returns all skills of a resource, filtered by resource group")
     @GetMapping("/resourcegroups/{groupId}/resources/{resourceId}/skills")
     public ResponseEntity<Set<SkillRecord>> getSkillsForResourceInGroup(
         @PathVariable Long groupId,
@@ -349,6 +365,7 @@ public class ResourceController {
      * @param record     The SkillRecord to assign
      * @return ResponseEntity with the created SkillRecord
      */
+    @Operation(summary = "Assigns a skill to a resource")
     @PostMapping("/resources/{resourceId}/skills")
     public ResponseEntity<SkillRecord> assignSkillToResource(
         @PathVariable Long resourceId,

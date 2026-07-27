@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 
@@ -51,6 +52,7 @@ public class ProjectGoalController {
         return currentUserResolver.resolve(auth);
     }
 
+    @Operation(summary = "Create goal")
     @PostMapping("/projects/{projectId}/goals")
     public ResponseEntity<ProjectGoal> createGoal(
         @PathVariable Long projectId, @RequestBody GoalRequest request, Authentication auth) {
@@ -58,17 +60,20 @@ public class ProjectGoalController {
         return ResponseEntity.status(HttpStatus.CREATED).body(goal);
     }
 
+    @Operation(summary = "Get goals")
     @GetMapping("/projects/{projectId}/goals")
     public ResponseEntity<List<ProjectGoal>> getGoals(@PathVariable Long projectId, Authentication auth) {
         return ResponseEntity.ok(projectGoalService.getGoals(projectId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Get goal")
     @GetMapping("/projects/{projectId}/goals/{goalId}")
     public ResponseEntity<ProjectGoal> getGoal(
         @PathVariable Long projectId, @PathVariable Long goalId, Authentication auth) {
         return ResponseEntity.ok(projectGoalService.getGoal(projectId, goalId, getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Update goal")
     @PatchMapping("/projects/{projectId}/goals/{goalId}")
     public ResponseEntity<ProjectGoal> updateGoal(
         @PathVariable Long projectId, @PathVariable Long goalId,
@@ -77,6 +82,7 @@ public class ProjectGoalController {
             projectGoalService.updateGoal(projectId, goalId, request.toData(), getCurrentUser(auth)));
     }
 
+    @Operation(summary = "Delete goal")
     @DeleteMapping("/projects/{projectId}/goals/{goalId}")
     public ResponseEntity<Void> deleteGoal(
         @PathVariable Long projectId, @PathVariable Long goalId, Authentication auth) {
@@ -87,6 +93,7 @@ public class ProjectGoalController {
     /**
      * Returns the project's progress derived from its goals and their tasks.
      */
+    @Operation(summary = "Returns the project's progress derived from its goals and their tasks")
     @GetMapping("/projects/{projectId}/progress")
     public ResponseEntity<ProjectProgress> getProgress(@PathVariable Long projectId, Authentication auth) {
         return ResponseEntity.ok(projectGoalService.computeProgress(projectId, getCurrentUser(auth)));
