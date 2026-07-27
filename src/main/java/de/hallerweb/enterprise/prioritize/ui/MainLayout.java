@@ -35,6 +35,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.sidenav.SideNav;
@@ -79,19 +80,19 @@ public class MainLayout extends AppLayout {
         addToNavbar(header);
 
         SideNav nav = new SideNav();
-        nav.addItem(new SideNavItem("Dashboard", DashboardView.class));
-        nav.addItem(new SideNavItem("Companies", CompanyView.class));
-        nav.addItem(new SideNavItem("Departments", DepartmentView.class));
-        nav.addItem(new SideNavItem("Users", UserView.class));
-        nav.addItem(new SideNavItem("Roles", RoleView.class));
-        nav.addItem(new SideNavItem("Groups", GroupsView.class));
-        nav.addItem(new SideNavItem("Resources", ResourcesView.class));
-        nav.addItem(new SideNavItem("Documents", DocumentsView.class));
-        nav.addItem(new SideNavItem("Skills", SkillsView.class));
-        nav.addItem(new SideNavItem("Skill Categories", SkillCategoriesView.class));
-        nav.addItem(new SideNavItem("Task Schedules", TaskSchedulesView.class));
-        nav.addItem(new SideNavItem("Process Definitions", ProcessDefinitionsView.class));
-        nav.addItem(new SideNavItem("Process Instances", ProcessInstancesView.class));
+        nav.addItem(new SideNavItem("Dashboard", DashboardView.class, VaadinIcon.DASHBOARD.create()));
+        nav.addItem(new SideNavItem("Companies", CompanyView.class, VaadinIcon.BUILDING.create()));
+        nav.addItem(new SideNavItem("Departments", DepartmentView.class, VaadinIcon.OFFICE.create()));
+        nav.addItem(new SideNavItem("Users", UserView.class, VaadinIcon.USERS.create()));
+        nav.addItem(new SideNavItem("Roles", RoleView.class, VaadinIcon.KEY.create()));
+        nav.addItem(new SideNavItem("Groups", GroupsView.class, VaadinIcon.FOLDER.create()));
+        nav.addItem(new SideNavItem("Resources", ResourcesView.class, VaadinIcon.CUBES.create()));
+        nav.addItem(new SideNavItem("Documents", DocumentsView.class, VaadinIcon.FILE_TEXT.create()));
+        nav.addItem(new SideNavItem("Skills", SkillsView.class, VaadinIcon.ACADEMY_CAP.create()));
+        nav.addItem(new SideNavItem("Skill Categories", SkillCategoriesView.class, VaadinIcon.TAGS.create()));
+        nav.addItem(new SideNavItem("Task Schedules", TaskSchedulesView.class, VaadinIcon.CALENDAR_CLOCK.create()));
+        nav.addItem(new SideNavItem("Process Definitions", ProcessDefinitionsView.class, VaadinIcon.FILE_PROCESS.create()));
+        nav.addItem(new SideNavItem("Process Instances", ProcessInstancesView.class, VaadinIcon.COGS.create()));
         addToDrawer(nav);
     }
 }
