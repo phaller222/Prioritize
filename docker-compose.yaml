@@ -1,37 +1,76 @@
-version: '3.8'
+# Prioritize — one-command stack.
+#
+#   docker compose up --build            # app + PostgreSQL (default)
+#   docker compose --profile mqtt up     # + Mosquitto broker (device telemetry / NFC)
+#   docker compose --profile keycloak up # + Keycloak (OIDC bearer auth instead of Basic)
+#
+# The app is then on http://localhost:8080 (admin GUI + REST under /api/v1,
+# Swagger UI at /swagger-ui.html). Seed admin: admin / p@ssword.
+#
+# Copy .env.example to .env to override the DB password or the active Spring profiles.
+
+name: prioritize
+
 services:
   db:
     image: postgres:16
-    container_name: prioritize-db
     environment:
       POSTGRES_DB: prioritize
       POSTGRES_USER: prioritize
-      POSTGRES_PASSWORD: prioritize
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-prioritize}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Creates the `flowable` schema the Flowable engine expects (table-prefix flowable.).
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prioritize -d prioritize"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
-      - "5432:5432"
+      - "8080:8080"
+    environment:
+      # Postgres profile by default; add ,mqtt (and/or ,keycloak) via .env to wire the optionals.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-postgres}
+      # Point the postgres profile at the compose DB instead of its baked-in dev host.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/prioritize
+      SPRING_DATASOURCE_USERNAME: prioritize
+      DB_PASSWORD: ${DB_PASSWORD:-prioritize}
+      # Used only when the mqtt profile is active; points at the optional broker below.
+      PRIORITIZE_MQTT_BROKERURL: tcp://mqtt:1883
+    restart: unless-stopped
+
+  # Optional MQTT broker for device discovery / status / telemetry.
+  # Enable with:  docker compose --profile mqtt up   (and set SPRING_PROFILES_ACTIVE=postgres,mqtt)
+  mqtt:
+    image: eclipse-mosquitto:2
+    profiles: ["mqtt"]
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  # Optional Keycloak for OIDC bearer-token auth (dev mode; not hardened for production).
+  # Enable with:  docker compose --profile keycloak up
   keycloak:
     image: quay.io/keycloak/keycloak:26.1
-    container_name: prioritize-keycloak
+    profiles: ["keycloak"]
     command: start-dev
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: memoryalpha
       KC_HTTP_ENABLED: "true"
     ports:
       - "8081:8080"
     restart: unless-stopped
 
-
-  app:
-    build: .
-    container_name: prioritize-app
-    depends_on:
-      - db
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/prioritize
-      SPRING_DATASOURCE_USERNAME: prioritize
-      SPRING_DATASOURCE_PASSWORD: prioritize
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+volumes:
+  db-data:

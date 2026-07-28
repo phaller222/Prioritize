@@ -1,9 +1,48 @@
-# Stage 1: Build mit Maven
-FROM maven:3.9.6-eclipse-temurin-21 AS build
-COPY . .
-RUN mvn clean package -DskipTests
+# syntax=docker/dockerfile:1
 
-# Stage 2: Runtime
-FROM eclipse-temurin:21-jre
-COPY --from=build /target/prioritize-0.0.1-SNAPSHOT.jar app.jar
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+# ---- Stage 1: build the production jar (incl. the Vaadin frontend bundle) ----
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /build
+
+# The BuildKit cache mount keeps the local Maven repo across builds, so only the first
+# build pays the full dependency + Vaadin frontend download cost.
+COPY pom.xml .
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -Pproduction clean package -DskipTests
+
+# ---- Stage 2: slim runtime ----
+FROM eclipse-temurin:21-jre AS runtime
+WORKDIR /app
+
+# curl is only needed for the container HEALTHCHECK below.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run as an unprivileged account.
+RUN groupadd --system prioritize \
+    && useradd --system --gid prioritize --home-dir /app prioritize
+
+# The production build emits exactly one bootable jar; the *.original artifact does not
+# end in .jar, so the wildcard picks only the runnable one regardless of the version.
+COPY --from=build /build/target/prioritize-*.jar app.jar
+
+# /app/data holds the H2 file DB (default profile) and the Tomcat work/log dirs; declare
+# it a volume so a standalone `docker run` keeps its data across restarts.
+RUN mkdir -p /app/data \
+    && chown -R prioritize:prioritize /app
+USER prioritize
+
+# The H2 URL uses ~ (home) for its file DB; point home at the data volume.
+ENV HOME=/app/data
+VOLUME ["/app/data"]
+
+EXPOSE 8080
+
+# /login is public (Vaadin login view) and returns 200 once the app is fully up.
+# start-period covers the frontend/engine warm-up so early probes don't mark it unhealthy.
+HEALTHCHECK --start-period=120s --interval=15s --timeout=5s --retries=5 \
+    CMD curl --fail --silent --show-error http://localhost:8080/login || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

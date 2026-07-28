@@ -1,0 +1,20 @@
+# Keep the build context small and reproducible: the image builds the jar from source,
+# so ship only pom.xml + src (see Dockerfile) and exclude local build/IDE/runtime cruft.
+target/
+tomcat/
+logs/
+docs/
+KI_Antworten/
+*.iml
+.idea/
+.git/
+.gitignore
+.github/
+node_modules/
+src/main/frontend/
+src/main/bundles/
+*.zip
+README.pdf
+Prioritize.uml
+Prioritize.yaml
+.env
