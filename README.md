@@ -8,7 +8,7 @@ Prioritize models organizational structures (companies, departments, users, role
 
 ## Status
 
-Nearing a `1.0.0` release. The runnable Spring Boot core covers: company/user management, documents with versioning, skills for people and devices, resource control (MQTT/REST), telemetry state-transition rules, recurring (cron) task schedules, BPMN orchestration via Flowable, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). A **Vaadin admin GUI** covering the org/security, resource, document, skill, scheduling and process subsystems is merged and functional. Some concepts from the original framework (action board, message inbox) are planned but not yet ported.
+Released and production-ready — a self-hostable Spring Boot platform you can get running in one command (see [Quickstart](#quickstart)). The runnable Spring Boot core covers: company/user management, documents with versioning, skills for people and devices, resource control (MQTT/REST), telemetry state-transition rules, recurring (cron) task schedules, BPMN orchestration via Flowable, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). A **Vaadin admin GUI** covering the org/security, resource, document, skill, scheduling and process subsystems is merged and functional. Some concepts from the original framework (action board, message inbox) are planned but not yet ported.
 
 ![Prioritize admin GUI — dashboard](docs/screenshots/gui-dashboard.png)
 
