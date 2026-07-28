@@ -10,6 +10,8 @@ Prioritize models organizational structures (companies, departments, users, role
 
 Nearing a `1.0.0` release. The runnable Spring Boot core covers: company/user management, documents with versioning, skills for people and devices, resource control (MQTT/REST), telemetry state-transition rules, recurring (cron) task schedules, BPMN orchestration via Flowable, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). A **Vaadin admin GUI** covering the org/security, resource, document, skill, scheduling and process subsystems is merged and functional. Some concepts from the original framework (action board, message inbox) are planned but not yet ported.
 
+![Prioritize admin GUI — dashboard](docs/screenshots/gui-dashboard.png)
+
 ---
 
 ## Technology stack
@@ -140,7 +142,37 @@ prioritize:
 
 ---
 
-## Quickstart (local)
+## Quickstart
+
+The fastest way to try Prioritize is Docker. You can also run it from source with a JDK.
+
+### With Docker (recommended for self-hosting)
+
+Requires Docker with the Compose plugin. This builds the app image and starts it together with a PostgreSQL database:
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:8080** and log in with `admin` / `p@ssword`. The REST API lives under `/api/v1` and Swagger UI is at `/swagger-ui.html`.
+
+Just want a quick look with no database to manage? A single self-contained container backed by an embedded H2 file DB is enough:
+
+```bash
+docker build -t prioritize .
+docker run --rm -p 8080:8080 prioritize
+```
+
+The optional stacks are opt-in via Compose profiles (copy `.env.example` to `.env` and add the profile to `SPRING_PROFILES_ACTIVE`, e.g. `postgres,mqtt`):
+
+```bash
+docker compose --profile mqtt up        # + Mosquitto broker (device telemetry / NFC)
+docker compose --profile keycloak up    # + Keycloak (OIDC bearer-token auth)
+```
+
+Data persists in the `db-data` volume (PostgreSQL) or the container's `/app/data` volume (H2). Stop with `docker compose down` to keep the data, or `docker compose down -v` to drop it.
+
+### From source (JDK 21 + Maven)
 
 Prerequisites: JDK 21 and Maven. No database setup is needed for the default `h2` profile.
 
@@ -167,6 +199,8 @@ With the `h2` profile, the H2 console is available at `http://localhost:8080/h2-
 
 While the application is running, interactive OpenAPI documentation is served via springdoc (Swagger UI, typically at `/swagger-ui.html`). The `basicAuth` and `bearerAuth` security schemes are registered, so endpoints can be tested authenticated directly from the UI.
 
+![Swagger UI — the REST API](docs/screenshots/swagger-ui.png)
+
 ---
 
 ## Admin GUI (Vaadin)
@@ -174,6 +208,27 @@ While the application is running, interactive OpenAPI documentation is served vi
 A Vaadin admin GUI ships in-process and is served from the application root (`http://localhost:8080/`). Log in with a local user (default `admin` / `p@ssword`); it uses form login and is available only **without** the `keycloak` profile (see [Authentication](#authentication)). It is an operator tool for the platform, not the primary API — arbitrary clients are expected to build on the REST API instead.
 
 Covered subsystems (one navigation entry each): Dashboard, Companies, Departments, Users, Roles, Groups, Resources (with live online status and reservations), Documents (list/download/delete), Skills, Skill Categories, Task Schedules, Process Definitions, and Process Instances. GUI routes are an implementation detail and are **not** part of the public API contract (see [API stability](#api-stability)).
+
+<details>
+<summary><h3>📸&nbsp; Screenshots &nbsp;<sub>(click to expand)</sub></h3></summary>
+
+Resources — networked machines and sensors with live online-status indicators:
+
+![Resources view with online-status indicators](docs/screenshots/gui-resources.png)
+
+Users — org-wide user administration:
+
+![Users view](docs/screenshots/gui-users.png)
+
+Skills — competencies for people and devices:
+
+![Skills view](docs/screenshots/gui-skills.png)
+
+Login:
+
+![Login screen](docs/screenshots/login.png)
+
+</details>
 
 ---
 
