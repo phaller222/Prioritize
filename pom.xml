@@ -238,4 +238,32 @@
           </plugins>
     </build>
 
+    <profiles>
+        <!-- Production build. Activate with `mvn -Pproduction package` (the Docker image does this).
+             Runs Vaadin's build-frontend so the optimized client bundle is compiled into the jar and
+             the app boots in production mode without a Vite dev server or a Node runtime. -->
+        <profile>
+            <id>production</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.vaadin</groupId>
+                        <artifactId>vaadin-maven-plugin</artifactId>
+                        <version>${vaadin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>frontend</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>prepare-frontend</goal>
+                                    <goal>build-frontend</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>
