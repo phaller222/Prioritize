@@ -2,15 +2,17 @@
 
 > Open-source framework for organizing companies, employees, devices (IoT), and their tasks — Spring Boot 4 / Java 21.
 
-Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, controls IoT resources over MQTT and REST, and organizes work as projects, tasks and goals with NFC-driven time tracking. The project is being migrated from Java EE to Spring Boot and exposes a REST API throughout, against which arbitrary clients can be built.
+Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, controls IoT resources over MQTT and REST, and organizes work as projects, tasks and goals with NFC-driven time tracking. It exposes a REST API throughout, against which arbitrary clients can be built.
 
 ---
 
 ## Status
 
-Released and production-ready — a self-hostable Spring Boot platform you can get running in one command (see [Quickstart](#quickstart)). The runnable Spring Boot core covers: company/user management, documents with versioning, skills for people and devices, resource control (MQTT/REST), telemetry state-transition rules, recurring (cron) task schedules, BPMN orchestration via Flowable, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). A **Vaadin admin GUI** covering the org/security, resource, document, skill, scheduling and process subsystems is merged and functional. Some concepts from the original framework (action board, message inbox) are planned but not yet ported.
+Released and self-hostable — a Spring Boot platform you can get running in one command (see [Quickstart](#quickstart)). The runnable Spring Boot core covers: company/user management, documents with versioning, skills for people and devices, resource control (MQTT/REST), telemetry state-transition rules, recurring (cron) task schedules, BPMN orchestration via Flowable, and the **project subsystem** — projects, blackboards, tasks, goal-driven progress, task time tracking, and NFC tags as physical triggers (including broadcasting scans over MQTT). A **Vaadin admin GUI** covering the org/security, resource, document, skill, scheduling and process subsystems is merged and functional. A few concepts (action board, message inbox) are planned but not yet implemented.
 
-![Prioritize admin GUI — dashboard](docs/screenshots/gui-dashboard.png)
+![Prioritize — scan an NFC tag to start and stop task time tracking](docs/screenshots/nfc-timetracking.gif)
+
+<sub>Scan a TIMETRACKER NFC tag to start and stop a task's time tracking — one physical tap, no app to open. Driven entirely through the REST API.</sub>
 
 ---
 
@@ -211,6 +213,10 @@ Covered subsystems (one navigation entry each): Dashboard, Companies, Department
 
 <details>
 <summary><h3>📸&nbsp; Screenshots &nbsp;<sub>(click to expand)</sub></h3></summary>
+
+Dashboard — the Vaadin admin GUI home:
+
+![Prioritize admin GUI — dashboard](docs/screenshots/gui-dashboard.png)
 
 Resources — networked machines and sensors with live online-status indicators:
 
