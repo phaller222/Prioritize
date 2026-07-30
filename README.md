@@ -2,7 +2,7 @@
 
 > Open-source framework for organizing companies, employees, devices (IoT), and their tasks — Spring Boot 4 / Java 21.
 
-Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, controls IoT resources over MQTT and REST, and organizes work as projects, tasks and goals with NFC-driven time tracking. It exposes a REST API throughout, against which arbitrary clients can be built.
+**Find the right people — and things — for the right job.** Prioritize models organizational structures (companies, departments, users, roles), manages documents with versioning, represents skills for people **and** devices, controls IoT resources over MQTT and REST, and organizes work as projects, tasks and goals with NFC-driven time tracking. It exposes a REST API throughout, against which arbitrary clients can be built.
 
 ---
 
