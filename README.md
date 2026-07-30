@@ -12,7 +12,9 @@ Released and self-hostable — a Spring Boot platform you can get running in one
 
 ![Prioritize — scan an NFC tag to start and stop task time tracking](docs/screenshots/nfc-timetracking.gif)
 
-<sub>Scan a TIMETRACKER NFC tag to start and stop a task's time tracking — one physical tap, no app to open. Driven entirely through the REST API.</sub>
+<sub>Scan a TIMETRACKER NFC tag to start and stop a task's time tracking — one physical tap, no screens, no logins. Driven entirely through the REST API.</sub>
+
+> **Prioritize is the backend — you bring the reader.** A scan is just one REST call, `POST /api/v1/nfc/scan/{uuid}`. Whatever reads the tag and fires that call — an NFC-capable phone app, a fixed reader, an ESP32/Raspberry Pi, or a shell script — is up to you. Prioritize provides the endpoint (and can broadcast scans over MQTT); it does not ship a reader app.
 
 ---
 
