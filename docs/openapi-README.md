@@ -5,7 +5,9 @@ app's `/v3/api-docs`. It is the single source of truth for the generated client 
 (`prioritize-<lang>-client`). Refresh it once per release (drop the `-SNAPSHOT` from the app version first),
 the same discipline as `docs/apidocs` (Javadoc) — never hand-edit it.
 
-**Current snapshot: `1.2.0-SNAPSHOT`** (develop), taken after the full request+response DTO cleanup.
+**Frozen at `1.2.0`** — this snapshot is the released `1.2.0` REST contract, taken after the full
+request+response DTO cleanup. It is the source of truth for generating the `1.x` client libraries. The next
+refresh happens at the following release (bump the version first, then regenerate).
 
 ## Status
 
@@ -25,5 +27,4 @@ The only remaining non-DTO response schemas are plain computed records (`Project
 **request** body (`GoalRequest.properties`) carries the polymorphic goal-property shape directly. This is
 the same evolving, experimental shape as `SkillProperty` (see the skill endpoints) and may still change
 within the 1.x line; it is deliberately kept out of the stable **response** payloads (`ProjectGoalDTO`
-omits the property collection). This is a working reference until the version is frozen at the 1.2.0
-release (drop `-SNAPSHOT` first).
+omits the property collection).

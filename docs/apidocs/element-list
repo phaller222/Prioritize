@@ -12,10 +12,15 @@ de.hallerweb.enterprise.prioritize.controller.security
 de.hallerweb.enterprise.prioritize.controller.skill
 de.hallerweb.enterprise.prioritize.controller.telemetry
 de.hallerweb.enterprise.prioritize.dto
+de.hallerweb.enterprise.prioritize.dto.address
+de.hallerweb.enterprise.prioritize.dto.company
 de.hallerweb.enterprise.prioritize.dto.document
+de.hallerweb.enterprise.prioritize.dto.nfc
 de.hallerweb.enterprise.prioritize.dto.process
+de.hallerweb.enterprise.prioritize.dto.project
 de.hallerweb.enterprise.prioritize.dto.resource
 de.hallerweb.enterprise.prioritize.dto.scheduling
+de.hallerweb.enterprise.prioritize.dto.security
 de.hallerweb.enterprise.prioritize.dto.skill
 de.hallerweb.enterprise.prioritize.dto.telemetry
 de.hallerweb.enterprise.prioritize.exception
