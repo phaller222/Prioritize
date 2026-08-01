@@ -125,14 +125,37 @@ public class UserService implements UserDetailsService {
         return user;
     }
 
+    /**
+     * Full update of a user's editable profile (PUT semantics). Replaces the profile fields the request
+     * owns, but deliberately <b>preserves the credential and authorization state</b> — password, roles,
+     * personal permissions and the department — which never travel through this endpoint and are managed
+     * by dedicated, elevated-authorization operations. This is applied onto the managed entity loaded from
+     * the database rather than by saving the detached request shell: saving the shell would have persisted
+     * its empty/null password, roles and permissions over the stored ones, silently wiping the user's
+     * credentials and role assignments on an ordinary profile edit.
+     */
     @Transactional
     public PUser updateUser(PUser user) {
-        if (!userRepository.existsById(user.getId())) {
-            throw new NoSuchElementException("User with id " + user.getId() + " does not exist.");
-        }
+        PUser existing = userRepository.findById(user.getId())
+                .orElseThrow(() -> new NoSuchElementException(
+                        "User with id " + user.getId() + " does not exist."));
         // A full update carries the username too, so it can collide just like a create can.
         requireUsernameFree(user.getUsername(), user.getId());
-        return userRepository.save(user);
+
+        // Editable profile fields (a PUT replaces these, absent ones clearing the value).
+        existing.setUsername(user.getUsername());
+        existing.setName(user.getName());
+        existing.setFirstname(user.getFirstname());
+        existing.setEmail(user.getEmail());
+        existing.setOccupation(user.getOccupation());
+        existing.setDateOfBirth(user.getDateOfBirth());
+        existing.setGender(user.getGender());
+        existing.setAddress(user.getAddress());
+        existing.setAdmin(user.isAdmin());
+        existing.setActive(user.isActive());
+
+        // password, roles, personalPermissions and department are intentionally left untouched.
+        return userRepository.save(existing);
     }
 
     @Transactional(readOnly = true)

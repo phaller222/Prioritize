@@ -82,11 +82,11 @@ public class UserController {
     }
 
     /**
-     * PUT: Full update – replaces all fields.
-     * Note: password, roles and permissions are ignored.
-     * Dedicated endpoints exist for those.
+     * PUT: full update of the editable profile fields. Password, roles, personal permissions and the
+     * department are preserved, not replaced — they are managed through dedicated, elevated-authorization
+     * endpoints and never travel through this request body.
      */
-    @Operation(summary = "Update a user (full replace)")
+    @Operation(summary = "Update a user (full replace of the editable profile fields)")
     @PutMapping("/{id}")
     public ResponseEntity<UserDTO> update(@PathVariable Long id, @RequestBody UserRequest request) {
         PUser user = request.toUser();

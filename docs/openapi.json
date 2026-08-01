@@ -124,7 +124,7 @@
         "tags": [
           "Users"
         ],
-        "summary": "Update a user (full replace)",
+        "summary": "Update a user (full replace of the editable profile fields)",
         "operationId": "user_update",
         "parameters": [
           {
