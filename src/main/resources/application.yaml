@@ -23,6 +23,14 @@ logging:
   #file:
     #name: logs/Prioritize.log
 
+springdoc:
+  api-docs:
+    # Emit OpenAPI 3.0.1 instead of the springdoc default 3.1.0. The REST contract uses no 3.1-only
+    # constructs, and 3.0.x has the widest tooling support — in particular the OpenAPI Generator behind
+    # the official client libraries cannot resolve a document with a 3.1.0 header. Emitting 3.0.1 here
+    # means the released docs/openapi.json is directly consumable with no per-client patching.
+    version: openapi_3_0
+
 # Application metadata. `version` is filtered from the Maven project version at build time
 # (spring-boot-starter-parent filters application.yaml with @...@ delimiters) so the OpenAPI
 # document's info.version tracks the release without a second place to bump. See OpenApiConfig.
