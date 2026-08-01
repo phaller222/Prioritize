@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.controller.project;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.project.ProjectGoalController.GoalRequest;
+import de.hallerweb.enterprise.prioritize.dto.project.ProjectGoalDTO;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectGoalService;
@@ -65,7 +66,7 @@ class ProjectGoalControllerTest {
     void createGoal_created() {
         when(projectGoalService.createGoal(eq(3L), any(), eq(user))).thenReturn(new ProjectGoal());
 
-        ResponseEntity<ProjectGoal> response = controller.createGoal(
+        ResponseEntity<ProjectGoalDTO> response = controller.createGoal(
                 3L, new GoalRequest("Cool it", "d", null), auth);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());

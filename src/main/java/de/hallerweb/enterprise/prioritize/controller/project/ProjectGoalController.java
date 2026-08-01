@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.controller.project;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.project.ProjectGoalDTO;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoalProperty;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -54,32 +55,33 @@ public class ProjectGoalController {
 
     @Operation(summary = "Create goal")
     @PostMapping("/projects/{projectId}/goals")
-    public ResponseEntity<ProjectGoal> createGoal(
+    public ResponseEntity<ProjectGoalDTO> createGoal(
         @PathVariable Long projectId, @RequestBody GoalRequest request, Authentication auth) {
         ProjectGoal goal = projectGoalService.createGoal(projectId, request.toData(), getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(goal);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectGoalDTO.from(goal));
     }
 
     @Operation(summary = "Get goals")
     @GetMapping("/projects/{projectId}/goals")
-    public ResponseEntity<List<ProjectGoal>> getGoals(@PathVariable Long projectId, Authentication auth) {
-        return ResponseEntity.ok(projectGoalService.getGoals(projectId, getCurrentUser(auth)));
+    public ResponseEntity<List<ProjectGoalDTO>> getGoals(@PathVariable Long projectId, Authentication auth) {
+        return ResponseEntity.ok(projectGoalService.getGoals(projectId, getCurrentUser(auth))
+                .stream().map(ProjectGoalDTO::from).toList());
     }
 
     @Operation(summary = "Get goal")
     @GetMapping("/projects/{projectId}/goals/{goalId}")
-    public ResponseEntity<ProjectGoal> getGoal(
+    public ResponseEntity<ProjectGoalDTO> getGoal(
         @PathVariable Long projectId, @PathVariable Long goalId, Authentication auth) {
-        return ResponseEntity.ok(projectGoalService.getGoal(projectId, goalId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectGoalDTO.from(projectGoalService.getGoal(projectId, goalId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Update goal")
     @PatchMapping("/projects/{projectId}/goals/{goalId}")
-    public ResponseEntity<ProjectGoal> updateGoal(
+    public ResponseEntity<ProjectGoalDTO> updateGoal(
         @PathVariable Long projectId, @PathVariable Long goalId,
         @RequestBody GoalRequest request, Authentication auth) {
-        return ResponseEntity.ok(
-            projectGoalService.updateGoal(projectId, goalId, request.toData(), getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectGoalDTO.from(
+            projectGoalService.updateGoal(projectId, goalId, request.toData(), getCurrentUser(auth))));
     }
 
     @Operation(summary = "Delete goal")

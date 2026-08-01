@@ -5,17 +5,25 @@ app's `/v3/api-docs`. It is the single source of truth for the generated client 
 (`prioritize-<lang>-client`). Refresh it once per release (drop the `-SNAPSHOT` from the app version first),
 the same discipline as `docs/apidocs` (Javadoc) — never hand-edit it.
 
-**Current snapshot: `1.2.0-SNAPSHOT`** (develop), taken after the request/response DTO cleanup.
+**Current snapshot: `1.2.0-SNAPSHOT`** (develop), taken after the full request+response DTO cleanup.
 
-## Known gap (working snapshot, not the final 1.2.0 freeze)
+## Status
 
-The **request** side is fully DTO-based (no controller binds a JPA entity as `@RequestBody`). On the
-**response** side, three controllers still return raw JPA entities, which transitively pull the whole
-entity graph (`PUser`, `Company`, `Resource`, …) into the schema list:
+Both sides are now DTO-based. No endpoint binds a JPA entity as `@RequestBody`, and no endpoint returns a
+raw JPA entity anymore: the five controllers that used to (`ProjectController`→`Project`,
+`TaskController`→`Task`, `NfcUnitController`→`NfcUnit`, `DocumentRestController`→`DocumentInfo`,
+`ProjectGoalController`→`ProjectGoal`) now answer flat DTOs, so the heavy entity graph
+(`PUser`, `Company`, `Resource`, `Document`, `Blackboard`, …) is gone from the schema list (71 → 49
+schemas).
 
-- `ProjectController` → returns `Project`
-- `TaskController` → returns `Task`
-- `NfcUnitController` → returns `NfcUnit`
+The only remaining non-DTO response schemas are plain computed records (`ProjectProgress`, `ScanResult`,
+`TrackingSummary`, `WorkSession`).
 
-Response DTOs for these three are planned before the real 1.2.0 release freeze. Until then this file is a
-**working reference**, not the frozen release contract.
+## Known experimental area
+
+`ProjectGoalProperty` / `ProjectGoalPropertyDocument` still appear in the schema list because the goal
+**request** body (`GoalRequest.properties`) carries the polymorphic goal-property shape directly. This is
+the same evolving, experimental shape as `SkillProperty` (see the skill endpoints) and may still change
+within the 1.x line; it is deliberately kept out of the stable **response** payloads (`ProjectGoalDTO`
+omits the property collection). This is a working reference until the version is frozen at the 1.2.0
+release (drop `-SNAPSHOT` first).

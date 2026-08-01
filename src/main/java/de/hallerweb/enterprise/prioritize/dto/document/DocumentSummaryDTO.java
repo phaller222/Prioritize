@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.dto.document;
 
+import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -30,4 +31,17 @@ public class DocumentSummaryDTO {
     private int currentVersion;
     private boolean locked;
     private String lockedBy;
+
+    /**
+     * Maps a {@link DocumentInfo} to its summary. Reads the current version's name/version and the lock
+     * state; never serializes the version graph or the binary payload. Call within a transaction.
+     */
+    public static DocumentSummaryDTO from(DocumentInfo info) {
+        return new DocumentSummaryDTO(
+                info.getId(),
+                info.getCurrentDocument().getName(),
+                info.getCurrentDocument().getVersion(),
+                info.isLocked(),
+                info.getLockedBy() != null ? info.getLockedBy().getUsername() : null);
+    }
 }

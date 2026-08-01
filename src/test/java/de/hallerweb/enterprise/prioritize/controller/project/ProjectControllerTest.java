@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.controller.project;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.project.ProjectController.ProjectRequest;
+import de.hallerweb.enterprise.prioritize.dto.project.ProjectDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
@@ -65,7 +66,7 @@ class ProjectControllerTest {
         Project project = new Project();
         when(projectService.createProject(any(), eq(user))).thenReturn(project);
 
-        ResponseEntity<Project> response = controller.createProject(
+        ResponseEntity<ProjectDTO> response = controller.createProject(
                 new ProjectRequest("Apollo", "d", 1, null, null, 10), auth);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());

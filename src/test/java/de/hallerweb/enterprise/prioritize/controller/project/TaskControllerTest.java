@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.controller.project;
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskRequest;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskStatusRequest;
+import de.hallerweb.enterprise.prioritize.dto.project.TaskDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -64,7 +65,7 @@ class TaskControllerTest {
     void createTask_created() {
         when(taskService.createTask(eq(3L), any(), eq(user))).thenReturn(new Task());
 
-        ResponseEntity<Task> response = controller.createTask(
+        ResponseEntity<TaskDTO> response = controller.createTask(
                 3L, new TaskRequest("Design", "d", 1), auth);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());

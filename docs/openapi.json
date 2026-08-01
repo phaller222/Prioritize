@@ -258,7 +258,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -299,7 +299,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -340,7 +340,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -571,7 +571,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -612,7 +612,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/NfcUnit"
+                  "$ref": "#/components/schemas/NfcUnitDTO"
                 }
               }
             }
@@ -998,7 +998,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -1030,7 +1030,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -1062,7 +1062,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -1352,7 +1352,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/NfcUnit"
+                    "$ref": "#/components/schemas/NfcUnitDTO"
                   }
                 }
               }
@@ -1393,7 +1393,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/NfcUnit"
+                  "$ref": "#/components/schemas/NfcUnitDTO"
                 }
               }
             }
@@ -1609,7 +1609,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Project"
+                    "$ref": "#/components/schemas/ProjectDTO"
                   }
                 }
               }
@@ -1639,7 +1639,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -1681,7 +1681,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -1865,7 +1865,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ProjectGoal"
+                    "$ref": "#/components/schemas/ProjectGoalDTO"
                   }
                 }
               }
@@ -1906,7 +1906,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectGoal"
+                  "$ref": "#/components/schemas/ProjectGoalDTO"
                 }
               }
             }
@@ -1947,7 +1947,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -1986,7 +1986,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -2027,7 +2027,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -2066,7 +2066,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -2107,7 +2107,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -2146,7 +2146,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -2357,7 +2357,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentInfo"
+                  "$ref": "#/components/schemas/DocumentSummaryDTO"
                 }
               }
             }
@@ -2472,7 +2472,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentInfo"
+                  "$ref": "#/components/schemas/DocumentSummaryDTO"
                 }
               }
             }
@@ -2854,7 +2854,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -2917,7 +2917,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -3148,7 +3148,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectGoal"
+                  "$ref": "#/components/schemas/ProjectGoalDTO"
                 }
               }
             }
@@ -3229,7 +3229,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectGoal"
+                  "$ref": "#/components/schemas/ProjectGoalDTO"
                 }
               }
             }
@@ -3261,7 +3261,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -3324,7 +3324,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Project"
+                  "$ref": "#/components/schemas/ProjectDTO"
                 }
               }
             }
@@ -3634,7 +3634,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Task"
+                    "$ref": "#/components/schemas/TaskDTO"
                   }
                 }
               }
@@ -4024,7 +4024,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -4056,7 +4056,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/Task"
+                  "$ref": "#/components/schemas/TaskDTO"
                 }
               }
             }
@@ -4163,7 +4163,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/NfcUnit"
+                  "$ref": "#/components/schemas/NfcUnitDTO"
                 }
               }
             }
@@ -4407,16 +4407,7 @@
           }
         }
       },
-      "PActor": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "ProjectGoal": {
+      "TaskDTO": {
         "type": "object",
         "properties": {
           "id": {
@@ -4428,97 +4419,10 @@
           },
           "description": {
             "type": "string"
-          },
-          "properties": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/ProjectGoalPropertyDocument"
-                },
-                {
-                  "$ref": "#/components/schemas/ProjectGoalPropertyNumeric"
-                }
-              ]
-            }
-          }
-        }
-      },
-      "ProjectGoalProperty": {
-        "type": "object",
-        "discriminator": {
-          "propertyName": "type"
-        },
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ]
-      },
-      "ProjectGoalPropertyDocument": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ProjectGoalProperty"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "tag": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
-      "ProjectGoalPropertyNumeric": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ProjectGoalProperty"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "min": {
-                "type": "number",
-                "format": "double"
-              },
-              "max": {
-                "type": "number",
-                "format": "double"
-              }
-            }
-          }
-        ]
-      },
-      "Task": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
           },
           "priority": {
             "type": "integer",
             "format": "int32"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
           },
           "taskStatus": {
             "type": "string",
@@ -4534,11 +4438,13 @@
               "CLOSED"
             ]
           },
-          "assignee": {
-            "$ref": "#/components/schemas/PActor"
+          "assigneeId": {
+            "type": "integer",
+            "format": "int64"
           },
-          "goal": {
-            "$ref": "#/components/schemas/ProjectGoal"
+          "goalId": {
+            "type": "integer",
+            "format": "int64"
           },
           "processInstanceId": {
             "type": "string"
@@ -4628,124 +4534,7 @@
           }
         }
       },
-      "Address": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "street": {
-            "type": "string"
-          },
-          "housenumber": {
-            "type": "string"
-          },
-          "floor": {
-            "type": "string"
-          },
-          "zipCode": {
-            "type": "string"
-          },
-          "city": {
-            "type": "string"
-          },
-          "country": {
-            "type": "string"
-          },
-          "phone": {
-            "type": "string"
-          },
-          "fax": {
-            "type": "string"
-          },
-          "mobile": {
-            "type": "string"
-          }
-        }
-      },
-      "Blackboard": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "frozen": {
-            "type": "boolean"
-          },
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Task"
-            }
-          }
-        }
-      },
-      "PUser": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "username": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "firstname": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "occupation": {
-            "type": "string"
-          },
-          "lastLogin": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "dateOfBirth": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "gender": {
-            "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE",
-              "OTHER",
-              "TECHNICAL_USER"
-            ]
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "skills": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SkillRecord"
-            },
-            "uniqueItems": true
-          },
-          "admin": {
-            "type": "boolean"
-          },
-          "active": {
-            "type": "boolean"
-          }
-        }
-      },
-      "Project": {
+      "ProjectDTO": {
         "type": "object",
         "properties": {
           "id": {
@@ -4774,414 +4563,24 @@
             "type": "integer",
             "format": "int32"
           },
-          "manager": {
-            "$ref": "#/components/schemas/PActor"
-          },
-          "members": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PUser"
-            },
-            "uniqueItems": true
-          },
-          "blackboard": {
-            "$ref": "#/components/schemas/Blackboard"
-          }
-        }
-      },
-      "Skill": {
-        "type": "object",
-        "properties": {
-          "id": {
+          "managerId": {
             "type": "integer",
             "format": "int64"
           },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "keywords": {
-            "type": "string"
-          },
-          "category": {
-            "$ref": "#/components/schemas/SkillCategory"
-          },
-          "skillProperties": {
+          "memberIds": {
             "type": "array",
             "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/SkillPropertyNumeric"
-                },
-                {
-                  "$ref": "#/components/schemas/SkillPropertyText"
-                }
-              ]
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "SkillCategory": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "qualifiedName": {
-            "type": "string"
-          }
-        }
-      },
-      "SkillProperty": {
-        "type": "object",
-        "description": "EXPERIMENTAL — subject to change within the 1.x line. Skill properties are carried polymorphically inside the Skill payload (type NUMERIC or TEXT) and have no dedicated endpoint or GUI yet. The shape may still evolve (e.g. for the academy vertical) and is NOT part of the 1.0 stability promise.",
-        "discriminator": {
-          "propertyName": "type"
-        },
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "skill": {
-            "$ref": "#/components/schemas/Skill"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ]
-      },
-      "SkillPropertyNumeric": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/SkillProperty"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "minimum": {
-                "type": "integer",
-                "format": "int32"
-              },
-              "maximum": {
-                "type": "integer",
-                "format": "int32"
-              }
+              "type": "integer",
+              "format": "int64"
             }
-          }
-        ]
-      },
-      "SkillPropertyText": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/SkillProperty"
           },
-          {
-            "type": "object",
-            "properties": {
-              "textValue": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
-      "SkillRecord": {
-        "type": "object",
-        "properties": {
-          "id": {
+          "blackboardId": {
             "type": "integer",
             "format": "int64"
-          },
-          "skill": {
-            "$ref": "#/components/schemas/Skill"
-          },
-          "skillRecordProperties": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SkillRecordProperty"
-            },
-            "uniqueItems": true
-          },
-          "enthusiasm": {
-            "type": "integer",
-            "format": "int32"
           }
         }
       },
-      "SkillRecordProperty": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "property": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/SkillPropertyNumeric"
-              },
-              {
-                "$ref": "#/components/schemas/SkillPropertyText"
-              }
-            ]
-          },
-          "valueNumeric": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "valueText": {
-            "type": "string"
-          }
-        }
-      },
-      "Company": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "mainAddress": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "url": {
-            "type": "string"
-          },
-          "vatNumber": {
-            "type": "string"
-          },
-          "taxId": {
-            "type": "string"
-          },
-          "departments": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Department"
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "Department": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "company": {
-            "$ref": "#/components/schemas/Company"
-          },
-          "documentGroups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentGroup"
-            },
-            "uniqueItems": true
-          },
-          "resourceGroups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResourceGroup"
-            },
-            "uniqueItems": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          }
-        }
-      },
-      "Document": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "version": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "tag": {
-            "type": "string"
-          },
-          "lastModified": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "changes": {
-            "type": "string"
-          },
-          "lastModifiedBy": {
-            "$ref": "#/components/schemas/PUser"
-          },
-          "documentInfo": {
-            "$ref": "#/components/schemas/DocumentInfo"
-          }
-        }
-      },
-      "DocumentGroup": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "department": {
-            "$ref": "#/components/schemas/Department"
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DocumentInfo"
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "DocumentInfo": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "currentDocument": {
-            "$ref": "#/components/schemas/Document"
-          },
-          "documentGroup": {
-            "$ref": "#/components/schemas/DocumentGroup"
-          },
-          "locked": {
-            "type": "boolean"
-          },
-          "lockedBy": {
-            "$ref": "#/components/schemas/PUser"
-          }
-        }
-      },
-      "MqttCommand": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "parameters": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MqttCommandParameter"
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "MqttCommandParameter": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "STRING",
-              "INT",
-              "FLOAT",
-              "BOOL",
-              "ENUM"
-            ]
-          },
-          "minValue": {
-            "type": "number",
-            "format": "double"
-          },
-          "maxValue": {
-            "type": "number",
-            "format": "double"
-          },
-          "unit": {
-            "type": "string"
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "allowedValues": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "NameValueEntry": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "mqttName": {
-            "type": "string"
-          },
-          "mqttValues": {
-            "type": "string"
-          }
-        }
-      },
-      "NfcUnit": {
+      "NfcUnitDTO": {
         "type": "object",
         "properties": {
           "id": {
@@ -5218,218 +4617,13 @@
             "type": "string",
             "format": "date-time"
           },
-          "resource": {
-            "$ref": "#/components/schemas/Resource"
+          "resourceId": {
+            "type": "integer",
+            "format": "int64"
           },
           "boundTaskId": {
             "type": "integer",
             "format": "int64"
-          }
-        }
-      },
-      "Resource": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "currentOccupiedSlots": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "stationary": {
-            "type": "boolean"
-          },
-          "remote": {
-            "type": "boolean"
-          },
-          "ip": {
-            "type": "string"
-          },
-          "port": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "busy": {
-            "type": "boolean"
-          },
-          "maxSlots": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "latitude": {
-            "type": "string"
-          },
-          "longitude": {
-            "type": "string"
-          },
-          "mqttResource": {
-            "type": "boolean"
-          },
-          "mqttUUID": {
-            "type": "string"
-          },
-          "mqttDataSendTopic": {
-            "type": "string"
-          },
-          "mqttDataReceiveTopic": {
-            "type": "string"
-          },
-          "mqttOnline": {
-            "type": "boolean"
-          },
-          "mqttLastPing": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "agent": {
-            "type": "boolean"
-          },
-          "mqttCommands": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MqttCommand"
-            },
-            "uniqueItems": true
-          },
-          "mqttValues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/NameValueEntry"
-            },
-            "uniqueItems": true
-          },
-          "mqttDataReceived": {
-            "type": "string",
-            "format": "byte"
-          },
-          "mqttDataToSend": {
-            "type": "string",
-            "format": "byte"
-          },
-          "department": {
-            "$ref": "#/components/schemas/Department"
-          },
-          "busyBy": {
-            "$ref": "#/components/schemas/PUser"
-          },
-          "resourceGroup": {
-            "$ref": "#/components/schemas/ResourceGroup"
-          },
-          "reservations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResourceReservation"
-            },
-            "uniqueItems": true
-          },
-          "nfcUnits": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/NfcUnit"
-            }
-          },
-          "full": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ResourceGroup": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "department": {
-            "$ref": "#/components/schemas/Department"
-          },
-          "resources": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Resource"
-            },
-            "uniqueItems": true
-          }
-        }
-      },
-      "ResourceReservation": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "resource": {
-            "$ref": "#/components/schemas/Resource"
-          },
-          "reservedBy": {
-            "$ref": "#/components/schemas/PUser"
-          },
-          "timespan": {
-            "$ref": "#/components/schemas/TimeSpan"
-          },
-          "slotNumber": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "TimeSpan": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "involvedResources": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Resource"
-            },
-            "uniqueItems": true
-          },
-          "involvedUsers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PUser"
-            },
-            "uniqueItems": true
-          },
-          "dateFrom": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "dateUntil": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "RESOURCE_RESERVATION",
-              "VACATION",
-              "ILLNESS",
-              "TIME_TRACKER",
-              "OTHER",
-              "ALL"
-            ]
           }
         }
       },
@@ -6007,6 +5201,80 @@
           }
         }
       },
+      "ProjectGoalProperty": {
+        "type": "object",
+        "discriminator": {
+          "propertyName": "type"
+        },
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "ProjectGoalPropertyDocument": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectGoalProperty"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "tag": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ProjectGoalPropertyNumeric": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectGoalProperty"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number",
+                "format": "double"
+              },
+              "max": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          }
+        ]
+      },
+      "ProjectGoalDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
       "CancelProcessInstanceRequest": {
         "type": "object",
         "properties": {
@@ -6085,6 +5353,28 @@
           "sequenceNumber": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "DocumentSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currentVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "lockedBy": {
+            "type": "string"
           }
         }
       },
@@ -6252,28 +5542,6 @@
           "modifiedAt": {
             "type": "string",
             "format": "date-time"
-          }
-        }
-      },
-      "DocumentSummaryDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "currentVersion": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "locked": {
-            "type": "boolean"
-          },
-          "lockedBy": {
-            "type": "string"
           }
         }
       }
