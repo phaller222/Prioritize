@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.controller.nfc;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.nfc.NfcUnitDTO;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -54,29 +55,30 @@ public class NfcUnitController {
 
     @Operation(summary = "Register an NFC unit")
     @PostMapping("/resources/{resourceId}/nfc-units")
-    public ResponseEntity<NfcUnit> registerNfcUnit(
+    public ResponseEntity<NfcUnitDTO> registerNfcUnit(
         @PathVariable Long resourceId, @RequestBody NfcUnitRequest request, Authentication auth) {
         NfcUnit unit = nfcUnitService.registerNfcUnit(resourceId, request.toData(), getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(unit);
+        return ResponseEntity.status(HttpStatus.CREATED).body(NfcUnitDTO.from(unit));
     }
 
     @Operation(summary = "Get the NFC units")
     @GetMapping("/resources/{resourceId}/nfc-units")
-    public ResponseEntity<List<NfcUnit>> getNfcUnits(@PathVariable Long resourceId, Authentication auth) {
-        return ResponseEntity.ok(nfcUnitService.getNfcUnitsForResource(resourceId, getCurrentUser(auth)));
+    public ResponseEntity<List<NfcUnitDTO>> getNfcUnits(@PathVariable Long resourceId, Authentication auth) {
+        return ResponseEntity.ok(nfcUnitService.getNfcUnitsForResource(resourceId, getCurrentUser(auth))
+                .stream().map(NfcUnitDTO::from).toList());
     }
 
     @Operation(summary = "Bind task")
     @PutMapping("/nfc-units/{id}/task/{taskId}")
-    public ResponseEntity<NfcUnit> bindTask(
+    public ResponseEntity<NfcUnitDTO> bindTask(
         @PathVariable Long id, @PathVariable Long taskId, Authentication auth) {
-        return ResponseEntity.ok(nfcUnitService.bindTask(id, taskId, getCurrentUser(auth)));
+        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.bindTask(id, taskId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Unbind task")
     @DeleteMapping("/nfc-units/{id}/task")
-    public ResponseEntity<NfcUnit> unbindTask(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(nfcUnitService.unbindTask(id, getCurrentUser(auth)));
+    public ResponseEntity<NfcUnitDTO> unbindTask(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.unbindTask(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Delete an NFC unit")

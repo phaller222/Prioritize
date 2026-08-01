@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.controller.nfc;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.nfc.NfcUnitController.NfcUnitRequest;
+import de.hallerweb.enterprise.prioritize.dto.nfc.NfcUnitDTO;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -64,7 +65,7 @@ class NfcUnitControllerTest {
     void registerNfcUnit_created() {
         when(nfcUnitService.registerNfcUnit(eq(7L), any(), eq(user))).thenReturn(new NfcUnit());
 
-        ResponseEntity<NfcUnit> response = controller.registerNfcUnit(
+        ResponseEntity<NfcUnitDTO> response = controller.registerNfcUnit(
                 7L, new NfcUnitRequest("uuid-1", "Tag", "d", NfcUnitType.TIMETRACKER, null), auth);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
