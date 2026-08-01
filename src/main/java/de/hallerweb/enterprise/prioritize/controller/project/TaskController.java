@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.controller.project;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.project.TaskDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -56,23 +57,23 @@ public class TaskController {
      */
     @Operation(summary = "Creates a task on the given project's blackboard")
     @PostMapping("/projects/{projectId}/tasks")
-    public ResponseEntity<Task> createTask(
+    public ResponseEntity<TaskDTO> createTask(
         @PathVariable Long projectId, @RequestBody TaskRequest request, Authentication auth) {
         Task task = taskService.createTask(projectId, request.toData(), getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(task);
+        return ResponseEntity.status(HttpStatus.CREATED).body(TaskDTO.from(task));
     }
 
     @Operation(summary = "Get task")
     @GetMapping("/tasks/{id}")
-    public ResponseEntity<Task> getTask(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.getTask(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> getTask(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.getTask(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Update task")
     @PatchMapping("/tasks/{id}")
-    public ResponseEntity<Task> updateTask(
+    public ResponseEntity<TaskDTO> updateTask(
         @PathVariable Long id, @RequestBody TaskRequest request, Authentication auth) {
-        return ResponseEntity.ok(taskService.updateTask(id, request.toData(), getCurrentUser(auth)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.updateTask(id, request.toData(), getCurrentUser(auth))));
     }
 
     @Operation(summary = "Delete task")
@@ -84,56 +85,56 @@ public class TaskController {
 
     @Operation(summary = "Assign task")
     @PutMapping("/tasks/{id}/assignee/{actorId}")
-    public ResponseEntity<Task> assignTask(
+    public ResponseEntity<TaskDTO> assignTask(
         @PathVariable Long id, @PathVariable Long actorId, Authentication auth) {
-        return ResponseEntity.ok(taskService.assignTask(id, actorId, getCurrentUser(auth)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.assignTask(id, actorId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Unassign task")
     @DeleteMapping("/tasks/{id}/assignee")
-    public ResponseEntity<Task> unassignTask(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.unassignTask(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> unassignTask(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.unassignTask(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Change status")
     @PutMapping("/tasks/{id}/status")
-    public ResponseEntity<Task> changeStatus(
+    public ResponseEntity<TaskDTO> changeStatus(
         @PathVariable Long id, @RequestBody TaskStatusRequest request, Authentication auth) {
         if (request == null || request.status() == null) {
             throw new IllegalArgumentException("status is required.");
         }
-        return ResponseEntity.ok(taskService.changeStatus(id, request.status(), getCurrentUser(auth)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.changeStatus(id, request.status(), getCurrentUser(auth))));
     }
 
     @Operation(summary = "Assign goal")
     @PutMapping("/tasks/{id}/goal/{goalId}")
-    public ResponseEntity<Task> assignGoal(
+    public ResponseEntity<TaskDTO> assignGoal(
         @PathVariable Long id, @PathVariable Long goalId, Authentication auth) {
-        return ResponseEntity.ok(taskService.assignGoal(id, goalId, getCurrentUser(auth)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.assignGoal(id, goalId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Unassign goal")
     @DeleteMapping("/tasks/{id}/goal")
-    public ResponseEntity<Task> unassignGoal(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.unassignGoal(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> unassignGoal(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.unassignGoal(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Start tracking")
     @PostMapping("/tasks/{id}/tracking/start")
-    public ResponseEntity<Task> startTracking(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.startTracking(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> startTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.startTracking(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Stop tracking")
     @PostMapping("/tasks/{id}/tracking/stop")
-    public ResponseEntity<Task> stopTracking(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.stopTracking(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> stopTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.stopTracking(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Toggle tracking")
     @PostMapping("/tasks/{id}/tracking/toggle")
-    public ResponseEntity<Task> toggleTracking(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.toggleTracking(id, getCurrentUser(auth)));
+    public ResponseEntity<TaskDTO> toggleTracking(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.toggleTracking(id, getCurrentUser(auth))));
     }
 
     /** Returns the total time tracked on the task (completed spans plus the running one, live). */
