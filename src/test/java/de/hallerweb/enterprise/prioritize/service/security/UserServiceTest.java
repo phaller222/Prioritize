@@ -117,6 +117,44 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("updateUser: ein Profil-PUT (Shell ohne Passwort) löscht das gespeicherte Passwort NICHT")
+    void updateUser_ShouldPreservePassword() {
+        String storedHash = testUser.getPassword();
+
+        // A detached shell like the REST layer builds from UserRequest: no password field at all.
+        PUser shell = new PUser();
+        shell.setId(testUser.getId());
+        shell.setUsername(testUser.getUsername());
+        shell.setName("Neuer Name");
+        shell.setActive(true);
+
+        userService.updateUser(shell);
+
+        PUser reloaded = userRepository.findById(testUser.getId()).orElseThrow();
+        assertEquals("Neuer Name", reloaded.getName());
+        assertEquals(storedHash, reloaded.getPassword(), "das Passwort muss erhalten bleiben");
+    }
+
+    @Test
+    @DisplayName("updateUser: ein Profil-PUT (Shell ohne Rollen) leert die Rollenzuordnung NICHT")
+    void updateUser_ShouldPreserveRoles() {
+        Role r1 = newRole("Manager");
+        Role r2 = newRole("Reviewer");
+        userService.setRoles(testUser.getId(), Set.of(r1.getId(), r2.getId()));
+
+        PUser shell = new PUser();
+        shell.setId(testUser.getId());
+        shell.setUsername(testUser.getUsername());
+        shell.setName("Umbenannt");
+        shell.setActive(true);
+
+        userService.updateUser(shell);
+
+        assertEquals(Set.of(r1.getId(), r2.getId()), userService.getRoleIds(testUser.getId()),
+                "die Rollen müssen erhalten bleiben");
+    }
+
+    @Test
     @DisplayName("createUser: User wird mit ID persistiert")
     void createUser_ShouldPersistWithId() {
         assertNotNull(testUser.getId());
