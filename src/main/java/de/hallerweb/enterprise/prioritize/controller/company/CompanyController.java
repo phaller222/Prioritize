@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.controller.company;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.company.CompanyDTO;
+import de.hallerweb.enterprise.prioritize.dto.company.CompanyRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
 import de.hallerweb.enterprise.prioritize.service.company.CompanyService;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +28,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -43,36 +44,35 @@ public class CompanyController {
 
     @Operation(summary = "Get all companies")
     @GetMapping
-    public ResponseEntity<List<Company>> getAllCompanies() {
-        return ResponseEntity.ok(companyService.findAll());
+    public ResponseEntity<List<CompanyDTO>> getAllCompanies() {
+        return ResponseEntity.ok(companyService.findAll().stream().map(CompanyDTO::from).toList());
     }
 
     @Operation(summary = "Get company by id")
     @GetMapping("/{id}")
-    public ResponseEntity<Company> getById(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(companyService.findById(id, currentUserResolver.resolve(auth)));
+    public ResponseEntity<CompanyDTO> getById(@PathVariable Long id, Authentication auth) {
+        Company company = companyService.findById(id, currentUserResolver.resolve(auth));
+        return ResponseEntity.ok(CompanyDTO.from(company));
     }
 
     @Operation(summary = "Find companies matching a filter")
     @PostMapping("/filter")
-    public ResponseEntity<Collection<Company>> findByFilter(@RequestBody Company filter) {
-        return ResponseEntity.ok(companyService.searchCompanies(filter));
+    public ResponseEntity<List<CompanyDTO>> findByFilter(@RequestBody CompanyRequest filter) {
+        return ResponseEntity.ok(
+                companyService.searchCompanies(filter.toCompany()).stream().map(CompanyDTO::from).toList());
     }
 
     @Operation(summary = "Create company")
     @PostMapping
-    public ResponseEntity<Company> create(@RequestBody Company company, Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(companyService.createCompany(company, currentUserResolver.resolve(auth)));
+    public ResponseEntity<CompanyDTO> create(@RequestBody CompanyRequest request, Authentication auth) {
+        Company created = companyService.createCompany(request.toCompany(), currentUserResolver.resolve(auth));
+        return ResponseEntity.status(HttpStatus.CREATED).body(CompanyDTO.from(created));
     }
 
     @Operation(summary = "Update company")
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody Company company, Authentication auth) {
-        if (company.getMainAddress() != null && company.getMainAddress().getId() != null) {
-            throw new IllegalArgumentException("Manual ID assignment for addresses is not allowed.");
-        }
-        companyService.updateCompany(id, company, currentUserResolver.resolve(auth));
+    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody CompanyRequest request, Authentication auth) {
+        companyService.updateCompany(id, request.toCompany(), currentUserResolver.resolve(auth));
         return ResponseEntity.noContent().build();
     }
 

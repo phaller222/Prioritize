@@ -16,6 +16,8 @@
 
 package de.hallerweb.enterprise.prioritize.controller.company;
 
+import de.hallerweb.enterprise.prioritize.dto.company.DepartmentDTO;
+import de.hallerweb.enterprise.prioritize.dto.company.DepartmentRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
@@ -45,35 +47,37 @@ public class DepartmentController {
 
     @Operation(summary = "Create department")
     @PostMapping("/companies/{companyId}/departments")
-    public ResponseEntity<Department> create(
+    public ResponseEntity<DepartmentDTO> create(
             @PathVariable Long companyId,
-            @RequestBody Department department,
+            @RequestBody DepartmentRequest request,
             Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(departmentService.saveDepartment(department, companyId, currentUser(auth)));
+        Department created = departmentService.saveDepartment(request.toDepartment(), companyId, currentUser(auth));
+        return ResponseEntity.status(HttpStatus.CREATED).body(DepartmentDTO.from(created));
     }
 
     @Operation(summary = "Get departments by company")
     @GetMapping("/companies/{companyId}/departments")
-    public ResponseEntity<List<Department>> getDepartmentsByCompany(
+    public ResponseEntity<List<DepartmentDTO>> getDepartmentsByCompany(
             @PathVariable Long companyId,
             Authentication auth) {
-        return ResponseEntity.ok(departmentService.getDepartmentsByCompany(companyId, currentUser(auth)));
+        return ResponseEntity.ok(departmentService.getDepartmentsByCompany(companyId, currentUser(auth))
+                .stream().map(DepartmentDTO::from).toList());
     }
 
     @Operation(summary = "Get department by id")
     @GetMapping("/departments/{id}")
-    public ResponseEntity<Department> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(departmentService.getDepartmentById(id));
+    public ResponseEntity<DepartmentDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(DepartmentDTO.from(departmentService.getDepartmentById(id)));
     }
 
     @Operation(summary = "Update department")
     @PutMapping("/departments/{id}")
-    public ResponseEntity<Department> update(
+    public ResponseEntity<DepartmentDTO> update(
             @PathVariable Long id,
-            @RequestBody Department department,
+            @RequestBody DepartmentRequest request,
             Authentication auth) {
-        return ResponseEntity.ok(departmentService.updateDepartment(id, department, currentUser(auth)));
+        Department updated = departmentService.updateDepartment(id, request.toDepartment(), currentUser(auth));
+        return ResponseEntity.ok(DepartmentDTO.from(updated));
     }
 
     @Operation(summary = "Delete department")
