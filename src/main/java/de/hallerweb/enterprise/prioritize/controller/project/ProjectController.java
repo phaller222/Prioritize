@@ -17,8 +17,9 @@
 package de.hallerweb.enterprise.prioritize.controller.project;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.project.ProjectDTO;
+import de.hallerweb.enterprise.prioritize.dto.project.TaskDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
-import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService.ProjectData;
@@ -59,9 +60,9 @@ public class ProjectController {
      */
     @Operation(summary = "Creates a new project (the caller becomes manager and first member)")
     @PostMapping("/projects")
-    public ResponseEntity<Project> createProject(@RequestBody ProjectRequest request, Authentication auth) {
+    public ResponseEntity<ProjectDTO> createProject(@RequestBody ProjectRequest request, Authentication auth) {
         Project project = projectService.createProject(request.toData(), getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(project);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectDTO.from(project));
     }
 
     /**
@@ -69,21 +70,22 @@ public class ProjectController {
      */
     @Operation(summary = "Returns the projects the caller manages or participates in")
     @GetMapping("/projects")
-    public ResponseEntity<List<Project>> getMyProjects(Authentication auth) {
-        return ResponseEntity.ok(projectService.getMyProjects(getCurrentUser(auth)));
+    public ResponseEntity<List<ProjectDTO>> getMyProjects(Authentication auth) {
+        return ResponseEntity.ok(projectService.getMyProjects(getCurrentUser(auth))
+                .stream().map(ProjectDTO::from).toList());
     }
 
     @Operation(summary = "Get project")
     @GetMapping("/projects/{id}")
-    public ResponseEntity<Project> getProject(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(projectService.getProject(id, getCurrentUser(auth)));
+    public ResponseEntity<ProjectDTO> getProject(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(ProjectDTO.from(projectService.getProject(id, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Update project")
     @PatchMapping("/projects/{id}")
-    public ResponseEntity<Project> updateProject(
+    public ResponseEntity<ProjectDTO> updateProject(
         @PathVariable Long id, @RequestBody ProjectRequest request, Authentication auth) {
-        return ResponseEntity.ok(projectService.updateProject(id, request.toData(), getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.updateProject(id, request.toData(), getCurrentUser(auth))));
     }
 
     @Operation(summary = "Delete project")
@@ -97,16 +99,16 @@ public class ProjectController {
 
     @Operation(summary = "Add member")
     @PostMapping("/projects/{id}/members/{userId}")
-    public ResponseEntity<Project> addMember(
+    public ResponseEntity<ProjectDTO> addMember(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
-        return ResponseEntity.ok(projectService.addMember(id, userId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.addMember(id, userId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Remove member")
     @DeleteMapping("/projects/{id}/members/{userId}")
-    public ResponseEntity<Project> removeMember(
+    public ResponseEntity<ProjectDTO> removeMember(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
-        return ResponseEntity.ok(projectService.removeMember(id, userId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.removeMember(id, userId, getCurrentUser(auth))));
     }
 
     /**
@@ -115,37 +117,37 @@ public class ProjectController {
      */
     @Operation(summary = "Hands the project over to another of its members")
     @PutMapping("/projects/{id}/manager/{userId}")
-    public ResponseEntity<Project> transferManager(
+    public ResponseEntity<ProjectDTO> transferManager(
         @PathVariable Long id, @PathVariable Long userId, Authentication auth) {
-        return ResponseEntity.ok(projectService.transferManager(id, userId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.transferManager(id, userId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Add resource")
     @PostMapping("/projects/{id}/resources/{resourceId}")
-    public ResponseEntity<Project> addResource(
+    public ResponseEntity<ProjectDTO> addResource(
         @PathVariable Long id, @PathVariable Long resourceId, Authentication auth) {
-        return ResponseEntity.ok(projectService.addResource(id, resourceId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.addResource(id, resourceId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Remove resource")
     @DeleteMapping("/projects/{id}/resources/{resourceId}")
-    public ResponseEntity<Project> removeResource(
+    public ResponseEntity<ProjectDTO> removeResource(
         @PathVariable Long id, @PathVariable Long resourceId, Authentication auth) {
-        return ResponseEntity.ok(projectService.removeResource(id, resourceId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.removeResource(id, resourceId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Add document")
     @PostMapping("/projects/{id}/documents/{documentInfoId}")
-    public ResponseEntity<Project> addDocument(
+    public ResponseEntity<ProjectDTO> addDocument(
         @PathVariable Long id, @PathVariable Long documentInfoId, Authentication auth) {
-        return ResponseEntity.ok(projectService.addDocument(id, documentInfoId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.addDocument(id, documentInfoId, getCurrentUser(auth))));
     }
 
     @Operation(summary = "Remove document")
     @DeleteMapping("/projects/{id}/documents/{documentInfoId}")
-    public ResponseEntity<Project> removeDocument(
+    public ResponseEntity<ProjectDTO> removeDocument(
         @PathVariable Long id, @PathVariable Long documentInfoId, Authentication auth) {
-        return ResponseEntity.ok(projectService.removeDocument(id, documentInfoId, getCurrentUser(auth)));
+        return ResponseEntity.ok(ProjectDTO.from(projectService.removeDocument(id, documentInfoId, getCurrentUser(auth))));
     }
 
     /**
@@ -153,8 +155,9 @@ public class ProjectController {
      */
     @Operation(summary = "Returns all tasks of a project (caller must be manager or member)")
     @GetMapping("/projects/{id}/tasks")
-    public ResponseEntity<List<Task>> getTasks(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(taskService.getTasksForProject(id, getCurrentUser(auth)));
+    public ResponseEntity<List<TaskDTO>> getTasks(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(taskService.getTasksForProject(id, getCurrentUser(auth))
+                .stream().map(TaskDTO::from).toList());
     }
 
     /**
