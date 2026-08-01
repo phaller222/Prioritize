@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.controller.resource;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
@@ -336,8 +338,9 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all skills of a resource")
     @GetMapping("/resources/{resourceId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForResource(@PathVariable Long resourceId) {
-        return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForResource(@PathVariable Long resourceId) {
+        return ResponseEntity.ok(
+                skillService.getSkillsForResource(resourceId).stream().map(SkillRecordDTO::from).toList());
     }
 
     /**
@@ -350,12 +353,13 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all skills of a resource, filtered by resource group")
     @GetMapping("/resourcegroups/{groupId}/resources/{resourceId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForResourceInGroup(
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForResourceInGroup(
         @PathVariable Long groupId,
         @PathVariable Long resourceId) {
 
         resourceService.validateResourceInGroup(resourceId, groupId);
-        return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
+        return ResponseEntity.ok(
+                skillService.getSkillsForResource(resourceId).stream().map(SkillRecordDTO::from).toList());
     }
 
     /**
@@ -367,11 +371,11 @@ public class ResourceController {
      */
     @Operation(summary = "Assigns a skill to a resource")
     @PostMapping("/resources/{resourceId}/skills")
-    public ResponseEntity<SkillRecord> assignSkillToResource(
+    public ResponseEntity<SkillRecordDTO> assignSkillToResource(
         @PathVariable Long resourceId,
-        @RequestBody SkillRecord record) {
+        @RequestBody SkillRecordRequest request) {
 
-        SkillRecord assignedRecord = skillService.assignSkillToResource(resourceId, record);
-        return ResponseEntity.status(HttpStatus.CREATED).body(assignedRecord);
+        SkillRecord assignedRecord = skillService.assignSkillToResource(resourceId, request.toSkillRecord());
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillRecordDTO.from(assignedRecord));
     }
 }

@@ -17,6 +17,10 @@
 package de.hallerweb.enterprise.prioritize.controller.skill;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryRequest;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRequest;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
@@ -45,57 +49,59 @@ public class SkillController {
 
     @Operation(summary = "Get all skills")
     @GetMapping("/skills")
-    public ResponseEntity<List<Skill>> getAllSkills() {
-        return ResponseEntity.ok(skillService.getAllSkills());
+    public ResponseEntity<List<SkillSummaryDTO>> getAllSkills() {
+        return ResponseEntity.ok(skillService.getAllSkillSummaries());
     }
 
     @Operation(summary = "Create skill")
     @PostMapping("/skills")
-    public ResponseEntity<Skill> createSkill(@RequestBody Skill skill, Authentication auth) {
-        Skill createdSkill = skillService.createSkill(skill, currentUserResolver.resolve(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdSkill);
+    public ResponseEntity<SkillSummaryDTO> createSkill(@RequestBody SkillRequest request, Authentication auth) {
+        Skill createdSkill = skillService.createSkill(request.toSkill(), currentUserResolver.resolve(auth));
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillSummaryDTO.from(createdSkill));
     }
 
     @Operation(summary = "Get skill by id")
     @GetMapping("/skills/{skillId}")
-    public ResponseEntity<Skill> getSkillById(@PathVariable Long skillId, Authentication auth) {
-        return ResponseEntity.ok(skillService.getSkillById(skillId, currentUserResolver.resolve(auth)));
+    public ResponseEntity<SkillSummaryDTO> getSkillById(@PathVariable Long skillId, Authentication auth) {
+        Skill skill = skillService.getSkillById(skillId, currentUserResolver.resolve(auth));
+        return ResponseEntity.ok(SkillSummaryDTO.from(skill));
     }
 
     @Operation(summary = "Update skill")
     @PutMapping("/skills/{skillId}")
-    public ResponseEntity<Skill> updateSkill(
+    public ResponseEntity<SkillSummaryDTO> updateSkill(
             @PathVariable Long skillId,
-            @RequestBody Skill skill,
+            @RequestBody SkillRequest request,
             Authentication auth) {
-        return ResponseEntity.ok(skillService.updateSkill(skillId, skill, currentUserResolver.resolve(auth)));
+        Skill updated = skillService.updateSkill(skillId, request.toSkill(), currentUserResolver.resolve(auth));
+        return ResponseEntity.ok(SkillSummaryDTO.from(updated));
     }
 
     @Operation(summary = "Get all categories")
     @GetMapping("/skills/categories")
-    public ResponseEntity<List<SkillCategory>> getAllCategories() {
-        return ResponseEntity.ok(skillService.getAllCategories());
+    public ResponseEntity<List<SkillCategoryDTO>> getAllCategories() {
+        return ResponseEntity.ok(skillService.getAllCategorySummaries());
     }
 
     @Operation(summary = "Create category")
     @PostMapping("/skills/categories")
-    public ResponseEntity<SkillCategory> createCategory(@RequestBody SkillCategory category) {
-        SkillCategory createdCategory = skillService.createCategory(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdCategory);
+    public ResponseEntity<SkillCategoryDTO> createCategory(@RequestBody SkillCategoryRequest request) {
+        SkillCategory createdCategory = skillService.createCategory(request.toCategory());
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillCategoryDTO.from(createdCategory));
     }
 
     @Operation(summary = "Get category by id")
     @GetMapping("/skills/categories/{categoryId}")
-    public ResponseEntity<SkillCategory> getCategoryById(@PathVariable Long categoryId) {
-        return ResponseEntity.ok(skillService.getCategoryById(categoryId));
+    public ResponseEntity<SkillCategoryDTO> getCategoryById(@PathVariable Long categoryId) {
+        return ResponseEntity.ok(SkillCategoryDTO.from(skillService.getCategoryById(categoryId)));
     }
 
     @Operation(summary = "Update category")
     @PutMapping("/skills/categories/{categoryId}")
-    public ResponseEntity<SkillCategory> updateCategory(
+    public ResponseEntity<SkillCategoryDTO> updateCategory(
             @PathVariable Long categoryId,
-            @RequestBody SkillCategory category) {
-        return ResponseEntity.ok(skillService.updateCategory(categoryId, category));
+            @RequestBody SkillCategoryRequest request) {
+        return ResponseEntity.ok(SkillCategoryDTO.from(skillService.updateCategory(categoryId, request.toCategory())));
     }
 
     // ==========================================

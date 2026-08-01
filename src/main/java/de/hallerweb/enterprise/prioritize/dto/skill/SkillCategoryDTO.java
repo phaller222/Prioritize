@@ -16,15 +16,17 @@
 
 package de.hallerweb.enterprise.prioritize.dto.skill;
 
+import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 /**
- * Summary of a {@link de.hallerweb.enterprise.prioritize.model.skill.SkillCategory} for the admin categories
- * grid and the parent/category selectors. Flattens the lazy {@code parentCategory} to id/name inside the
- * service transaction: {@code SkillCategory}'s all-fields {@code equals}/{@code hashCode} (callSuper) touches
- * its lazy {@code parentCategory}/{@code subCategories}, which would throw a {@code LazyInitializationException}
- * inside a Vaadin grid/ComboBox key mapper.
+ * Summary of a {@link SkillCategory} for the admin categories grid, the parent/category selectors and the
+ * REST skills API. Flattens the lazy {@code parentCategory} to id/name (inside the service transaction, or
+ * under open-in-view for the single-entity REST responses): {@code SkillCategory}'s all-fields
+ * {@code equals}/{@code hashCode} (callSuper) touches its lazy {@code parentCategory}/{@code subCategories},
+ * which would throw a {@code LazyInitializationException} inside a Vaadin grid/ComboBox key mapper or during
+ * serialization.
  */
 @Data
 @AllArgsConstructor
@@ -34,4 +36,14 @@ public class SkillCategoryDTO {
     private String description;
     private Long parentId;
     private String parentName;
+
+    /** Maps an entity to its DTO. Reads the lazy {@code parentCategory} (safe inside a tx / under open-in-view). */
+    public static SkillCategoryDTO from(SkillCategory category) {
+        return new SkillCategoryDTO(
+                category.getId(),
+                category.getName(),
+                category.getDescription(),
+                category.getParentCategory() != null ? category.getParentCategory().getId() : null,
+                category.getParentCategory() != null ? category.getParentCategory().getName() : null);
+    }
 }

@@ -16,15 +16,17 @@
 
 package de.hallerweb.enterprise.prioritize.dto.skill;
 
+import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 /**
- * Summary of a {@link de.hallerweb.enterprise.prioritize.model.skill.Skill} for the admin skills grid and the
- * category selector. Carries only scalar fields plus the category id/name (resolved inside the service
- * transaction): the {@code Skill} entity has a degenerate {@code equals}/{@code hashCode}
- * ({@code onlyExplicitlyIncluded} with no included fields → every skill "equal") and a lazy {@code category},
- * so it must never sit in a Vaadin grid or ComboBox directly.
+ * Summary of a {@link Skill} for the admin skills grid, the category selector and the REST skills API.
+ * Carries only scalar fields plus the category id/name (resolved inside the service transaction, or under
+ * open-in-view for the single-entity REST responses): the {@code Skill} entity has a degenerate
+ * {@code equals}/{@code hashCode} ({@code onlyExplicitlyIncluded} with no included fields → every skill
+ * "equal") and a lazy {@code category}, so it must never sit in a Vaadin grid or ComboBox directly, nor be
+ * serialized straight onto the wire.
  */
 @Data
 @AllArgsConstructor
@@ -35,4 +37,15 @@ public class SkillSummaryDTO {
     private String keywords;
     private Long categoryId;
     private String categoryName;
+
+    /** Maps an entity to its DTO. Reads the lazy {@code category} (safe inside a tx / under open-in-view). */
+    public static SkillSummaryDTO from(Skill skill) {
+        return new SkillSummaryDTO(
+                skill.getId(),
+                skill.getName(),
+                skill.getDescription(),
+                skill.getKeywords(),
+                skill.getCategory() != null ? skill.getCategory().getId() : null,
+                skill.getCategory() != null ? skill.getCategory().getName() : null);
+    }
 }

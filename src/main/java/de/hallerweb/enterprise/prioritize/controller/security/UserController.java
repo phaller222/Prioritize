@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.controller.security;
 
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
@@ -113,16 +115,17 @@ public class UserController {
 
     @Operation(summary = "Get skills for user")
     @GetMapping("/{userId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForUser(@PathVariable Long userId) {
-        return ResponseEntity.ok(skillService.getSkillsForUser(userId));
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(
+                skillService.getSkillsForUser(userId).stream().map(SkillRecordDTO::from).toList());
     }
 
     @Operation(summary = "Assign skill to user")
     @PostMapping("/{userId}/skills")
-    public ResponseEntity<SkillRecord> assignSkillToUser(
+    public ResponseEntity<SkillRecordDTO> assignSkillToUser(
             @PathVariable Long userId,
-            @RequestBody SkillRecord record) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(skillService.assignSkillToUser(userId, record));
+            @RequestBody SkillRecordRequest request) {
+        SkillRecord assigned = skillService.assignSkillToUser(userId, request.toSkillRecord());
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillRecordDTO.from(assigned));
     }
 }
