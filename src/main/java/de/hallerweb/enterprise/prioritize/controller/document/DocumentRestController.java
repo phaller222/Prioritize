@@ -58,7 +58,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "Upload of a new document into a DocumentGroup")
     @PostMapping(value = "/upload/{groupId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentInfo> uploadDocument(
+    public ResponseEntity<DocumentSummaryDTO> uploadDocument(
             @PathVariable Long groupId,
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name,
@@ -69,7 +69,7 @@ public class DocumentRestController {
         DocumentInfo info = documentService.createDocument(
                 name, groupId, currentUser, file.getBytes(), file.getContentType());
         log.info("Document successfully created by user '{}'.", currentUser.getUsername());
-        return ResponseEntity.status(HttpStatus.CREATED).body(info);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DocumentSummaryDTO.from(info));
     }
 
     /**
@@ -116,13 +116,7 @@ public class DocumentRestController {
         PUser currentUser = getCurrentUser(auth);
         List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
         List<DocumentSummaryDTO> summary = documents.stream()
-                .map(doc -> new DocumentSummaryDTO(
-                        doc.getId(),
-                        doc.getCurrentDocument().getName(),
-                        doc.getCurrentDocument().getVersion(),
-                        doc.isLocked(),
-                        doc.getLockedBy() != null ? doc.getLockedBy().getUsername() : null
-                ))
+                .map(DocumentSummaryDTO::from)
                 .toList();
         return ResponseEntity.ok(summary);
     }
@@ -179,7 +173,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "Check in a document (upload a new version and unlock)")
     @PostMapping("/{id}/check-in")
-    public ResponseEntity<DocumentInfo> checkIn(
+    public ResponseEntity<DocumentSummaryDTO> checkIn(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "comment", required = false) String comment,
@@ -188,7 +182,7 @@ public class DocumentRestController {
         PUser currentUser = getCurrentUser(auth);
         Document newVersion = documentService.checkIn(
                 id, file.getBytes(), file.getContentType(), comment, currentUser);
-        return ResponseEntity.ok(newVersion.getDocumentInfo());
+        return ResponseEntity.ok(DocumentSummaryDTO.from(newVersion.getDocumentInfo()));
     }
 
     /**
