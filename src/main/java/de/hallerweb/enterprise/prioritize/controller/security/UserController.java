@@ -16,7 +16,11 @@
 
 package de.hallerweb.enterprise.prioritize.controller.security;
 
+import de.hallerweb.enterprise.prioritize.dto.security.UserDTO;
+import de.hallerweb.enterprise.prioritize.dto.security.UserRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
@@ -45,34 +49,36 @@ public class UserController {
 
     @Operation(summary = "Get all users")
     @GetMapping
-    public ResponseEntity<List<PUser>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers().stream().map(UserDTO::from).toList());
     }
 
     @Operation(summary = "Get user by id")
     @GetMapping("/{id}")
-    public ResponseEntity<PUser> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.getUserById(id));
+    public ResponseEntity<UserDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(UserDTO.from(userService.getUserById(id)));
     }
 
     /**
-     * Search by username: GET /api/v1/users?username=peter
+     * Search by username: GET /api/v1/users/by-username?username=peter. A dedicated path (not a query
+     * param on the collection) so it is a distinct, unambiguous operation in the OpenAPI spec / clients.
      */
     @Operation(summary = "Search a user by username")
-    @GetMapping(params = "username")
-    public ResponseEntity<PUser> getByUsername(@RequestParam String username) {
-        return ResponseEntity.ok(userService.findUserByUsername(username));
+    @GetMapping("/by-username")
+    public ResponseEntity<UserDTO> getByUsername(@RequestParam String username) {
+        return ResponseEntity.ok(UserDTO.from(userService.findUserByUsername(username)));
     }
 
     @Operation(summary = "Create a user",
-            description = "Creates a local user record. The password field is write-ignored (@JsonIgnore) "
-                    + "and is NOT set here by design: in production Keycloak owns credentials, and a local "
-                    + "record created via REST is passwordless (it exists to carry app relationships). A "
-                    + "login-able local user for the Basic-auth/dev mode is created via the admin GUI, which "
-                    + "has a password field. See the user-provisioning notes in the project docs.")
+            description = "Creates a local user record. There is no password field by design (@JsonIgnore on "
+                    + "the entity): in production Keycloak owns credentials, and a local record created via "
+                    + "REST is passwordless (it exists to carry app relationships). A login-able local user "
+                    + "for the Basic-auth/dev mode is created via the admin GUI, which has a password field. "
+                    + "See the user-provisioning notes in the project docs.")
     @PostMapping
-    public ResponseEntity<PUser> create(@RequestBody PUser user) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(user));
+    public ResponseEntity<UserDTO> create(@RequestBody UserRequest request) {
+        PUser created = userService.createUser(request.toUser());
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserDTO.from(created));
     }
 
     /**
@@ -82,22 +88,22 @@ public class UserController {
      */
     @Operation(summary = "Update a user (full replace)")
     @PutMapping("/{id}")
-    public ResponseEntity<PUser> update(@PathVariable Long id, @RequestBody PUser user) {
+    public ResponseEntity<UserDTO> update(@PathVariable Long id, @RequestBody UserRequest request) {
+        PUser user = request.toUser();
         user.setId(id);
-        return ResponseEntity.ok(userService.updateUser(user));
+        return ResponseEntity.ok(UserDTO.from(userService.updateUser(user)));
     }
 
     /**
      * PATCH: Partial update – only supplied fields are overwritten.
-     * The password is encrypted if supplied.
      * Roles and the admin flag are not modifiable.
      */
     @Operation(summary = "Partially update a user")
     @PatchMapping("/{id}")
-    public ResponseEntity<PUser> partialUpdate(
+    public ResponseEntity<UserDTO> partialUpdate(
             @PathVariable Long id,
-            @RequestBody PUser patch) {
-        return ResponseEntity.ok(userService.partialUpdateUser(id, patch));
+            @RequestBody UserRequest patch) {
+        return ResponseEntity.ok(UserDTO.from(userService.partialUpdateUser(id, patch.toUser())));
     }
 
     @Operation(summary = "Deactivate user")
@@ -113,16 +119,17 @@ public class UserController {
 
     @Operation(summary = "Get skills for user")
     @GetMapping("/{userId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForUser(@PathVariable Long userId) {
-        return ResponseEntity.ok(skillService.getSkillsForUser(userId));
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(
+                skillService.getSkillsForUser(userId).stream().map(SkillRecordDTO::from).toList());
     }
 
     @Operation(summary = "Assign skill to user")
     @PostMapping("/{userId}/skills")
-    public ResponseEntity<SkillRecord> assignSkillToUser(
+    public ResponseEntity<SkillRecordDTO> assignSkillToUser(
             @PathVariable Long userId,
-            @RequestBody SkillRecord record) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(skillService.assignSkillToUser(userId, record));
+            @RequestBody SkillRecordRequest request) {
+        SkillRecord assigned = skillService.assignSkillToUser(userId, request.toSkillRecord());
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillRecordDTO.from(assigned));
     }
 }

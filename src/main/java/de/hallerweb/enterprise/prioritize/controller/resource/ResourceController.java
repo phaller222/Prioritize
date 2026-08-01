@@ -17,6 +17,12 @@
 package de.hallerweb.enterprise.prioritize.controller.resource;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
+import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
@@ -67,9 +73,9 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all resources of a specific resource group")
     @GetMapping("/resourcegroups/{groupId}/resources")
-    public ResponseEntity<Set<Resource>> getResourcesByResourceGroup(@PathVariable Long groupId) {
-        Set<Resource> resources = resourceService.getResourcesByGroupId(groupId);
-        return ResponseEntity.ok(resources);
+    public ResponseEntity<List<ResourceDTO>> getResourcesByResourceGroup(@PathVariable Long groupId) {
+        return ResponseEntity.ok(
+                resourceService.getResourcesByGroupId(groupId).stream().map(ResourceDTO::from).toList());
     }
 
 
@@ -82,14 +88,14 @@ public class ResourceController {
      */
     @Operation(summary = "Creates a new resource group for a specific department")
     @PostMapping("/departments/{deptId}/resourcegroups")
-    public ResponseEntity<ResourceGroup> createResourceGroup(
+    public ResponseEntity<ResourceGroupDTO> createResourceGroup(
         @PathVariable Long deptId,
         @RequestParam String name,
         Authentication auth) {
 
         Department dept = departmentService.getDepartmentById(deptId);
         ResourceGroup group = resourceService.createResourceGroup(name, dept, getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(group);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ResourceGroupDTO.from(group));
     }
 
 
@@ -119,13 +125,13 @@ public class ResourceController {
      */
     @Operation(summary = "Creates a new resource in a specific resource group")
     @PostMapping("/resourcegroups/{groupId}/resources")
-    public ResponseEntity<Resource> createResource(
+    public ResponseEntity<ResourceDTO> createResource(
         @PathVariable Long groupId,
-        @RequestBody Resource resource,
+        @RequestBody ResourceRequest request,
         Authentication auth) {
 
-        Resource created = resourceService.createResource(resource, groupId, getCurrentUser(auth));
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        Resource created = resourceService.createResource(request.toResource(), groupId, getCurrentUser(auth));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ResourceDTO.from(created));
     }
 
 
@@ -137,11 +143,11 @@ public class ResourceController {
      */
     @Operation(summary = "Retrieves a resource, if the current user is authorized")
     @GetMapping("/resources/{id}")
-    public ResponseEntity<Resource> getResource(
+    public ResponseEntity<ResourceDTO> getResource(
         @PathVariable Long id,
         Authentication auth) {
 
-        return ResponseEntity.ok(resourceService.getResource(id, getCurrentUser(auth)));
+        return ResponseEntity.ok(ResourceDTO.from(resourceService.getResource(id, getCurrentUser(auth))));
     }
 
     /**
@@ -153,12 +159,13 @@ public class ResourceController {
      */
     @Operation(summary = "Updates individual fields of a resource (PATCH semantics: null = unchanged)")
     @PatchMapping("/resources/{id}")
-    public ResponseEntity<Resource> partialUpdateResource(
+    public ResponseEntity<ResourceDTO> partialUpdateResource(
         @PathVariable Long id,
-        @RequestBody Resource patch,
+        @RequestBody ResourceRequest patch,
         Authentication auth) {
 
-        return ResponseEntity.ok(resourceService.partialUpdateResource(id, patch, getCurrentUser(auth)));
+        Resource updated = resourceService.partialUpdateResource(id, patch.toResource(), getCurrentUser(auth));
+        return ResponseEntity.ok(ResourceDTO.from(updated));
     }
 
     /**
@@ -188,7 +195,7 @@ public class ResourceController {
      */
     @Operation(summary = "Reserves a resource for a specific time span")
     @PostMapping("/resources/{id}/reserve")
-    public ResponseEntity<ResourceReservation> reserveResource(
+    public ResponseEntity<ResourceReservationDTO> reserveResource(
         @PathVariable Long id,
         @RequestParam String fromIsoDate,
         @RequestParam String untilIsoDate,
@@ -203,7 +210,7 @@ public class ResourceController {
         }
 
         ResourceReservation reservation = resourceService.reserveResource(id, getCurrentUser(auth), from, until);
-        return ResponseEntity.status(HttpStatus.CREATED).body(reservation);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ResourceReservationDTO.from(reservation));
     }
 
     /**
@@ -217,11 +224,12 @@ public class ResourceController {
      */
     @Operation(summary = "Returns the caller's own currently active reservations on this resource")
     @GetMapping("/resources/{id}/reservations/mine")
-    public ResponseEntity<List<ResourceReservation>> getMyActiveReservations(
+    public ResponseEntity<List<ResourceReservationDTO>> getMyActiveReservations(
         @PathVariable Long id,
         Authentication auth) {
         return ResponseEntity.ok(
-            resourceService.getMyActiveReservations(id, getCurrentUser(auth)));
+            resourceService.getMyActiveReservations(id, getCurrentUser(auth))
+                .stream().map(ResourceReservationDTO::from).toList());
     }
 
     /**
@@ -233,11 +241,11 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all reservations of a resource (occupancy overview)")
     @GetMapping("/resources/{id}/reservations")
-    public ResponseEntity<List<ResourceReservation>> getReservationsForResource(
+    public ResponseEntity<List<ResourceReservationDTO>> getReservationsForResource(
         @PathVariable Long id,
         Authentication auth) {
         return ResponseEntity.ok(
-            resourceService.getReservationsForResource(id, getCurrentUser(auth)));
+            resourceService.getReservationsForResourceDTO(id, getCurrentUser(auth)));
     }
 
     /**
@@ -336,8 +344,9 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all skills of a resource")
     @GetMapping("/resources/{resourceId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForResource(@PathVariable Long resourceId) {
-        return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForResource(@PathVariable Long resourceId) {
+        return ResponseEntity.ok(
+                skillService.getSkillsForResource(resourceId).stream().map(SkillRecordDTO::from).toList());
     }
 
     /**
@@ -350,12 +359,13 @@ public class ResourceController {
      */
     @Operation(summary = "Returns all skills of a resource, filtered by resource group")
     @GetMapping("/resourcegroups/{groupId}/resources/{resourceId}/skills")
-    public ResponseEntity<Set<SkillRecord>> getSkillsForResourceInGroup(
+    public ResponseEntity<List<SkillRecordDTO>> getSkillsForResourceInGroup(
         @PathVariable Long groupId,
         @PathVariable Long resourceId) {
 
         resourceService.validateResourceInGroup(resourceId, groupId);
-        return ResponseEntity.ok(skillService.getSkillsForResource(resourceId));
+        return ResponseEntity.ok(
+                skillService.getSkillsForResource(resourceId).stream().map(SkillRecordDTO::from).toList());
     }
 
     /**
@@ -367,11 +377,11 @@ public class ResourceController {
      */
     @Operation(summary = "Assigns a skill to a resource")
     @PostMapping("/resources/{resourceId}/skills")
-    public ResponseEntity<SkillRecord> assignSkillToResource(
+    public ResponseEntity<SkillRecordDTO> assignSkillToResource(
         @PathVariable Long resourceId,
-        @RequestBody SkillRecord record) {
+        @RequestBody SkillRecordRequest request) {
 
-        SkillRecord assignedRecord = skillService.assignSkillToResource(resourceId, record);
-        return ResponseEntity.status(HttpStatus.CREATED).body(assignedRecord);
+        SkillRecord assignedRecord = skillService.assignSkillToResource(resourceId, request.toSkillRecord());
+        return ResponseEntity.status(HttpStatus.CREATED).body(SkillRecordDTO.from(assignedRecord));
     }
 }

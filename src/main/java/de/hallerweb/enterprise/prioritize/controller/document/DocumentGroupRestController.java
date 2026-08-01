@@ -17,6 +17,8 @@
 package de.hallerweb.enterprise.prioritize.controller.document;
 
 import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.dto.document.DocumentGroupDTO;
+import de.hallerweb.enterprise.prioritize.dto.document.DocumentGroupRequest;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentGroup;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
@@ -41,15 +43,16 @@ public class DocumentGroupRestController {
 
     @Operation(summary = "Create document group")
     @PostMapping
-    public ResponseEntity<DocumentGroup> createGroup(@RequestBody DocumentGroup group) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(documentService.createDocumentGroup(group));
+    public ResponseEntity<DocumentGroupDTO> createGroup(@RequestBody DocumentGroupRequest request) {
+        DocumentGroup created = documentService.createDocumentGroup(request.toDocumentGroup());
+        return ResponseEntity.status(HttpStatus.CREATED).body(DocumentGroupDTO.from(created));
     }
 
     @Operation(summary = "Get all document groups")
     @GetMapping
-    public ResponseEntity<List<DocumentGroup>> getAllGroups() {
-        return ResponseEntity.ok(documentService.getAllDocumentGroups());
+    public ResponseEntity<List<DocumentGroupDTO>> getAllGroups() {
+        return ResponseEntity.ok(
+                documentService.getAllDocumentGroups().stream().map(DocumentGroupDTO::from).toList());
     }
 
     @Operation(summary = "Get the documents in a document group")
