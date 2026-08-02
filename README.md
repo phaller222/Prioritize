@@ -396,6 +396,7 @@ and never hand-written, so the client version tracks the API version (a `1.x` cl
 |---|---|---|
 | **Java** | [prioritize-java-client](https://github.com/phaller222/prioritize-java-client) | Maven Central: `de.hallerweb:prioritize-java-client:1.2.0` |
 | **PHP** | [prioritize-php-client](https://github.com/phaller222/prioritize-php-client) | Composer: `hallerweb/prioritize-php-client` |
+| **Python** | [prioritize-python-client](https://github.com/phaller222/prioritize-python-client) | PyPI: `pip install prioritize-client` |
 
 ```xml
 <dependency>
@@ -405,7 +406,7 @@ and never hand-written, so the client version tracks the API version (a `1.x` cl
 </dependency>
 ```
 
-Both support HTTP Basic (default profile) and Bearer/Keycloak authentication. A Python client (PyPI) is planned.
+All three support HTTP Basic (default profile) and Bearer/Keycloak authentication.
 
 ---
 
