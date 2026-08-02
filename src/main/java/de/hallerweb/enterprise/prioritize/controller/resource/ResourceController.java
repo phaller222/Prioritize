@@ -21,6 +21,7 @@ import de.hallerweb.enterprise.prioritize.dto.resource.ResourceDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
@@ -134,6 +135,20 @@ public class ResourceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ResourceDTO.from(created));
     }
 
+
+    /**
+     * Returns every resource the current user may read, across all groups and departments. The flat
+     * enumeration entry point for consumers (e.g. a dashboard): the per-group endpoints require group ids
+     * that a REST client cannot otherwise discover.
+     *
+     * @return ResponseEntity with the list of readable resources
+     */
+    @Operation(summary = "Returns every resource the current user may read (flat list)")
+    @GetMapping("/resources")
+    public ResponseEntity<List<ResourceDTO>> getAllResources(Authentication auth) {
+        return ResponseEntity.ok(
+                resourceService.getAllResources(getCurrentUser(auth)).stream().map(ResourceDTO::from).toList());
+    }
 
     /**
      * Retrieves a resource, if the current user is authorized.
@@ -330,6 +345,23 @@ public class ResourceController {
      * Request body for a telemetry ingest. Both fields are mandatory.
      */
     public record ResourceValueRequest(String name, String value) {
+    }
+
+    /**
+     * Returns the newest reading of every telemetry data point of a resource — the read counterpart to the
+     * ingest above. A dashboard renders one value per data point without pulling the full history. Requires
+     * READ permission on the resource.
+     *
+     * @param id ID of the resource
+     * @return ResponseEntity with the latest value per data point (empty when none recorded)
+     */
+    @Operation(summary = "Returns the newest reading of every telemetry data point of a resource")
+    @GetMapping("/resources/{id}/values/latest")
+    public ResponseEntity<List<ResourceValueDTO>> getLatestValues(
+        @PathVariable Long id,
+        Authentication auth) {
+
+        return ResponseEntity.ok(resourceService.getLatestValues(id, getCurrentUser(auth)));
     }
 
     // ==========================================

@@ -67,6 +67,42 @@ class ResourceControllerTest {
     }
 
     @Test
+    @DisplayName("getAllResources: delegates to the service and maps the readable resources to DTOs")
+    void getAllResources_delegatesAndMaps() {
+        de.hallerweb.enterprise.prioritize.model.resource.Resource r =
+                new de.hallerweb.enterprise.prioritize.model.resource.Resource();
+        r.setId(3L);
+        r.setName("Robot");
+        when(resourceService.getAllResources(user)).thenReturn(java.util.List.of(r));
+
+        ResponseEntity<java.util.List<de.hallerweb.enterprise.prioritize.dto.resource.ResourceDTO>> response =
+                controller.getAllResources(auth);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals(3L, response.getBody().get(0).id());
+        assertEquals("Robot", response.getBody().get(0).name());
+        verify(resourceService).getAllResources(user);
+    }
+
+    @Test
+    @DisplayName("getLatestValues: delegates to the service and returns its list with 200 OK")
+    void getLatestValues_delegates() {
+        de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO v =
+                new de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO("temp", "42");
+        when(resourceService.getLatestValues(5L, user)).thenReturn(java.util.List.of(v));
+
+        ResponseEntity<java.util.List<de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO>> response =
+                controller.getLatestValues(5L, auth);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals("temp", response.getBody().get(0).name());
+        assertEquals("42", response.getBody().get(0).value());
+        verify(resourceService).getLatestValues(5L, user);
+    }
+
+    @Test
     @DisplayName("recordValue: valid reading is delegated and answered with 202 Accepted")
     void recordValue_delegatesAndAccepts() {
         ResponseEntity<Void> response = controller.recordValue(
