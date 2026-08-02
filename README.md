@@ -386,6 +386,29 @@ From `1.0.0` onward the project follows [semantic versioning](https://semver.org
 
 ---
 
+## Client libraries
+
+Official REST clients build against the stable `/api/v1` contract. They are **spec-first**: every API and
+model class is generated from the released OpenAPI document (see [API documentation](#api-documentation))
+and never hand-written, so the client version tracks the API version (a `1.x` client targets the `1.x` API).
+
+| Language | Repository | Install |
+|---|---|---|
+| **Java** | [prioritize-java-client](https://github.com/phaller222/prioritize-java-client) | Maven Central: `de.hallerweb:prioritize-java-client:1.2.0` |
+| **PHP** | [prioritize-php-client](https://github.com/phaller222/prioritize-php-client) | Composer: `hallerweb/prioritize-php-client` |
+
+```xml
+<dependency>
+    <groupId>de.hallerweb</groupId>
+    <artifactId>prioritize-java-client</artifactId>
+    <version>1.2.0</version>
+</dependency>
+```
+
+Both support HTTP Basic (default profile) and Bearer/Keycloak authentication. A Python client (PyPI) is planned.
+
+---
+
 ## Error semantics (HTTP status)
 
 Centralized in `GlobalExceptionHandler`:
