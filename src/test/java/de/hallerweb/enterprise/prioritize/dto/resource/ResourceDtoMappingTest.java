@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.dto.resource;
 
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
@@ -128,6 +129,27 @@ class ResourceDtoMappingTest {
         ResourceGroup orphan = ResourceGroup.builder().name("Loose").build();
         orphan.setId(7L);
         assertNull(ResourceGroupDTO.from(orphan).departmentId());
+    }
+
+    @Test
+    @DisplayName("ResourceValueDTO.from exposes only the newest entry of the capped history, null-safe")
+    void resourceValueDtoFrom() {
+        NameValueEntry entry = new NameValueEntry();
+        entry.setMqttName("temperature");
+        entry.setMqttValues("21.0,21.5,22.3");
+
+        ResourceValueDTO dto = ResourceValueDTO.from(entry);
+        assertEquals("temperature", dto.name());
+        assertEquals("22.3", dto.value(), "newest (last) token of the comma history");
+
+        NameValueEntry single = new NameValueEntry();
+        single.setMqttName("humidity");
+        single.setMqttValues("55");
+        assertEquals("55", ResourceValueDTO.from(single).value());
+
+        NameValueEntry empty = new NameValueEntry();
+        empty.setMqttName("pressure");
+        assertNull(ResourceValueDTO.from(empty).value(), "empty history -> null value");
     }
 
     @Test

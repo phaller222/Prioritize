@@ -172,6 +172,45 @@ public class ResourceService {
         return res;
     }
 
+    /**
+     * Lists every resource the {@code user} may {@link Action#READ}, across all groups and departments —
+     * the flat, consumer-facing view a dashboard needs. Prioritize otherwise exposes resources only per
+     * group ({@link #getResourcesByGroupId}), and a REST client cannot even discover the group ids, so this
+     * is the single enumeration entry point. Each row carries its current occupancy "now", exactly as
+     * {@link #getResource} populates it for a single resource.
+     */
+    @Transactional(readOnly = true)
+    public List<Resource> getAllResources(PUser user) {
+        Instant now = Instant.now();
+        return resourceRepository.findAll().stream()
+                .filter(res -> authService.hasPermission(user, res, Action.READ))
+                .peek(res -> res.setCurrentOccupiedSlots(
+                        reservationRepository.findOverlappingReservations(res.getId(), now, now.plusMillis(1)).size()))
+                .toList();
+    }
+
+    /**
+     * Returns the newest reading of every telemetry data point of a resource — the read counterpart to the
+     * ingest {@code POST /resources/{id}/values}, which until now was write-only. Requires
+     * {@link Action#READ} on the resource. Empty when the resource has no recorded values.
+     */
+    @Transactional(readOnly = true)
+    public List<de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO> getLatestValues(
+            Long resourceId, PUser user) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
+        if (!authService.hasPermission(user, resource, Action.READ)) {
+            throw new AccessDeniedException("No read permission for this resource.");
+        }
+        if (resource.getMqttValues() == null) {
+            return List.of();
+        }
+        return resource.getMqttValues().stream()
+                .sorted()
+                .map(de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO::from)
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public Set<Resource> getResourcesByGroupId(Long groupId) {
         if (!resourceGroupRepository.existsById(groupId)) {

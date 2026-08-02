@@ -396,6 +396,44 @@ class ResourceServiceTest {
     }
 
     // ==========================================
+    // getAllResources / getLatestValues (flat consumer-facing reads)
+    // ==========================================
+
+    @Test
+    @DisplayName("getAllResources: Liefert die für den Nutzer lesbaren Ressourcen inkl. Belegung")
+    void getAllResources_ShouldReturnReadableResources() {
+        List<Resource> all = resourceService.getAllResources(adminUser);
+
+        assertTrue(all.stream().anyMatch(r -> r.getId().equals(testResource.getId())),
+                "Die Testressource muss für den Admin sichtbar sein");
+        Resource found = all.stream()
+                .filter(r -> r.getId().equals(testResource.getId())).findFirst().orElseThrow();
+        assertEquals(0, found.getCurrentOccupiedSlots(), "Ohne Reservierung sind 0 Slots belegt");
+    }
+
+    @Test
+    @DisplayName("getLatestValues: Liefert pro Datenpunkt nur den neuesten Wert der Historie")
+    void getLatestValues_ShouldReturnNewestPerDatapoint() {
+        resourceService.recordMqttValue(testResource.getId(), "temp", "21", adminUser);
+        resourceService.recordMqttValue(testResource.getId(), "temp", "22", adminUser);
+        resourceService.recordMqttValue(testResource.getId(), "humidity", "55", adminUser);
+
+        var values = resourceService.getLatestValues(testResource.getId(), adminUser);
+
+        assertEquals(2, values.size(), "Ein Eintrag pro Datenpunkt, nicht pro Messwert");
+        assertEquals("22", values.stream()
+                .filter(v -> "temp".equals(v.name())).findFirst().orElseThrow().value());
+        assertEquals("55", values.stream()
+                .filter(v -> "humidity".equals(v.name())).findFirst().orElseThrow().value());
+    }
+
+    @Test
+    @DisplayName("getLatestValues: Ressource ohne Werte liefert eine leere Liste")
+    void getLatestValues_NoValues_ReturnsEmpty() {
+        assertTrue(resourceService.getLatestValues(testResource.getId(), adminUser).isEmpty());
+    }
+
+    // ==========================================
     // getResourceGroupsByDepartment / renameResourceGroup (admin group management)
     // ==========================================
 
