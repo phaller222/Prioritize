@@ -17,17 +17,22 @@
 package de.hallerweb.enterprise.prioritize.service.resource;
 
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
+import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.telemetry.Severity;
+import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryOperator;
 import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +73,9 @@ class ResourceServiceTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private TelemetryRuleService telemetryRuleService;
 
     private PUser adminUser;
     private Department testDept;
@@ -567,5 +575,42 @@ class ResourceServiceTest {
                 .active(true)
                 .build();
         return userService.createUser(user);
+    }
+
+    // ==========================================
+    // getResourceStatus (combined view)
+    // ==========================================
+
+    @Test
+    @DisplayName("getResourceStatus: liefert Ressource, letzte Werte und Regeln in einem Rutsch")
+    void getResourceStatus_bundlesValuesAndRules() {
+        resourceService.recordMqttValue(testResource.getId(), "temperature", "23", adminUser);
+        resourceService.recordMqttValue(testResource.getId(), "humidity", "40", adminUser);
+        telemetryRuleService.createRule(testResource.getId(), new TelemetryRuleRequest(
+                "temperature", TelemetryOperator.GT, 30.0, null, null, Severity.WARNING, true), adminUser);
+        telemetryRuleService.createRule(testResource.getId(), new TelemetryRuleRequest(
+                "humidity", TelemetryOperator.LT, 10.0, null, null, Severity.CRITICAL, true), adminUser);
+
+        ResourceStatusDTO status = resourceService.getResourceStatus(adminUser).stream()
+                .filter(entry -> entry.resource().id().equals(testResource.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Test-Ressource fehlt in der Statusliste"));
+
+        assertEquals(testResource.getName(), status.resource().name());
+        assertEquals(2, status.latestValues().size());
+        assertEquals(2, status.telemetryRules().size(), "beide Regeln der Ressource sind zugeordnet");
+        assertTrue(status.telemetryRules().stream()
+                        .allMatch(rule -> rule.resourceId().equals(testResource.getId())),
+                "keine fremden Regeln in der Gruppierung");
+    }
+
+    @Test
+    @DisplayName("getResourceStatus: filtert wie getAllResources nach Leseberechtigung")
+    void getResourceStatus_respectsReadPermission() {
+        PUser plainUser = createPlainUser("status-plain-" + System.nanoTime());
+
+        assertTrue(resourceService.getResourceStatus(plainUser).stream()
+                        .noneMatch(entry -> entry.resource().id().equals(testResource.getId())),
+                "ohne Leserecht darf die Ressource auch im Statusblick nicht auftauchen");
     }
 }

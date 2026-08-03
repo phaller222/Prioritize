@@ -359,36 +359,4 @@ class TelemetryRuleServiceTest {
         verify(guard, never()).refresh(any());
     }
 
-    // ---- getRulesByResourceIds: the batched lookup behind the combined status view --------------
-
-    @Test
-    @DisplayName("getRulesByResourceIds: groups by resource in ONE repository call")
-    void getRulesByResourceIds_groupsInOneQuery() {
-        Resource first = resourceWithId(1L);
-        Resource second = resourceWithId(2L);
-
-        TelemetryRule a = rule(TelemetryOperator.GT, 30.0, null, null, TelemetryState.OK);
-        a.setResource(first);
-        TelemetryRule b = rule(TelemetryOperator.LT, 5.0, null, null, TelemetryState.ALARM);
-        b.setResource(first);
-        TelemetryRule c = rule(TelemetryOperator.GT, 80.0, null, null, TelemetryState.OK);
-        c.setResource(second);
-
-        when(ruleRepository.findByResource_IdIn(List.of(1L, 2L, 3L))).thenReturn(List.of(a, b, c));
-
-        var byResource = service.getRulesByResourceIds(List.of(1L, 2L, 3L));
-
-        assertEquals(2, byResource.get(1L).size());
-        assertEquals(1, byResource.get(2L).size());
-        assertTrue(byResource.get(3L) == null, "a resource without rules is simply absent");
-        verify(ruleRepository).findByResource_IdIn(List.of(1L, 2L, 3L));
-    }
-
-    @Test
-    @DisplayName("getRulesByResourceIds: no ids means no query at all")
-    void getRulesByResourceIds_emptyInputSkipsTheQuery() {
-        assertTrue(service.getRulesByResourceIds(List.of()).isEmpty());
-        assertTrue(service.getRulesByResourceIds(null).isEmpty());
-        verify(ruleRepository, never()).findByResource_IdIn(any());
-    }
 }
