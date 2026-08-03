@@ -79,6 +79,22 @@ class ResourceControllerTest {
     }
 
     @Test
+    @DisplayName("getResourceStatus: delegates to the service and returns its list with 200 OK")
+    void getResourceStatus_delegates() {
+        de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO status =
+                new de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO(
+                        null, java.util.List.of(), java.util.List.of());
+        when(resourceService.getResourceStatus(user)).thenReturn(java.util.List.of(status));
+
+        ResponseEntity<java.util.List<de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO>> response =
+                controller.getResourceStatus(user);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        verify(resourceService).getResourceStatus(user);
+    }
+
+    @Test
     @DisplayName("getLatestValues: delegates to the service and returns its list with 200 OK")
     void getLatestValues_delegates() {
         de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO v =

@@ -17,7 +17,9 @@
 package de.hallerweb.enterprise.prioritize.service.resource;
 
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
+import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleDTO;
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
@@ -43,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -186,6 +189,30 @@ public class ResourceService {
                 .filter(res -> authService.hasPermission(user, res, Action.READ))
                 .peek(res -> res.setCurrentOccupiedSlots(
                         reservationRepository.findOverlappingReservations(res.getId(), now, now.plusMillis(1)).size()))
+                .toList();
+    }
+
+    /**
+     * Every readable resource together with its latest telemetry readings and its monitoring rules —
+     * the whole picture a status view needs, in one call.
+     * <p>
+     * Assembled from {@link #getAllResources} (which does the {@link Action#READ} filtering and the
+     * occupancy) plus a <b>single</b> batched rule lookup for all of those resources at once. Clients
+     * that used to walk {@code /resources} and then two endpoints per resource paid 1&nbsp;+&nbsp;2N
+     * HTTP calls per refresh; this is one.
+     *
+     * @param user the calling user; only resources they may read are returned
+     */
+    @Transactional(readOnly = true)
+    public List<ResourceStatusDTO> getResourceStatus(PUser user) {
+        List<Resource> readable = getAllResources(user);
+
+        Map<Long, List<TelemetryRuleDTO>> rulesByResource = telemetryRuleService.getRulesByResourceIds(
+                readable.stream().map(Resource::getId).toList());
+
+        return readable.stream()
+                .map(resource -> ResourceStatusDTO.from(
+                        resource, rulesByResource.getOrDefault(resource.getId(), List.of())))
                 .toList();
     }
 

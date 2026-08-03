@@ -40,6 +40,7 @@ import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end tests over real HTTP against a running servlet container — the layer the rest of the
@@ -137,6 +138,40 @@ class RestApiIntegrationTest {
         assertNotEquals(200, plainStatus,
                 "an account without permissions must not read the company — got " + plainStatus);
         assertEquals(403, plainStatus);
+    }
+
+    // ==========================================
+    // The combined status endpoint
+    // ==========================================
+
+    /**
+     * {@code /resources/status} must not be swallowed by the {@code /resources/{id}} template that sits
+     * next to it, and it has to describe exactly the resources {@code /resources} lists — same set,
+     * same order — just with the values and rules already attached.
+     */
+    @Test
+    @DisplayName("The combined status endpoint answers on its own path and matches the plain resource list")
+    void resourceStatusMatchesTheResourceList() throws Exception {
+        HttpResponse<String> status = send(authorized("/api/v1/resources/status", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, status.statusCode(), status.body());
+
+        HttpResponse<String> plain = send(authorized("/api/v1/resources", ADMIN, ADMIN_PASSWORD).GET());
+        JsonNode combined = json.readTree(status.body());
+        JsonNode list = json.readTree(plain.body());
+
+        assertEquals(list.size(), combined.size(), "the status view must cover the same resources");
+        for (int i = 0; i < list.size(); i++) {
+            JsonNode entry = combined.get(i);
+            assertEquals(list.get(i).path("id").asLong(), entry.path("resource").path("id").asLong());
+            assertTrue(entry.has("latestValues"), "each entry carries its latest values");
+            assertTrue(entry.has("telemetryRules"), "each entry carries its monitoring rules");
+        }
+    }
+
+    @Test
+    @DisplayName("The combined status endpoint is not readable anonymously either")
+    void resourceStatusRequiresAuthentication() throws Exception {
+        assertEquals(401, send(request("/api/v1/resources/status").GET()).statusCode());
     }
 
     // ==========================================
