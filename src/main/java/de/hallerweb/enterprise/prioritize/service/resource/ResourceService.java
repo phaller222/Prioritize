@@ -31,6 +31,7 @@ import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceReservationRepository;
+import de.hallerweb.enterprise.prioritize.repository.telemetry.TelemetryRuleRepository;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.persistence.EntityNotFoundException;
@@ -61,6 +62,7 @@ public class ResourceService {
     private final ResourceReservationRepository reservationRepository;
     private final AuthorizationService authService; // Your central guard
     private final TelemetryRuleService telemetryRuleService;
+    private final TelemetryRuleRepository telemetryRuleRepository;
 
     /** Maximum number of readings kept per data point in the comma-separated history. */
     private static final int MAX_VALUE_HISTORY = 100;
@@ -206,14 +208,31 @@ public class ResourceService {
     @Transactional(readOnly = true)
     public List<ResourceStatusDTO> getResourceStatus(PUser user) {
         List<Resource> readable = getAllResources(user);
-
-        Map<Long, List<TelemetryRuleDTO>> rulesByResource = telemetryRuleService.getRulesByResourceIds(
-                readable.stream().map(Resource::getId).toList());
+        Map<Long, List<TelemetryRuleDTO>> rulesByResource = rulesFor(readable);
 
         return readable.stream()
                 .map(resource -> ResourceStatusDTO.from(
                         resource, rulesByResource.getOrDefault(resource.getId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * The monitoring rules of the given resources in one query, grouped by resource id.
+     * <p>
+     * Deliberately <b>private</b> and taking already-authorized {@link Resource}s rather than bare ids:
+     * it performs no permission check of its own, so it must not be reachable as a service method that
+     * something else could hand unfiltered ids to. The only caller is {@link #getResourceStatus}, whose
+     * input comes straight out of {@link #getAllResources} and is therefore already reduced to what the
+     * user may read.
+     */
+    private Map<Long, List<TelemetryRuleDTO>> rulesFor(List<Resource> authorizedResources) {
+        if (authorizedResources.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = authorizedResources.stream().map(Resource::getId).toList();
+        return telemetryRuleRepository.findByResource_IdIn(ids).stream()
+                .collect(Collectors.groupingBy(rule -> rule.getResource().getId(),
+                        Collectors.mapping(TelemetryRuleDTO::from, Collectors.toList())));
     }
 
     /**
