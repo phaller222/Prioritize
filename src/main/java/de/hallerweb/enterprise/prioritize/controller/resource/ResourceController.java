@@ -21,6 +21,7 @@ import de.hallerweb.enterprise.prioritize.dto.resource.ResourceDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
@@ -138,6 +139,21 @@ public class ResourceController {
     public ResponseEntity<List<ResourceDTO>> getAllResources(@AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(
                 resourceService.getAllResources(currentUser).stream().map(ResourceDTO::from).toList());
+    }
+
+    /**
+     * Returns every readable resource together with its latest telemetry readings and its monitoring
+     * rules — the same picture as {@code /resources} plus {@code /resources/{id}/values/latest} plus
+     * {@code /resources/{id}/telemetry-rules}, but in a single call instead of 1&nbsp;+&nbsp;2N. Meant
+     * for status views that poll: those paid the fan-out on every tick, and every one of those calls
+     * re-authenticated and re-resolved the caller.
+     *
+     * @return ResponseEntity with the status of every readable resource
+     */
+    @Operation(summary = "Returns every readable resource with its latest values and monitoring rules")
+    @GetMapping("/resources/status")
+    public ResponseEntity<List<ResourceStatusDTO>> getResourceStatus(@AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(resourceService.getResourceStatus(currentUser));
     }
 
     /**

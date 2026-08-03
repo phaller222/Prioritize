@@ -30,8 +30,11 @@ import de.hallerweb.enterprise.prioritize.repository.telemetry.TelemetryRuleRepo
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.context.ApplicationEventPublisher;
@@ -197,6 +200,28 @@ public class TelemetryRuleService {
         return ruleRepository.findByResource_Id(resourceId).stream()
                 .map(TelemetryRuleDTO::from)
                 .toList();
+    }
+
+    /**
+     * The rules of several resources at once, grouped by resource id — one query instead of one per
+     * resource. Backs the combined status view in {@code ResourceService.getResourceStatus}.
+     * <p>
+     * <b>Performs no authorization</b>, unlike {@link #getRules}: it is a service-to-service helper
+     * whose caller has <em>already</em> reduced the ids to resources the user may read. Do not wire it
+     * to a controller, and do not call it with ids that have not been filtered — it would hand out
+     * rules of resources the caller cannot see.
+     *
+     * @param resourceIds the already-authorized resource ids
+     * @return rules per resource id; ids without rules are simply absent
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, List<TelemetryRuleDTO>> getRulesByResourceIds(Collection<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Map.of();
+        }
+        return ruleRepository.findByResource_IdIn(resourceIds).stream()
+                .collect(Collectors.groupingBy(rule -> rule.getResource().getId(),
+                        Collectors.mapping(TelemetryRuleDTO::from, Collectors.toList())));
     }
 
     /** Reads a single rule. Requires {@link Action#READ} on its resource. */
