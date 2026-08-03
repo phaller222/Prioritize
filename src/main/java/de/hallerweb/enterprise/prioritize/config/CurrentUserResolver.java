@@ -34,9 +34,11 @@ import org.springframework.stereotype.Component;
  * For the later Keycloak mode (OAuth2 Resource Server), the JWT branch is
  * added here, which evaluates the {@code preferred_username} claim.
  * <p>
- * Per project convention, controllers determine the {@link PUser} via this
- * resolver and pass it explicitly to the services. The actual
- * permission check remains in the service.
+ * Per project convention, controllers receive the {@link PUser} and pass it explicitly to the
+ * services; the actual permission check remains in the service. Controllers do not call this class
+ * directly — they declare a {@link AuthenticatedUser}-annotated parameter and
+ * {@link AuthenticatedUserArgumentResolver} calls in here once per request. The Vaadin side uses
+ * {@code ui.common.CurrentUser} instead, which reads the {@code SecurityContextHolder} itself.
  */
 @Component
 @RequiredArgsConstructor

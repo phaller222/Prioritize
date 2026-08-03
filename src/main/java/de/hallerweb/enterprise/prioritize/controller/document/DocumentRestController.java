@@ -16,12 +16,12 @@
 
 package de.hallerweb.enterprise.prioritize.controller.document;
 
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentHistoryDTO;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.service.document.DocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -29,7 +29,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -46,11 +45,6 @@ import java.util.List;
 public class DocumentRestController {
 
     private final DocumentService documentService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     /**
      * Upload of a new document into a DocumentGroup.
@@ -62,10 +56,9 @@ public class DocumentRestController {
             @PathVariable Long groupId,
             @RequestParam("file") MultipartFile file,
             @RequestParam("name") String name,
-            Authentication auth) throws IOException {
+            @AuthenticatedUser PUser currentUser) throws IOException {
 
         log.info("Upload request received: Name={}, Group={}, Size={}", name, groupId, file.getSize());
-        PUser currentUser = getCurrentUser(auth);
         DocumentInfo info = documentService.createDocument(
                 name, groupId, currentUser, file.getBytes(), file.getContentType());
         log.info("Document successfully created by user '{}'.", currentUser.getUsername());
@@ -78,8 +71,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "Download of the current version of a document")
     @GetMapping("/download/{documentInfoId}")
-    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentInfoId, Authentication auth) {
-        PUser currentUser = getCurrentUser(auth);
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long documentInfoId, @AuthenticatedUser PUser currentUser) {
         Document doc = documentService.getDocument(documentInfoId, currentUser).getCurrentDocument();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getMimeType()))
@@ -97,8 +89,7 @@ public class DocumentRestController {
     public ResponseEntity<byte[]> downloadSpecificVersion(
             @PathVariable Long id,
             @PathVariable Long versionNumber,
-            Authentication auth) {
-        PUser currentUser = getCurrentUser(auth);
+            @AuthenticatedUser PUser currentUser) {
         Document doc = documentService.getSpecificVersion(id, versionNumber, currentUser);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getMimeType()))
@@ -112,8 +103,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "All documents of a DocumentGroup as a DTO list")
     @GetMapping("/group/{groupId}")
-    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId, Authentication auth) {
-        PUser currentUser = getCurrentUser(auth);
+    public ResponseEntity<List<DocumentSummaryDTO>> getDocumentsInGroup(@PathVariable Long groupId, @AuthenticatedUser PUser currentUser) {
         List<DocumentInfo> documents = documentService.getDocumentsInGroup(groupId, currentUser);
         List<DocumentSummaryDTO> summary = documents.stream()
                 .map(DocumentSummaryDTO::from)
@@ -127,8 +117,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "Version history of a document")
     @GetMapping("/{id}/history")
-    public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable Long id, Authentication auth) {
-        PUser currentUser = getCurrentUser(auth);
+    public ResponseEntity<List<DocumentHistoryDTO>> getHistory(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         List<Document> history = documentService.getDocumentHistory(id, currentUser);
         List<DocumentHistoryDTO> dtos = history.stream()
                 .map(d -> new DocumentHistoryDTO(
@@ -148,9 +137,8 @@ public class DocumentRestController {
      */
     @Operation(summary = "Delete document")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         log.info("Delete request for document: {}", id);
-        PUser currentUser = getCurrentUser(auth);
         documentService.deleteDocument(id, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -161,9 +149,9 @@ public class DocumentRestController {
      */
     @Operation(summary = "Check out a document (lock it)")
     @PostMapping("/{id}/check-out")
-    public ResponseEntity<Void> checkOut(@PathVariable Long id, Authentication auth) {
+    public ResponseEntity<Void> checkOut(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         log.info("Checking out document: {}", id);
-        documentService.checkOut(id, getCurrentUser(auth));
+        documentService.checkOut(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 
@@ -177,9 +165,8 @@ public class DocumentRestController {
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "comment", required = false) String comment,
-            Authentication auth) throws IOException {
+            @AuthenticatedUser PUser currentUser) throws IOException {
 
-        PUser currentUser = getCurrentUser(auth);
         Document newVersion = documentService.checkIn(
                 id, file.getBytes(), file.getContentType(), comment, currentUser);
         return ResponseEntity.ok(DocumentSummaryDTO.from(newVersion.getDocumentInfo()));
@@ -191,8 +178,8 @@ public class DocumentRestController {
      */
     @Operation(summary = "Cancel checkout (unlock without a new version)")
     @PostMapping("/{id}/cancel-check-out")
-    public ResponseEntity<Void> cancelCheckOut(@PathVariable Long id, Authentication auth) {
-        documentService.cancelCheckOut(id, getCurrentUser(auth));
+    public ResponseEntity<Void> cancelCheckOut(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        documentService.cancelCheckOut(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 
@@ -202,8 +189,8 @@ public class DocumentRestController {
      */
     @Operation(summary = "Search documents by name")
     @GetMapping("/search")
-    public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name, Authentication auth) {
-        return ResponseEntity.ok(documentService.searchDocumentsByName(name, getCurrentUser(auth)));
+    public ResponseEntity<List<DocumentSummaryDTO>> search(@RequestParam String name, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(documentService.searchDocumentsByName(name, currentUser));
     }
 
     /**
@@ -212,7 +199,7 @@ public class DocumentRestController {
      */
     @Operation(summary = "The 10 most recently modified documents")
     @GetMapping("/recent")
-    public ResponseEntity<List<DocumentSummaryDTO>> getRecent(Authentication auth) {
-        return ResponseEntity.ok(documentService.getRecentDocuments(getCurrentUser(auth)));
+    public ResponseEntity<List<DocumentSummaryDTO>> getRecent(@AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(documentService.getRecentDocuments(currentUser));
     }
 }

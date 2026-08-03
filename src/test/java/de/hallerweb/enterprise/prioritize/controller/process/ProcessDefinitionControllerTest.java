@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinitionState;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -36,7 +35,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 /**
  * Unit tests for {@link ProcessDefinitionController}: delegation to {@link ProcessDefinitionService}
@@ -49,15 +47,12 @@ class ProcessDefinitionControllerTest {
     private ProcessDefinitionService service;
     private ProcessDefinitionController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         service = mock(ProcessDefinitionService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new ProcessDefinitionController(service, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new ProcessDefinitionController(service);
     }
 
     private static ProcessDefinitionDTO draft() {
@@ -76,7 +71,7 @@ class ProcessDefinitionControllerTest {
         ProcessDefinitionDTO dto = draft();
         when(service.register(eq(7L), eq(user))).thenReturn(dto);
 
-        ResponseEntity<ProcessDefinitionDTO> response = controller.register(7L, auth);
+        ResponseEntity<ProcessDefinitionDTO> response = controller.register(7L, user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -87,7 +82,7 @@ class ProcessDefinitionControllerTest {
     void getAll_ok() {
         when(service.getAll(user)).thenReturn(List.of(draft()));
 
-        ResponseEntity<List<ProcessDefinitionDTO>> response = controller.getAll(auth);
+        ResponseEntity<List<ProcessDefinitionDTO>> response = controller.getAll(user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
@@ -99,7 +94,7 @@ class ProcessDefinitionControllerTest {
         ProcessDefinitionDTO dto = draft();
         when(service.get(eq(42L), eq(user))).thenReturn(dto);
 
-        ResponseEntity<ProcessDefinitionDTO> response = controller.get(42L, auth);
+        ResponseEntity<ProcessDefinitionDTO> response = controller.get(42L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -111,7 +106,7 @@ class ProcessDefinitionControllerTest {
         ProcessDefinitionDTO dto = active();
         when(service.activate(eq(42L), eq(user))).thenReturn(dto);
 
-        ResponseEntity<ProcessDefinitionDTO> response = controller.activate(42L, auth);
+        ResponseEntity<ProcessDefinitionDTO> response = controller.activate(42L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(ProcessDefinitionState.ACTIVE, response.getBody().state());
@@ -125,7 +120,7 @@ class ProcessDefinitionControllerTest {
                 ProcessDefinitionState.SUSPENDED, "dep-1", 2, LocalDateTime.of(2026, 7, 22, 9, 0), "peter");
         when(service.deactivate(eq(42L), eq(user))).thenReturn(suspended);
 
-        ResponseEntity<ProcessDefinitionDTO> response = controller.deactivate(42L, auth);
+        ResponseEntity<ProcessDefinitionDTO> response = controller.deactivate(42L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(ProcessDefinitionState.SUSPENDED, response.getBody().state());
@@ -134,7 +129,7 @@ class ProcessDefinitionControllerTest {
     @Test
     @DisplayName("unregister: delegiert und antwortet mit 204 No Content")
     void unregister_noContent() {
-        ResponseEntity<Void> response = controller.unregister(42L, false, auth);
+        ResponseEntity<Void> response = controller.unregister(42L, false, user);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         assertNull(response.getBody());
@@ -144,7 +139,7 @@ class ProcessDefinitionControllerTest {
     @Test
     @DisplayName("unregister?force=true: reicht das Flag durch")
     void unregister_force() {
-        ResponseEntity<Void> response = controller.unregister(42L, true, auth);
+        ResponseEntity<Void> response = controller.unregister(42L, true, user);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(service).unregister(42L, true, user);

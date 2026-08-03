@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.controller.nfc;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.nfc.NfcUnitController.NfcUnitRequest;
 import de.hallerweb.enterprise.prioritize.dto.nfc.NfcUnitDTO;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
@@ -29,7 +28,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,15 +47,12 @@ class NfcUnitControllerTest {
     private NfcUnitService nfcUnitService;
     private NfcUnitController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         nfcUnitService = mock(NfcUnitService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new NfcUnitController(nfcUnitService, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new NfcUnitController(nfcUnitService);
     }
 
     @Test
@@ -66,7 +61,7 @@ class NfcUnitControllerTest {
         when(nfcUnitService.registerNfcUnit(eq(7L), any(), eq(user))).thenReturn(new NfcUnit());
 
         ResponseEntity<NfcUnitDTO> response = controller.registerNfcUnit(
-                7L, new NfcUnitRequest("uuid-1", "Tag", "d", NfcUnitType.TIMETRACKER, null), auth);
+                7L, new NfcUnitRequest("uuid-1", "Tag", "d", NfcUnitType.TIMETRACKER, null), user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         verify(nfcUnitService).registerNfcUnit(eq(7L), any(), eq(user));
@@ -76,7 +71,7 @@ class NfcUnitControllerTest {
     @DisplayName("registerNfcUnit: blank uuid is rejected before delegation")
     void registerNfcUnit_blankUuid_throws() {
         assertThrows(IllegalArgumentException.class, () -> controller.registerNfcUnit(
-                7L, new NfcUnitRequest("", "Tag", "d", NfcUnitType.COUNTER, null), auth));
+                7L, new NfcUnitRequest("", "Tag", "d", NfcUnitType.COUNTER, null), user));
         verifyNoInteractions(nfcUnitService);
     }
 
@@ -84,7 +79,7 @@ class NfcUnitControllerTest {
     @DisplayName("registerNfcUnit: missing type is rejected before delegation")
     void registerNfcUnit_missingType_throws() {
         assertThrows(IllegalArgumentException.class, () -> controller.registerNfcUnit(
-                7L, new NfcUnitRequest("uuid-1", "Tag", "d", null, null), auth));
+                7L, new NfcUnitRequest("uuid-1", "Tag", "d", null, null), user));
         verifyNoInteractions(nfcUnitService);
     }
 
@@ -92,7 +87,7 @@ class NfcUnitControllerTest {
     @DisplayName("bindTask: delegates to the service")
     void bindTask_delegates() {
         when(nfcUnitService.bindTask(eq(3L), eq(9L), eq(user))).thenReturn(new NfcUnit());
-        controller.bindTask(3L, 9L, auth);
+        controller.bindTask(3L, 9L, user);
         verify(nfcUnitService).bindTask(eq(3L), eq(9L), eq(user));
     }
 
@@ -102,7 +97,7 @@ class NfcUnitControllerTest {
         ScanResult result = new ScanResult("uuid-1", NfcUnitType.TIMETRACKER, "TRACKING_STARTED", 9L, true, 0);
         when(nfcUnitService.scan(eq("uuid-1"), eq(user))).thenReturn(result);
 
-        ResponseEntity<ScanResult> response = controller.scan("uuid-1", auth);
+        ResponseEntity<ScanResult> response = controller.scan("uuid-1", user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(result, response.getBody());
@@ -112,7 +107,7 @@ class NfcUnitControllerTest {
     @Test
     @DisplayName("deleteNfcUnit: delegates and answers 204 No Content")
     void deleteNfcUnit_noContent() {
-        ResponseEntity<Void> response = controller.deleteNfcUnit(3L, auth);
+        ResponseEntity<Void> response = controller.deleteNfcUnit(3L, user);
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(nfcUnitService).deleteNfcUnit(eq(3L), eq(user));
     }

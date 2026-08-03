@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.controller.scheduling;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleDTO;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -26,7 +25,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,15 +47,12 @@ class TaskScheduleControllerTest {
     private TaskScheduleService service;
     private TaskScheduleController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         service = mock(TaskScheduleService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new TaskScheduleController(service, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new TaskScheduleController(service);
     }
 
     private static TaskScheduleDTO dto() {
@@ -72,7 +67,7 @@ class TaskScheduleControllerTest {
                 "0 0 8 * * *", "Europe/Berlin", true);
         when(service.createSchedule(eq(5L), eq(req), eq(user))).thenReturn(dto());
 
-        ResponseEntity<TaskScheduleDTO> response = controller.createSchedule(5L, req, auth);
+        ResponseEntity<TaskScheduleDTO> response = controller.createSchedule(5L, req, user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(42L, response.getBody().id());
@@ -84,7 +79,7 @@ class TaskScheduleControllerTest {
     void getSchedules_ok() {
         when(service.getSchedules(5L, user)).thenReturn(List.of(dto()));
 
-        ResponseEntity<List<TaskScheduleDTO>> response = controller.getSchedules(5L, auth);
+        ResponseEntity<List<TaskScheduleDTO>> response = controller.getSchedules(5L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
@@ -95,7 +90,7 @@ class TaskScheduleControllerTest {
     void getSchedule_ok() {
         when(service.getSchedule(42L, user)).thenReturn(dto());
 
-        ResponseEntity<TaskScheduleDTO> response = controller.getSchedule(42L, auth);
+        ResponseEntity<TaskScheduleDTO> response = controller.getSchedule(42L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(42L, response.getBody().id());
@@ -108,7 +103,7 @@ class TaskScheduleControllerTest {
                 null, null, null, null, "0 0/5 * * * *", null, false);
         when(service.updateSchedule(eq(42L), eq(patch), eq(user))).thenReturn(dto());
 
-        ResponseEntity<TaskScheduleDTO> response = controller.updateSchedule(42L, patch, auth);
+        ResponseEntity<TaskScheduleDTO> response = controller.updateSchedule(42L, patch, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(service).updateSchedule(42L, patch, user);
@@ -117,7 +112,7 @@ class TaskScheduleControllerTest {
     @Test
     @DisplayName("deleteSchedule: delegiert und antwortet mit 204 No Content")
     void deleteSchedule_noContent() {
-        ResponseEntity<Void> response = controller.deleteSchedule(42L, auth);
+        ResponseEntity<Void> response = controller.deleteSchedule(42L, user);
 
         assertSame(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(service).deleteSchedule(42L, user);

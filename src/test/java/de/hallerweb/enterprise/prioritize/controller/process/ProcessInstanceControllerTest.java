@@ -25,7 +25,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.dto.process.CancelProcessInstanceRequest;
 import de.hallerweb.enterprise.prioritize.dto.process.ProcessInstanceDTO;
 import de.hallerweb.enterprise.prioritize.dto.process.StartProcessInstanceRequest;
@@ -41,7 +40,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 /**
  * Unit tests for {@link ProcessInstanceController}: delegation to {@link ProcessInstanceService} and
@@ -54,15 +52,12 @@ class ProcessInstanceControllerTest {
     private ProcessInstanceService service;
     private ProcessInstanceController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         service = mock(ProcessInstanceService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new ProcessInstanceController(service, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new ProcessInstanceController(service);
     }
 
     private static ProcessInstanceDTO running() {
@@ -78,7 +73,7 @@ class ProcessInstanceControllerTest {
         when(service.startForProject(eq(7L), eq(3L), eq(variables), eq(user))).thenReturn(dto);
 
         ResponseEntity<ProcessInstanceDTO> response =
-                controller.startForProject(7L, new StartProcessInstanceRequest(3L, variables), auth);
+                controller.startForProject(7L, new StartProcessInstanceRequest(3L, variables), user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -91,7 +86,7 @@ class ProcessInstanceControllerTest {
         when(service.startForTask(eq(42L), eq(3L), isNull(), eq(user))).thenReturn(dto);
 
         ResponseEntity<ProcessInstanceDTO> response =
-                controller.startForTask(42L, new StartProcessInstanceRequest(3L, null), auth);
+                controller.startForTask(42L, new StartProcessInstanceRequest(3L, null), user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -102,7 +97,7 @@ class ProcessInstanceControllerTest {
     void getForProject_ok() {
         when(service.getForProject(7L, user)).thenReturn(List.of(running()));
 
-        ResponseEntity<List<ProcessInstanceDTO>> response = controller.getForProject(7L, auth);
+        ResponseEntity<List<ProcessInstanceDTO>> response = controller.getForProject(7L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
@@ -114,7 +109,7 @@ class ProcessInstanceControllerTest {
         ProcessInstanceDTO dto = running();
         when(service.getForTask(42L, user)).thenReturn(Optional.of(dto));
 
-        ResponseEntity<ProcessInstanceDTO> response = controller.getForTask(42L, auth);
+        ResponseEntity<ProcessInstanceDTO> response = controller.getForTask(42L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -125,7 +120,7 @@ class ProcessInstanceControllerTest {
     void getForTask_notFound() {
         when(service.getForTask(42L, user)).thenReturn(Optional.empty());
 
-        assertThrows(NoSuchElementException.class, () -> controller.getForTask(42L, auth));
+        assertThrows(NoSuchElementException.class, () -> controller.getForTask(42L, user));
     }
 
     @Test
@@ -134,7 +129,7 @@ class ProcessInstanceControllerTest {
         ProcessInstanceDTO dto = running();
         when(service.get("pi-1", user)).thenReturn(dto);
 
-        ResponseEntity<ProcessInstanceDTO> response = controller.get("pi-1", auth);
+        ResponseEntity<ProcessInstanceDTO> response = controller.get("pi-1", user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertSame(dto, response.getBody());
@@ -144,7 +139,7 @@ class ProcessInstanceControllerTest {
     @DisplayName("cancel: reicht den Grund durch und antwortet mit 204 No Content")
     void cancel_noContent() {
         ResponseEntity<Void> response =
-                controller.cancel("pi-1", new CancelProcessInstanceRequest("wrong process picked"), auth);
+                controller.cancel("pi-1", new CancelProcessInstanceRequest("wrong process picked"), user);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(service).cancel("pi-1", "wrong process picked", user);
@@ -153,7 +148,7 @@ class ProcessInstanceControllerTest {
     @Test
     @DisplayName("cancel: funktioniert auch ganz ohne Body")
     void cancel_withoutBody() {
-        ResponseEntity<Void> response = controller.cancel("pi-1", null, auth);
+        ResponseEntity<Void> response = controller.cancel("pi-1", null, user);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(service).cancel("pi-1", null, user);

@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.controller.project;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskRequest;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskStatusRequest;
 import de.hallerweb.enterprise.prioritize.dto.project.TaskDTO;
@@ -29,7 +28,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,15 +47,12 @@ class TaskControllerTest {
     private TaskService taskService;
     private TaskController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         taskService = mock(TaskService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new TaskController(taskService, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new TaskController(taskService);
     }
 
     @Test
@@ -66,7 +61,7 @@ class TaskControllerTest {
         when(taskService.createTask(eq(3L), any(), eq(user))).thenReturn(new Task());
 
         ResponseEntity<TaskDTO> response = controller.createTask(
-                3L, new TaskRequest("Design", "d", 1), auth);
+                3L, new TaskRequest("Design", "d", 1), user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         verify(taskService).createTask(eq(3L), any(), eq(user));
@@ -76,7 +71,7 @@ class TaskControllerTest {
     @DisplayName("createTask: blank name is rejected before delegation")
     void createTask_blankName_throws() {
         assertThrows(IllegalArgumentException.class, () -> controller.createTask(
-                3L, new TaskRequest("", "d", 1), auth));
+                3L, new TaskRequest("", "d", 1), user));
         verifyNoInteractions(taskService);
     }
 
@@ -84,7 +79,7 @@ class TaskControllerTest {
     @DisplayName("assignTask: delegates to the service")
     void assignTask_delegates() {
         when(taskService.assignTask(eq(5L), eq(9L), eq(user))).thenReturn(new Task());
-        controller.assignTask(5L, 9L, auth);
+        controller.assignTask(5L, 9L, user);
         verify(taskService).assignTask(eq(5L), eq(9L), eq(user));
     }
 
@@ -92,7 +87,7 @@ class TaskControllerTest {
     @DisplayName("changeStatus: missing status is rejected before delegation")
     void changeStatus_missingStatus_throws() {
         assertThrows(IllegalArgumentException.class,
-                () -> controller.changeStatus(5L, new TaskStatusRequest(null), auth));
+                () -> controller.changeStatus(5L, new TaskStatusRequest(null), user));
         verifyNoInteractions(taskService);
     }
 
@@ -100,7 +95,7 @@ class TaskControllerTest {
     @DisplayName("changeStatus: delegates with the requested status")
     void changeStatus_delegates() {
         when(taskService.changeStatus(eq(5L), eq(TaskStatus.STARTED), eq(user))).thenReturn(new Task());
-        controller.changeStatus(5L, new TaskStatusRequest(TaskStatus.STARTED), auth);
+        controller.changeStatus(5L, new TaskStatusRequest(TaskStatus.STARTED), user);
         verify(taskService).changeStatus(eq(5L), eq(TaskStatus.STARTED), eq(user));
     }
 
@@ -108,7 +103,7 @@ class TaskControllerTest {
     @DisplayName("startTracking: delegates to the service")
     void startTracking_delegates() {
         when(taskService.startTracking(eq(5L), eq(user))).thenReturn(new Task());
-        controller.startTracking(5L, auth);
+        controller.startTracking(5L, user);
         verify(taskService).startTracking(eq(5L), eq(user));
     }
 
@@ -116,7 +111,7 @@ class TaskControllerTest {
     @DisplayName("toggleTracking: delegates to the service")
     void toggleTracking_delegates() {
         when(taskService.toggleTracking(eq(5L), eq(user))).thenReturn(new Task());
-        controller.toggleTracking(5L, auth);
+        controller.toggleTracking(5L, user);
         verify(taskService).toggleTracking(eq(5L), eq(user));
     }
 
@@ -127,7 +122,7 @@ class TaskControllerTest {
                 new TaskService.TrackingSummary(5L, false, 90L, "PT1M30S", null);
         when(taskService.getTrackingSummary(eq(5L), eq(user))).thenReturn(summary);
 
-        ResponseEntity<TaskService.TrackingSummary> response = controller.getTracking(5L, auth);
+        ResponseEntity<TaskService.TrackingSummary> response = controller.getTracking(5L, user);
 
         assertEquals(summary, response.getBody());
         verify(taskService).getTrackingSummary(eq(5L), eq(user));

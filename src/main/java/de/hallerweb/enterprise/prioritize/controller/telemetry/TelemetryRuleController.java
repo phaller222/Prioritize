@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.telemetry;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleDTO;
 import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -25,7 +25,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -53,11 +52,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class TelemetryRuleController {
 
     private final TelemetryRuleService telemetryRuleService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     /**
      * Creates a monitoring rule on a resource.
@@ -69,10 +63,10 @@ public class TelemetryRuleController {
     public ResponseEntity<TelemetryRuleDTO> createRule(
         @PathVariable Long resourceId,
         @RequestBody TelemetryRuleRequest request,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
         TelemetryRuleDTO created =
-                telemetryRuleService.createRule(resourceId, request, getCurrentUser(auth));
+                telemetryRuleService.createRule(resourceId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -85,9 +79,9 @@ public class TelemetryRuleController {
     @GetMapping("/resources/{resourceId}/telemetry-rules")
     public ResponseEntity<List<TelemetryRuleDTO>> getRules(
         @PathVariable Long resourceId,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(telemetryRuleService.getRules(resourceId, getCurrentUser(auth)));
+        return ResponseEntity.ok(telemetryRuleService.getRules(resourceId, currentUser));
     }
 
     /**
@@ -99,9 +93,9 @@ public class TelemetryRuleController {
     @GetMapping("/telemetry-rules/{id}")
     public ResponseEntity<TelemetryRuleDTO> getRule(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(telemetryRuleService.getRule(id, getCurrentUser(auth)));
+        return ResponseEntity.ok(telemetryRuleService.getRule(id, currentUser));
     }
 
     /**
@@ -114,9 +108,9 @@ public class TelemetryRuleController {
     public ResponseEntity<TelemetryRuleDTO> updateRule(
         @PathVariable Long id,
         @RequestBody TelemetryRuleRequest patch,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(telemetryRuleService.updateRule(id, patch, getCurrentUser(auth)));
+        return ResponseEntity.ok(telemetryRuleService.updateRule(id, patch, currentUser));
     }
 
     /**
@@ -128,9 +122,9 @@ public class TelemetryRuleController {
     @DeleteMapping("/telemetry-rules/{id}")
     public ResponseEntity<Void> deleteRule(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        telemetryRuleService.deleteRule(id, getCurrentUser(auth));
+        telemetryRuleService.deleteRule(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

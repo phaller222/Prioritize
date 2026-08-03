@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.process;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.process.ProcessDefinitionService;
@@ -24,7 +24,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,11 +56,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProcessDefinitionController {
 
     private final ProcessDefinitionService processDefinitionService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     /**
      * Registers a document's current version as a process definition. Nothing is deployed yet — the
@@ -71,8 +65,8 @@ public class ProcessDefinitionController {
      */
     @Operation(summary = "Register a document as a process definition (draft, not yet deployed)")
     @PostMapping("/documents/{documentInfoId}/process-definition")
-    public ResponseEntity<ProcessDefinitionDTO> register(@PathVariable Long documentInfoId, Authentication auth) {
-        ProcessDefinitionDTO registered = processDefinitionService.register(documentInfoId, getCurrentUser(auth));
+    public ResponseEntity<ProcessDefinitionDTO> register(@PathVariable Long documentInfoId, @AuthenticatedUser PUser currentUser) {
+        ProcessDefinitionDTO registered = processDefinitionService.register(documentInfoId, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(registered);
     }
 
@@ -83,8 +77,8 @@ public class ProcessDefinitionController {
      */
     @Operation(summary = "List all process definitions (deployed or draft)")
     @GetMapping("/process-definitions")
-    public ResponseEntity<List<ProcessDefinitionDTO>> getAll(Authentication auth) {
-        return ResponseEntity.ok(processDefinitionService.getAll(getCurrentUser(auth)));
+    public ResponseEntity<List<ProcessDefinitionDTO>> getAll(@AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processDefinitionService.getAll(currentUser));
     }
 
     /**
@@ -94,8 +88,8 @@ public class ProcessDefinitionController {
      */
     @Operation(summary = "Get a process definition")
     @GetMapping("/process-definitions/{id}")
-    public ResponseEntity<ProcessDefinitionDTO> get(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(processDefinitionService.get(id, getCurrentUser(auth)));
+    public ResponseEntity<ProcessDefinitionDTO> get(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processDefinitionService.get(id, currentUser));
     }
 
     /**
@@ -106,8 +100,8 @@ public class ProcessDefinitionController {
      */
     @Operation(summary = "Activate a definition (deploy it to the engine and make it startable)")
     @PostMapping("/process-definitions/{id}/activate")
-    public ResponseEntity<ProcessDefinitionDTO> activate(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(processDefinitionService.activate(id, getCurrentUser(auth)));
+    public ResponseEntity<ProcessDefinitionDTO> activate(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processDefinitionService.activate(id, currentUser));
     }
 
     /**
@@ -117,8 +111,8 @@ public class ProcessDefinitionController {
      */
     @Operation(summary = "Deactivate a definition (stop new instances; running ones continue)")
     @PostMapping("/process-definitions/{id}/deactivate")
-    public ResponseEntity<ProcessDefinitionDTO> deactivate(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(processDefinitionService.deactivate(id, getCurrentUser(auth)));
+    public ResponseEntity<ProcessDefinitionDTO> deactivate(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processDefinitionService.deactivate(id, currentUser));
     }
 
     /**
@@ -132,8 +126,8 @@ public class ProcessDefinitionController {
     @DeleteMapping("/process-definitions/{id}")
     public ResponseEntity<Void> unregister(@PathVariable Long id,
                                            @RequestParam(name = "force", defaultValue = "false") boolean force,
-                                           Authentication auth) {
-        processDefinitionService.unregister(id, force, getCurrentUser(auth));
+                                           @AuthenticatedUser PUser currentUser) {
+        processDefinitionService.unregister(id, force, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.controller.telemetry;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleDTO;
 import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -29,7 +28,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -51,15 +49,12 @@ class TelemetryRuleControllerTest {
     private TelemetryRuleService service;
     private TelemetryRuleController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         service = mock(TelemetryRuleService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new TelemetryRuleController(service, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new TelemetryRuleController(service);
     }
 
     private static TelemetryRuleDTO dto() {
@@ -74,7 +69,7 @@ class TelemetryRuleControllerTest {
                 "temp", TelemetryOperator.GT, 30.0, null, 2.0, Severity.WARNING, true);
         when(service.createRule(eq(7L), eq(req), eq(user))).thenReturn(dto());
 
-        ResponseEntity<TelemetryRuleDTO> response = controller.createRule(7L, req, auth);
+        ResponseEntity<TelemetryRuleDTO> response = controller.createRule(7L, req, user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(11L, response.getBody().id());
@@ -86,7 +81,7 @@ class TelemetryRuleControllerTest {
     void getRules_ok() {
         when(service.getRules(7L, user)).thenReturn(List.of(dto()));
 
-        ResponseEntity<List<TelemetryRuleDTO>> response = controller.getRules(7L, auth);
+        ResponseEntity<List<TelemetryRuleDTO>> response = controller.getRules(7L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
@@ -97,7 +92,7 @@ class TelemetryRuleControllerTest {
     void getRule_ok() {
         when(service.getRule(11L, user)).thenReturn(dto());
 
-        ResponseEntity<TelemetryRuleDTO> response = controller.getRule(11L, auth);
+        ResponseEntity<TelemetryRuleDTO> response = controller.getRule(11L, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(11L, response.getBody().id());
@@ -110,7 +105,7 @@ class TelemetryRuleControllerTest {
                 null, null, 32.0, null, null, null, false);
         when(service.updateRule(eq(11L), eq(patch), eq(user))).thenReturn(dto());
 
-        ResponseEntity<TelemetryRuleDTO> response = controller.updateRule(11L, patch, auth);
+        ResponseEntity<TelemetryRuleDTO> response = controller.updateRule(11L, patch, user);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(service).updateRule(11L, patch, user);
@@ -119,7 +114,7 @@ class TelemetryRuleControllerTest {
     @Test
     @DisplayName("deleteRule: delegiert und antwortet mit 204 No Content")
     void deleteRule_noContent() {
-        ResponseEntity<Void> response = controller.deleteRule(11L, auth);
+        ResponseEntity<Void> response = controller.deleteRule(11L, user);
 
         assertSame(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(service).deleteRule(11L, user);
