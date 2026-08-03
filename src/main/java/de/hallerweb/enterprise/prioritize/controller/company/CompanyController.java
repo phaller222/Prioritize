@@ -16,16 +16,16 @@
 
 package de.hallerweb.enterprise.prioritize.controller.company;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.company.CompanyDTO;
 import de.hallerweb.enterprise.prioritize.dto.company.CompanyRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Company;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.CompanyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,7 +40,6 @@ import java.util.List;
 public class CompanyController {
 
     private final CompanyService companyService;
-    private final CurrentUserResolver currentUserResolver;
 
     @Operation(summary = "Get all companies")
     @GetMapping
@@ -50,8 +49,8 @@ public class CompanyController {
 
     @Operation(summary = "Get company by id")
     @GetMapping("/{id}")
-    public ResponseEntity<CompanyDTO> getById(@PathVariable Long id, Authentication auth) {
-        Company company = companyService.findById(id, currentUserResolver.resolve(auth));
+    public ResponseEntity<CompanyDTO> getById(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        Company company = companyService.findById(id, currentUser);
         return ResponseEntity.ok(CompanyDTO.from(company));
     }
 
@@ -64,22 +63,22 @@ public class CompanyController {
 
     @Operation(summary = "Create company")
     @PostMapping
-    public ResponseEntity<CompanyDTO> create(@RequestBody CompanyRequest request, Authentication auth) {
-        Company created = companyService.createCompany(request.toCompany(), currentUserResolver.resolve(auth));
+    public ResponseEntity<CompanyDTO> create(@RequestBody CompanyRequest request, @AuthenticatedUser PUser currentUser) {
+        Company created = companyService.createCompany(request.toCompany(), currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(CompanyDTO.from(created));
     }
 
     @Operation(summary = "Update company")
     @PutMapping("/{id}")
-    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody CompanyRequest request, Authentication auth) {
-        companyService.updateCompany(id, request.toCompany(), currentUserResolver.resolve(auth));
+    public ResponseEntity<Void> update(@PathVariable Long id, @RequestBody CompanyRequest request, @AuthenticatedUser PUser currentUser) {
+        companyService.updateCompany(id, request.toCompany(), currentUser);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Delete company")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
-        companyService.deleteCompany(id, currentUserResolver.resolve(auth));
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        companyService.deleteCompany(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

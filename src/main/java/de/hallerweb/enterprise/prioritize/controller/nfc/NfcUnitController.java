@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.nfc;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.nfc.NfcUnitDTO;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
@@ -27,7 +27,6 @@ import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.ScanResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,44 +46,39 @@ import java.util.List;
 public class NfcUnitController {
 
     private final NfcUnitService nfcUnitService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     @Operation(summary = "Register an NFC unit")
     @PostMapping("/resources/{resourceId}/nfc-units")
     public ResponseEntity<NfcUnitDTO> registerNfcUnit(
-        @PathVariable Long resourceId, @RequestBody NfcUnitRequest request, Authentication auth) {
-        NfcUnit unit = nfcUnitService.registerNfcUnit(resourceId, request.toData(), getCurrentUser(auth));
+        @PathVariable Long resourceId, @RequestBody NfcUnitRequest request, @AuthenticatedUser PUser currentUser) {
+        NfcUnit unit = nfcUnitService.registerNfcUnit(resourceId, request.toData(), currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(NfcUnitDTO.from(unit));
     }
 
     @Operation(summary = "Get the NFC units")
     @GetMapping("/resources/{resourceId}/nfc-units")
-    public ResponseEntity<List<NfcUnitDTO>> getNfcUnits(@PathVariable Long resourceId, Authentication auth) {
-        return ResponseEntity.ok(nfcUnitService.getNfcUnitsForResource(resourceId, getCurrentUser(auth))
+    public ResponseEntity<List<NfcUnitDTO>> getNfcUnits(@PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(nfcUnitService.getNfcUnitsForResource(resourceId, currentUser)
                 .stream().map(NfcUnitDTO::from).toList());
     }
 
     @Operation(summary = "Bind task")
     @PutMapping("/nfc-units/{id}/task/{taskId}")
     public ResponseEntity<NfcUnitDTO> bindTask(
-        @PathVariable Long id, @PathVariable Long taskId, Authentication auth) {
-        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.bindTask(id, taskId, getCurrentUser(auth))));
+        @PathVariable Long id, @PathVariable Long taskId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.bindTask(id, taskId, currentUser)));
     }
 
     @Operation(summary = "Unbind task")
     @DeleteMapping("/nfc-units/{id}/task")
-    public ResponseEntity<NfcUnitDTO> unbindTask(@PathVariable Long id, Authentication auth) {
-        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.unbindTask(id, getCurrentUser(auth))));
+    public ResponseEntity<NfcUnitDTO> unbindTask(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(NfcUnitDTO.from(nfcUnitService.unbindTask(id, currentUser)));
     }
 
     @Operation(summary = "Delete an NFC unit")
     @DeleteMapping("/nfc-units/{id}")
-    public ResponseEntity<Void> deleteNfcUnit(@PathVariable Long id, Authentication auth) {
-        nfcUnitService.deleteNfcUnit(id, getCurrentUser(auth));
+    public ResponseEntity<Void> deleteNfcUnit(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        nfcUnitService.deleteNfcUnit(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 
@@ -94,8 +88,8 @@ public class NfcUnitController {
      */
     @Operation(summary = "Process an NFC tag scan by its uuid")
     @PostMapping("/nfc/scan/{uuid}")
-    public ResponseEntity<ScanResult> scan(@PathVariable String uuid, Authentication auth) {
-        return ResponseEntity.ok(nfcUnitService.scan(uuid, getCurrentUser(auth)));
+    public ResponseEntity<ScanResult> scan(@PathVariable String uuid, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(nfcUnitService.scan(uuid, currentUser));
     }
 
     /**

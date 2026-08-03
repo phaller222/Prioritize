@@ -16,7 +16,6 @@
 
 package de.hallerweb.enterprise.prioritize.controller.project;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
 import de.hallerweb.enterprise.prioritize.controller.project.ProjectController.ProjectRequest;
 import de.hallerweb.enterprise.prioritize.dto.project.ProjectDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
@@ -28,7 +27,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,16 +46,13 @@ class ProjectControllerTest {
     private ProjectService projectService;
     private ProjectController controller;
 
-    private final Authentication auth = mock(Authentication.class);
     private final PUser user = new PUser();
 
     @BeforeEach
     void setUp() {
         projectService = mock(ProjectService.class);
         TaskService taskService = mock(TaskService.class);
-        CurrentUserResolver resolver = mock(CurrentUserResolver.class);
-        controller = new ProjectController(projectService, taskService, resolver);
-        when(resolver.resolve(auth)).thenReturn(user);
+        controller = new ProjectController(projectService, taskService);
     }
 
     @Test
@@ -67,7 +62,7 @@ class ProjectControllerTest {
         when(projectService.createProject(any(), eq(user))).thenReturn(project);
 
         ResponseEntity<ProjectDTO> response = controller.createProject(
-                new ProjectRequest("Apollo", "d", 1, null, null, 10), auth);
+                new ProjectRequest("Apollo", "d", 1, null, null, 10), user);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         verify(projectService).createProject(any(), eq(user));
@@ -77,14 +72,14 @@ class ProjectControllerTest {
     @DisplayName("createProject: blank name is rejected before delegation")
     void createProject_blankName_throws() {
         assertThrows(IllegalArgumentException.class, () -> controller.createProject(
-                new ProjectRequest("  ", "d", 1, null, null, 10), auth));
+                new ProjectRequest("  ", "d", 1, null, null, 10), user));
         verifyNoInteractions(projectService);
     }
 
     @Test
     @DisplayName("deleteProject: answers 204 No Content")
     void deleteProject_noContent() {
-        ResponseEntity<Void> response = controller.deleteProject(7L, auth);
+        ResponseEntity<Void> response = controller.deleteProject(7L, user);
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(projectService).deleteProject(eq(7L), eq(user));
     }

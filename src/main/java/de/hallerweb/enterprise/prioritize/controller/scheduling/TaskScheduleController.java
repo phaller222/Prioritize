@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.scheduling;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleDTO;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -25,7 +25,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -53,11 +52,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskScheduleController {
 
     private final TaskScheduleService taskScheduleService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     /**
      * Creates a recurring task schedule on a project.
@@ -69,10 +63,10 @@ public class TaskScheduleController {
     public ResponseEntity<TaskScheduleDTO> createSchedule(
         @PathVariable Long projectId,
         @RequestBody TaskScheduleRequest request,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
         TaskScheduleDTO created =
-                taskScheduleService.createSchedule(projectId, request, getCurrentUser(auth));
+                taskScheduleService.createSchedule(projectId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -85,9 +79,9 @@ public class TaskScheduleController {
     @GetMapping("/projects/{projectId}/task-schedules")
     public ResponseEntity<List<TaskScheduleDTO>> getSchedules(
         @PathVariable Long projectId,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(taskScheduleService.getSchedules(projectId, getCurrentUser(auth)));
+        return ResponseEntity.ok(taskScheduleService.getSchedules(projectId, currentUser));
     }
 
     /**
@@ -99,9 +93,9 @@ public class TaskScheduleController {
     @GetMapping("/task-schedules/{id}")
     public ResponseEntity<TaskScheduleDTO> getSchedule(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(taskScheduleService.getSchedule(id, getCurrentUser(auth)));
+        return ResponseEntity.ok(taskScheduleService.getSchedule(id, currentUser));
     }
 
     /**
@@ -114,9 +108,9 @@ public class TaskScheduleController {
     public ResponseEntity<TaskScheduleDTO> updateSchedule(
         @PathVariable Long id,
         @RequestBody TaskScheduleRequest patch,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(taskScheduleService.updateSchedule(id, patch, getCurrentUser(auth)));
+        return ResponseEntity.ok(taskScheduleService.updateSchedule(id, patch, currentUser));
     }
 
     /**
@@ -128,9 +122,9 @@ public class TaskScheduleController {
     @DeleteMapping("/task-schedules/{id}")
     public ResponseEntity<Void> deleteSchedule(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        taskScheduleService.deleteSchedule(id, getCurrentUser(auth));
+        taskScheduleService.deleteSchedule(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

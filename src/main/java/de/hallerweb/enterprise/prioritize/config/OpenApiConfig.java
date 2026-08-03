@@ -24,6 +24,7 @@ import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OperationCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +46,15 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class OpenApiConfig {
+
+    static {
+        // The current user is injected, never sent by the client: a @AuthenticatedUser PUser parameter
+        // is filled from the security context by AuthenticatedUserArgumentResolver. Without this,
+        // springdoc would treat the unknown parameter type as a model attribute and expose PUser's
+        // properties as query parameters on every operation — a contract change, not a documentation
+        // detail. (Authentication, the type these parameters replaced, is on springdoc's own ignore list.)
+        SpringDocUtils.getConfig().addAnnotationsToIgnore(AuthenticatedUser.class);
+    }
 
     private final String applicationVersion;
 

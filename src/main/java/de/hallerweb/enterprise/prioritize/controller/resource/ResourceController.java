@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.resource;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
@@ -37,7 +37,6 @@ import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -53,7 +52,6 @@ import java.util.Set;
 public class ResourceController {
 
     private final ResourceService resourceService;
-    private final CurrentUserResolver currentUserResolver;
     private final DepartmentService departmentService;
     private final SkillService skillService;
     private final ResourceControlService resourceControlService;
@@ -61,10 +59,6 @@ public class ResourceController {
     /**
      * Helper method to determine the currently authenticated user.
      */
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
-
 
     /**
      * Returns all resources of a specific resource group.
@@ -79,7 +73,6 @@ public class ResourceController {
                 resourceService.getResourcesByGroupId(groupId).stream().map(ResourceDTO::from).toList());
     }
 
-
     /**
      * Creates a new resource group for a specific department.
      *
@@ -92,13 +85,12 @@ public class ResourceController {
     public ResponseEntity<ResourceGroupDTO> createResourceGroup(
         @PathVariable Long deptId,
         @RequestParam String name,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
         Department dept = departmentService.getDepartmentById(deptId);
-        ResourceGroup group = resourceService.createResourceGroup(name, dept, getCurrentUser(auth));
+        ResourceGroup group = resourceService.createResourceGroup(name, dept, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(ResourceGroupDTO.from(group));
     }
-
 
     /**
      * Deletes a resource group, if the current user is authorized.
@@ -110,12 +102,11 @@ public class ResourceController {
     @DeleteMapping("/resourcegroups/{groupId}")
     public ResponseEntity<Void> deleteResourceGroup(
         @PathVariable Long groupId,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        resourceService.deleteResourceGroup(groupId, getCurrentUser(auth));
+        resourceService.deleteResourceGroup(groupId, currentUser);
         return ResponseEntity.noContent().build();
     }
-
 
     /**
      * Creates a new resource in a specific resource group.
@@ -129,12 +120,11 @@ public class ResourceController {
     public ResponseEntity<ResourceDTO> createResource(
         @PathVariable Long groupId,
         @RequestBody ResourceRequest request,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        Resource created = resourceService.createResource(request.toResource(), groupId, getCurrentUser(auth));
+        Resource created = resourceService.createResource(request.toResource(), groupId, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(ResourceDTO.from(created));
     }
-
 
     /**
      * Returns every resource the current user may read, across all groups and departments. The flat
@@ -145,9 +135,9 @@ public class ResourceController {
      */
     @Operation(summary = "Returns every resource the current user may read (flat list)")
     @GetMapping("/resources")
-    public ResponseEntity<List<ResourceDTO>> getAllResources(Authentication auth) {
+    public ResponseEntity<List<ResourceDTO>> getAllResources(@AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(
-                resourceService.getAllResources(getCurrentUser(auth)).stream().map(ResourceDTO::from).toList());
+                resourceService.getAllResources(currentUser).stream().map(ResourceDTO::from).toList());
     }
 
     /**
@@ -160,9 +150,9 @@ public class ResourceController {
     @GetMapping("/resources/{id}")
     public ResponseEntity<ResourceDTO> getResource(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(ResourceDTO.from(resourceService.getResource(id, getCurrentUser(auth))));
+        return ResponseEntity.ok(ResourceDTO.from(resourceService.getResource(id, currentUser)));
     }
 
     /**
@@ -177,9 +167,9 @@ public class ResourceController {
     public ResponseEntity<ResourceDTO> partialUpdateResource(
         @PathVariable Long id,
         @RequestBody ResourceRequest patch,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        Resource updated = resourceService.partialUpdateResource(id, patch.toResource(), getCurrentUser(auth));
+        Resource updated = resourceService.partialUpdateResource(id, patch.toResource(), currentUser);
         return ResponseEntity.ok(ResourceDTO.from(updated));
     }
 
@@ -193,12 +183,11 @@ public class ResourceController {
     @DeleteMapping("/resources/{id}")
     public ResponseEntity<Void> deleteResource(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        resourceService.deleteResource(id, getCurrentUser(auth));
+        resourceService.deleteResource(id, currentUser);
         return ResponseEntity.noContent().build();
     }
-
 
     /**
      * Reserves a resource for a specific time span.
@@ -214,7 +203,7 @@ public class ResourceController {
         @PathVariable Long id,
         @RequestParam String fromIsoDate,
         @RequestParam String untilIsoDate,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
         // IllegalArgumentException on invalid format is mapped to 400 by the GlobalExceptionHandler
         Instant from = Instant.parse(fromIsoDate);
@@ -224,7 +213,7 @@ public class ResourceController {
             throw new IllegalArgumentException("Das Enddatum muss nach dem Startdatum liegen.");
         }
 
-        ResourceReservation reservation = resourceService.reserveResource(id, getCurrentUser(auth), from, until);
+        ResourceReservation reservation = resourceService.reserveResource(id, currentUser, from, until);
         return ResponseEntity.status(HttpStatus.CREATED).body(ResourceReservationDTO.from(reservation));
     }
 
@@ -241,9 +230,9 @@ public class ResourceController {
     @GetMapping("/resources/{id}/reservations/mine")
     public ResponseEntity<List<ResourceReservationDTO>> getMyActiveReservations(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(
-            resourceService.getMyActiveReservations(id, getCurrentUser(auth))
+            resourceService.getMyActiveReservations(id, currentUser)
                 .stream().map(ResourceReservationDTO::from).toList());
     }
 
@@ -258,9 +247,9 @@ public class ResourceController {
     @GetMapping("/resources/{id}/reservations")
     public ResponseEntity<List<ResourceReservationDTO>> getReservationsForResource(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(
-            resourceService.getReservationsForResourceDTO(id, getCurrentUser(auth)));
+            resourceService.getReservationsForResourceDTO(id, currentUser));
     }
 
     /**
@@ -274,8 +263,8 @@ public class ResourceController {
     @DeleteMapping("/reservations/{reservationId}")
     public ResponseEntity<Void> cancelReservation(
         @PathVariable Integer reservationId,
-        Authentication auth) {
-        resourceService.cancelReservation(reservationId, getCurrentUser(auth));
+        @AuthenticatedUser PUser currentUser) {
+        resourceService.cancelReservation(reservationId, currentUser);
         return ResponseEntity.noContent().build();
     }
 
@@ -299,10 +288,10 @@ public class ResourceController {
     public ResponseEntity<Void> sendCommand(
         @PathVariable Long id,
         @RequestBody ResourceCommandRequest request,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        Resource resource = resourceService.getResource(id, getCurrentUser(auth));
-        resourceControlService.sendCommand(resource, request.command(), request.param(), getCurrentUser(auth));
+        Resource resource = resourceService.getResource(id, currentUser);
+        resourceControlService.sendCommand(resource, request.command(), request.param(), currentUser);
         return ResponseEntity.accepted().build();
     }
 
@@ -331,13 +320,13 @@ public class ResourceController {
     public ResponseEntity<Void> recordValue(
         @PathVariable Long id,
         @RequestBody ResourceValueRequest request,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
         if (request == null || request.name() == null || request.name().isBlank()
             || request.value() == null) {
             throw new IllegalArgumentException("name and value are required.");
         }
-        resourceService.recordMqttValue(id, request.name(), request.value(), getCurrentUser(auth));
+        resourceService.recordMqttValue(id, request.name(), request.value(), currentUser);
         return ResponseEntity.accepted().build();
     }
 
@@ -359,9 +348,9 @@ public class ResourceController {
     @GetMapping("/resources/{id}/values/latest")
     public ResponseEntity<List<ResourceValueDTO>> getLatestValues(
         @PathVariable Long id,
-        Authentication auth) {
+        @AuthenticatedUser PUser currentUser) {
 
-        return ResponseEntity.ok(resourceService.getLatestValues(id, getCurrentUser(auth)));
+        return ResponseEntity.ok(resourceService.getLatestValues(id, currentUser));
     }
 
     // ==========================================

@@ -16,10 +16,11 @@
 
 package de.hallerweb.enterprise.prioritize.controller.skill;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillCategoryRequest;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRequest;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
@@ -27,7 +28,6 @@ import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,7 +41,6 @@ import java.util.List;
 public class SkillController {
 
     private final SkillService skillService;
-    private final CurrentUserResolver currentUserResolver;
 
     // ==========================================
     // 1. GLOBALES SKILL-VERZEICHNIS & KATEGORIEN
@@ -55,15 +54,15 @@ public class SkillController {
 
     @Operation(summary = "Create skill")
     @PostMapping("/skills")
-    public ResponseEntity<SkillSummaryDTO> createSkill(@RequestBody SkillRequest request, Authentication auth) {
-        Skill createdSkill = skillService.createSkill(request.toSkill(), currentUserResolver.resolve(auth));
+    public ResponseEntity<SkillSummaryDTO> createSkill(@RequestBody SkillRequest request, @AuthenticatedUser PUser currentUser) {
+        Skill createdSkill = skillService.createSkill(request.toSkill(), currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(SkillSummaryDTO.from(createdSkill));
     }
 
     @Operation(summary = "Get skill by id")
     @GetMapping("/skills/{skillId}")
-    public ResponseEntity<SkillSummaryDTO> getSkillById(@PathVariable Long skillId, Authentication auth) {
-        Skill skill = skillService.getSkillById(skillId, currentUserResolver.resolve(auth));
+    public ResponseEntity<SkillSummaryDTO> getSkillById(@PathVariable Long skillId, @AuthenticatedUser PUser currentUser) {
+        Skill skill = skillService.getSkillById(skillId, currentUser);
         return ResponseEntity.ok(SkillSummaryDTO.from(skill));
     }
 
@@ -72,8 +71,8 @@ public class SkillController {
     public ResponseEntity<SkillSummaryDTO> updateSkill(
             @PathVariable Long skillId,
             @RequestBody SkillRequest request,
-            Authentication auth) {
-        Skill updated = skillService.updateSkill(skillId, request.toSkill(), currentUserResolver.resolve(auth));
+            @AuthenticatedUser PUser currentUser) {
+        Skill updated = skillService.updateSkill(skillId, request.toSkill(), currentUser);
         return ResponseEntity.ok(SkillSummaryDTO.from(updated));
     }
 
@@ -110,8 +109,8 @@ public class SkillController {
 
     @Operation(summary = "Delete skill")
     @DeleteMapping("/skills/{skillId}")
-    public ResponseEntity<Void> deleteSkill(@PathVariable Long skillId, Authentication auth) {
-        skillService.deleteSkill(skillId, currentUserResolver.resolve(auth));
+    public ResponseEntity<Void> deleteSkill(@PathVariable Long skillId, @AuthenticatedUser PUser currentUser) {
+        skillService.deleteSkill(skillId, currentUser);
         return ResponseEntity.noContent().build(); // 204 No Content is standard for a successful delete
     }
 

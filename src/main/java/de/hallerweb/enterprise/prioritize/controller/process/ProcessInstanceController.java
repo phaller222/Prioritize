@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.controller.process;
 
-import de.hallerweb.enterprise.prioritize.config.CurrentUserResolver;
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.process.CancelProcessInstanceRequest;
 import de.hallerweb.enterprise.prioritize.dto.process.ProcessInstanceDTO;
 import de.hallerweb.enterprise.prioritize.dto.process.StartProcessInstanceRequest;
@@ -27,7 +27,6 @@ import java.util.NoSuchElementException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -59,11 +58,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProcessInstanceController {
 
     private final ProcessInstanceService processInstanceService;
-    private final CurrentUserResolver currentUserResolver;
-
-    private PUser getCurrentUser(Authentication auth) {
-        return currentUserResolver.resolve(auth);
-    }
 
     /**
      * Starts a process for a whole project.
@@ -74,9 +68,9 @@ public class ProcessInstanceController {
     @PostMapping("/projects/{projectId}/process-instances")
     public ResponseEntity<ProcessInstanceDTO> startForProject(@PathVariable Long projectId,
                                                               @RequestBody StartProcessInstanceRequest request,
-                                                              Authentication auth) {
+                                                              @AuthenticatedUser PUser currentUser) {
         ProcessInstanceDTO started = processInstanceService.startForProject(
-                projectId, request.definitionId(), request.variables(), getCurrentUser(auth));
+                projectId, request.definitionId(), request.variables(), currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(started);
     }
 
@@ -89,9 +83,9 @@ public class ProcessInstanceController {
     @PostMapping("/tasks/{taskId}/process-instances")
     public ResponseEntity<ProcessInstanceDTO> startForTask(@PathVariable Long taskId,
                                                            @RequestBody StartProcessInstanceRequest request,
-                                                           Authentication auth) {
+                                                           @AuthenticatedUser PUser currentUser) {
         ProcessInstanceDTO started = processInstanceService.startForTask(
-                taskId, request.definitionId(), request.variables(), getCurrentUser(auth));
+                taskId, request.definitionId(), request.variables(), currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(started);
     }
 
@@ -102,8 +96,8 @@ public class ProcessInstanceController {
      */
     @Operation(summary = "All instances belonging to a project — its own and those of its tasks, running or finished")
     @GetMapping("/projects/{projectId}/process-instances")
-    public ResponseEntity<List<ProcessInstanceDTO>> getForProject(@PathVariable Long projectId, Authentication auth) {
-        return ResponseEntity.ok(processInstanceService.getForProject(projectId, getCurrentUser(auth)));
+    public ResponseEntity<List<ProcessInstanceDTO>> getForProject(@PathVariable Long projectId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processInstanceService.getForProject(projectId, currentUser));
     }
 
     /**
@@ -113,8 +107,8 @@ public class ProcessInstanceController {
      */
     @Operation(summary = "The instance a task is linked to")
     @GetMapping("/tasks/{taskId}/process-instance")
-    public ResponseEntity<ProcessInstanceDTO> getForTask(@PathVariable Long taskId, Authentication auth) {
-        return processInstanceService.getForTask(taskId, getCurrentUser(auth))
+    public ResponseEntity<ProcessInstanceDTO> getForTask(@PathVariable Long taskId, @AuthenticatedUser PUser currentUser) {
+        return processInstanceService.getForTask(taskId, currentUser)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new NoSuchElementException("Task " + taskId + " is not linked to a process instance."));
     }
@@ -126,8 +120,8 @@ public class ProcessInstanceController {
      */
     @Operation(summary = "A single instance by its engine id")
     @GetMapping("/process-instances/{id}")
-    public ResponseEntity<ProcessInstanceDTO> get(@PathVariable String id, Authentication auth) {
-        return ResponseEntity.ok(processInstanceService.get(id, getCurrentUser(auth)));
+    public ResponseEntity<ProcessInstanceDTO> get(@PathVariable String id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(processInstanceService.get(id, currentUser));
     }
 
     /**
@@ -139,8 +133,8 @@ public class ProcessInstanceController {
     @PostMapping("/process-instances/{id}/cancel")
     public ResponseEntity<Void> cancel(@PathVariable String id,
                                        @RequestBody(required = false) CancelProcessInstanceRequest request,
-                                       Authentication auth) {
-        processInstanceService.cancel(id, request != null ? request.reason() : null, getCurrentUser(auth));
+                                       @AuthenticatedUser PUser currentUser) {
+        processInstanceService.cancel(id, request != null ? request.reason() : null, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

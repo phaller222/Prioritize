@@ -16,16 +16,15 @@
 
 package de.hallerweb.enterprise.prioritize.controller.company;
 
+import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.dto.company.DepartmentDTO;
 import de.hallerweb.enterprise.prioritize.dto.company.DepartmentRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
-import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,19 +38,14 @@ import java.util.List;
 public class DepartmentController {
 
     private final DepartmentService departmentService;
-    private final UserService userService;
-
-    private PUser currentUser(Authentication auth) {
-        return userService.findUserByUsername(auth.getName());
-    }
 
     @Operation(summary = "Create department")
     @PostMapping("/companies/{companyId}/departments")
     public ResponseEntity<DepartmentDTO> create(
             @PathVariable Long companyId,
             @RequestBody DepartmentRequest request,
-            Authentication auth) {
-        Department created = departmentService.saveDepartment(request.toDepartment(), companyId, currentUser(auth));
+            @AuthenticatedUser PUser currentUser) {
+        Department created = departmentService.saveDepartment(request.toDepartment(), companyId, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(DepartmentDTO.from(created));
     }
 
@@ -59,8 +53,8 @@ public class DepartmentController {
     @GetMapping("/companies/{companyId}/departments")
     public ResponseEntity<List<DepartmentDTO>> getDepartmentsByCompany(
             @PathVariable Long companyId,
-            Authentication auth) {
-        return ResponseEntity.ok(departmentService.getDepartmentsByCompany(companyId, currentUser(auth))
+            @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(departmentService.getDepartmentsByCompany(companyId, currentUser)
                 .stream().map(DepartmentDTO::from).toList());
     }
 
@@ -75,15 +69,15 @@ public class DepartmentController {
     public ResponseEntity<DepartmentDTO> update(
             @PathVariable Long id,
             @RequestBody DepartmentRequest request,
-            Authentication auth) {
-        Department updated = departmentService.updateDepartment(id, request.toDepartment(), currentUser(auth));
+            @AuthenticatedUser PUser currentUser) {
+        Department updated = departmentService.updateDepartment(id, request.toDepartment(), currentUser);
         return ResponseEntity.ok(DepartmentDTO.from(updated));
     }
 
     @Operation(summary = "Delete department")
     @DeleteMapping("/departments/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
-        departmentService.deleteDepartment(id, currentUser(auth));
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        departmentService.deleteDepartment(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }
