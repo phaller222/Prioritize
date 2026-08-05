@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -74,6 +75,7 @@ class RestApiIntegrationTest {
 
     @LocalServerPort private int port;
     @Autowired private UserService userService;
+    @Autowired private DepartmentRepository departmentRepository;
     @Autowired private EntityManagerFactory entityManagerFactory;
 
     private final HttpClient http = HttpClient.newHttpClient();
@@ -172,6 +174,39 @@ class RestApiIntegrationTest {
     @DisplayName("The combined status endpoint is not readable anonymously either")
     void resourceStatusRequiresAuthentication() throws Exception {
         assertEquals(401, send(request("/api/v1/resources/status").GET()).statusCode());
+    }
+
+    /**
+     * The step that used to be missing on the way to a group-scoped read: resource groups could be
+     * created and deleted over REST but never listed, so no consumer could learn a group id and every
+     * {@code /resourcegroups/{groupId}/...} endpoint stayed unreachable in practice. Once the listing
+     * answers, the id it hands out has to work on the group-scoped read — that is the pair this pins.
+     * <p>
+     * The department id is taken from the repository rather than walked to over REST: the seeded
+     * structure has no company, and departments are only listed underneath one.
+     */
+    @Test
+    @DisplayName("Listing a department's resource groups yields an id that works on the group's resources")
+    void resourceGroupsAreDiscoverable() throws Exception {
+        long deptId = departmentRepository.findAll().stream().findFirst().orElseThrow().getId();
+
+        HttpResponse<String> groupsResponse = send(
+                authorized("/api/v1/departments/" + deptId + "/resourcegroups", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, groupsResponse.statusCode(), groupsResponse.body());
+        JsonNode groups = json.readTree(groupsResponse.body());
+        assertTrue(groups.size() > 0, "the default resource group must be listed");
+        JsonNode group = groups.get(0);
+        assertEquals(deptId, group.path("departmentId").asLong(), "groups are scoped to the department");
+
+        assertEquals(200, send(authorized(
+                "/api/v1/resourcegroups/" + group.path("id").asLong() + "/resources",
+                ADMIN, ADMIN_PASSWORD).GET()).statusCode());
+    }
+
+    @Test
+    @DisplayName("The resource group listing is not readable anonymously")
+    void resourceGroupsRequireAuthentication() throws Exception {
+        assertEquals(401, send(request("/api/v1/departments/1/resourcegroups").GET()).statusCode());
     }
 
     // ==========================================

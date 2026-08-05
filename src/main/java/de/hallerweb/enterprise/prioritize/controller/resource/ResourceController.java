@@ -75,6 +75,26 @@ public class ResourceController {
     }
 
     /**
+     * Returns the resource groups of a department. Without this, a REST consumer cannot discover any
+     * group id: groups could be created and deleted, but never listed, so the group-scoped reads
+     * ({@code /resourcegroups/{groupId}/resources}) had no reachable entry point.
+     *
+     * @param deptId ID of the department
+     * @return ResponseEntity with the department's resource groups
+     */
+    @Operation(summary = "Returns the resource groups of a department")
+    @GetMapping("/departments/{deptId}/resourcegroups")
+    public ResponseEntity<List<ResourceGroupDTO>> getResourceGroups(
+        @PathVariable Long deptId,
+        @AuthenticatedUser PUser currentUser) {
+
+        return ResponseEntity.ok(
+                resourceService.getResourceGroupsByDepartment(deptId, currentUser).stream()
+                        .map(ResourceGroupDTO::from)
+                        .toList());
+    }
+
+    /**
      * Creates a new resource group for a specific department.
      *
      * @param deptId ID of the department
@@ -91,6 +111,25 @@ public class ResourceController {
         Department dept = departmentService.getDepartmentById(deptId);
         ResourceGroup group = resourceService.createResourceGroup(name, dept, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(ResourceGroupDTO.from(group));
+    }
+
+    /**
+     * Renames a resource group. The name is its only editable field, and the default group is
+     * protected — the service rejects renaming it.
+     *
+     * @param groupId ID of the resource group
+     * @param name    new name of the resource group
+     * @return ResponseEntity with the renamed resource group
+     */
+    @Operation(summary = "Renames a resource group, if the current user is authorized")
+    @PutMapping("/resourcegroups/{groupId}")
+    public ResponseEntity<ResourceGroupDTO> renameResourceGroup(
+        @PathVariable Long groupId,
+        @RequestParam String name,
+        @AuthenticatedUser PUser currentUser) {
+
+        return ResponseEntity.ok(
+                ResourceGroupDTO.from(resourceService.renameResourceGroup(groupId, name, currentUser)));
     }
 
     /**
