@@ -79,6 +79,47 @@ class ResourceControllerTest {
     }
 
     @Test
+    @DisplayName("getResourceGroups: delegates to the service and maps the department's groups to DTOs")
+    void getResourceGroups_delegatesAndMaps() {
+        de.hallerweb.enterprise.prioritize.model.company.Department dept =
+                new de.hallerweb.enterprise.prioritize.model.company.Department();
+        dept.setId(7L);
+        de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup group =
+                new de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup();
+        group.setId(4L);
+        group.setName("Robots");
+        group.setDepartment(dept);
+        when(resourceService.getResourceGroupsByDepartment(7L, user)).thenReturn(java.util.List.of(group));
+
+        ResponseEntity<java.util.List<de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO>> response =
+                controller.getResourceGroups(7L, user);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals(4L, response.getBody().get(0).id());
+        assertEquals("Robots", response.getBody().get(0).name());
+        assertEquals(7L, response.getBody().get(0).departmentId());
+        verify(resourceService).getResourceGroupsByDepartment(7L, user);
+    }
+
+    @Test
+    @DisplayName("renameResourceGroup: delegates to the service and returns the renamed group")
+    void renameResourceGroup_delegatesAndMaps() {
+        de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup group =
+                new de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup();
+        group.setId(4L);
+        group.setName("Drones");
+        when(resourceService.renameResourceGroup(4L, "Drones", user)).thenReturn(group);
+
+        ResponseEntity<de.hallerweb.enterprise.prioritize.dto.resource.ResourceGroupDTO> response =
+                controller.renameResourceGroup(4L, "Drones", user);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Drones", response.getBody().name());
+        verify(resourceService).renameResourceGroup(4L, "Drones", user);
+    }
+
+    @Test
     @DisplayName("getResourceStatus: delegates to the service and returns its list with 200 OK")
     void getResourceStatus_delegates() {
         de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO status =
