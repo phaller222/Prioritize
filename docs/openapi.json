@@ -1,5 +1,5 @@
 {
-  "openapi": "3.1.0",
+  "openapi": "3.0.1",
   "info": {
     "title": "Prioritize API",
     "description": "REST API of Prioritize, a resource, project and IoT orchestration platform. All endpoints live under /api/v1. From 1.0.0 on this REST surface is the stable public contract (SemVer); the Vaadin admin GUI and its @Route URLs are an implementation detail and NOT part of that promise. A few areas are marked 'experimental' in their schema and may still change within the 1.x line.",
@@ -12,7 +12,7 @@
       "name": "Apache License 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "servers": [
     {
@@ -523,6 +523,69 @@
         "parameters": [
           {
             "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/resourcegroups/{groupId}": {
+      "put": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Renames a resource group, if the current user is authorized",
+        "operationId": "resource_renameResourceGroup",
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceGroupDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Deletes a resource group, if the current user is authorized",
+        "operationId": "resource_deleteResourceGroup",
+        "parameters": [
+          {
+            "name": "groupId",
             "in": "path",
             "required": true,
             "schema": {
@@ -2337,16 +2400,16 @@
           "content": {
             "application/json": {
               "schema": {
+                "required": [
+                  "file"
+                ],
                 "type": "object",
                 "properties": {
                   "file": {
                     "type": "string",
                     "format": "binary"
                   }
-                },
-                "required": [
-                  "file"
-                ]
+                }
               }
             }
           }
@@ -2452,16 +2515,16 @@
           "content": {
             "multipart/form-data": {
               "schema": {
+                "required": [
+                  "file"
+                ],
                 "type": "object",
                 "properties": {
                   "file": {
                     "type": "string",
                     "format": "binary"
                   }
-                },
-                "required": [
-                  "file"
-                ]
+                }
               }
             }
           }
@@ -2534,6 +2597,39 @@
       }
     },
     "/api/v1/departments/{deptId}/resourcegroups": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Returns the resource groups of a department",
+        "operationId": "resource_getResourceGroups",
+        "parameters": [
+          {
+            "name": "deptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceGroupDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "Resources"
@@ -3462,6 +3558,65 @@
         }
       }
     },
+    "/api/v1/resources": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Returns every resource the current user may read (flat list)",
+        "operationId": "resource_getAllResources",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources/{id}/values/latest": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Returns the newest reading of every telemetry data point of a resource",
+        "operationId": "resource_getLatestValues",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceValueDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/resources/{id}/reservations": {
       "get": {
         "tags": [
@@ -3524,6 +3679,30 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ResourceReservationDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources/status": {
+      "get": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Returns every readable resource with its latest values and monitoring rules",
+        "operationId": "resource_getResourceStatus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceStatusDTO"
                   }
                 }
               }
@@ -4064,31 +4243,6 @@
         }
       }
     },
-    "/api/v1/resourcegroups/{groupId}": {
-      "delete": {
-        "tags": [
-          "Resources"
-        ],
-        "summary": "Deletes a resource group, if the current user is authorized",
-        "operationId": "resource_deleteResourceGroup",
-        "parameters": [
-          {
-            "name": "groupId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/reservations/{reservationId}": {
       "delete": {
         "tags": [
@@ -4534,6 +4688,22 @@
           }
         }
       },
+      "ResourceGroupDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "departmentId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProjectDTO": {
         "type": "object",
         "properties": {
@@ -4728,7 +4898,9 @@
           },
           "variables": {
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {
+              "type": "object"
+            }
           }
         }
       },
@@ -5202,10 +5374,10 @@
         }
       },
       "ProjectGoalProperty": {
+        "required": [
+          "type"
+        ],
         "type": "object",
-        "discriminator": {
-          "propertyName": "type"
-        },
         "properties": {
           "id": {
             "type": "integer",
@@ -5221,11 +5393,12 @@
             "type": "string"
           }
         },
-        "required": [
-          "type"
-        ]
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "ProjectGoalPropertyDocument": {
+        "type": "object",
         "allOf": [
           {
             "$ref": "#/components/schemas/ProjectGoalProperty"
@@ -5241,6 +5414,7 @@
         ]
       },
       "ProjectGoalPropertyNumeric": {
+        "type": "object",
         "allOf": [
           {
             "$ref": "#/components/schemas/ProjectGoalProperty"
@@ -5406,22 +5580,6 @@
           }
         }
       },
-      "ResourceGroupDTO": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "name": {
-            "type": "string"
-          },
-          "departmentId": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
       "CompanyDTO": {
         "type": "object",
         "properties": {
@@ -5489,6 +5647,37 @@
           },
           "running": {
             "type": "boolean"
+          }
+        }
+      },
+      "ResourceValueDTO": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "ResourceStatusDTO": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "$ref": "#/components/schemas/ResourceDTO"
+          },
+          "latestValues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceValueDTO"
+            }
+          },
+          "telemetryRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TelemetryRuleDTO"
+            }
           }
         }
       },
