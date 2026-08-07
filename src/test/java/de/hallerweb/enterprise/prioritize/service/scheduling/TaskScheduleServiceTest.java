@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.scheduling;
 
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleDTO;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleRequest;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -225,7 +227,7 @@ class TaskScheduleServiceTest {
         assertEquals(3, dto.taskPriority());
         assertEquals("Europe/Berlin", dto.zoneId());
         assertTrue(dto.enabled());
-        assertTrue(dto.nextFireAt().isAfter(LocalDateTime.now()), "an enabled schedule must be armed");
+        assertTrue(dto.nextFireAt().isAfter(Instant.now()), "an enabled schedule must be armed");
     }
 
     @Test
@@ -319,12 +321,13 @@ class TaskScheduleServiceTest {
                 new TaskScheduleRequest("Renamed", null, null, null, null, null, null), user);
         verify(projectService).requireManager(project, user);
         assertEquals("Renamed", renamed.name());
-        assertEquals(armedAt, renamed.nextFireAt());
+        assertEquals(WireTime.toInstant(armedAt), renamed.nextFireAt());
 
         // new cron -> re-armed
         TaskScheduleDTO recron = service.updateSchedule(42L,
                 new TaskScheduleRequest(null, null, null, null, "0 0/5 * * * *", null, null), user);
-        assertTrue(recron.nextFireAt().isBefore(armedAt), "a 5-minute cron must fire before tomorrow");
+        assertTrue(recron.nextFireAt().isBefore(WireTime.toInstant(armedAt)),
+                "a 5-minute cron must fire before tomorrow");
         assertEquals("0 0/5 * * * *", schedule.getCronExpression());
     }
 
@@ -340,7 +343,7 @@ class TaskScheduleServiceTest {
                 new TaskScheduleRequest(null, null, null, null, null, null, true), user);
 
         assertTrue(dto.enabled());
-        assertTrue(dto.nextFireAt().isAfter(LocalDateTime.now()));
+        assertTrue(dto.nextFireAt().isAfter(Instant.now()));
     }
 
     @Test

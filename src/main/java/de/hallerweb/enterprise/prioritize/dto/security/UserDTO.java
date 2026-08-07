@@ -16,10 +16,11 @@
 
 package de.hallerweb.enterprise.prioritize.dto.security;
 
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.dto.address.AddressDTO;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Flat, transport-safe view of a {@link PUser}. Carries the profile scalars, the eager {@code address} and
@@ -36,8 +37,8 @@ public record UserDTO(Long id,
                       String firstname,
                       String email,
                       String occupation,
-                      LocalDateTime lastLogin,
-                      LocalDateTime dateOfBirth,
+                      Instant lastLogin,
+                      Instant dateOfBirth,
                       PUser.Gender gender,
                       AddressDTO address,
                       Long departmentId,
@@ -53,8 +54,8 @@ public record UserDTO(Long id,
                 user.getFirstname(),
                 user.getEmail(),
                 user.getOccupation(),
-                user.getLastLogin(),
-                user.getDateOfBirth(),
+                WireTime.toInstant(user.getLastLogin()),
+                WireTime.toInstant(user.getDateOfBirth()),
                 user.getGender(),
                 AddressDTO.from(user.getAddress()),
                 user.getDepartment() != null ? user.getDepartment().getId() : null,

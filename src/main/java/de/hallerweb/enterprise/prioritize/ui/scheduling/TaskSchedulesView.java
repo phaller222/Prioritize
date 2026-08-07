@@ -33,6 +33,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleDTO;
 import de.hallerweb.enterprise.prioritize.dto.scheduling.TaskScheduleRequest;
 import de.hallerweb.enterprise.prioritize.model.PActor;
@@ -43,7 +44,7 @@ import de.hallerweb.enterprise.prioritize.service.scheduling.TaskScheduleService
 import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 import jakarta.annotation.security.PermitAll;
 import java.io.Serializable;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -405,8 +406,9 @@ public class TaskSchedulesView extends SplitLayout {
         cronExpression.setInvalid(false);
     }
 
-    private static String timestamp(LocalDateTime value) {
-        return value == null ? "—" : TIMESTAMP.format(value);
+    /** Renders a wire timestamp in the server zone — the same wall clock the schedules are computed in. */
+    private static String timestamp(Instant value) {
+        return value == null ? "—" : TIMESTAMP.format(WireTime.toLocal(value));
     }
 
     private void notifySuccess(String message) {

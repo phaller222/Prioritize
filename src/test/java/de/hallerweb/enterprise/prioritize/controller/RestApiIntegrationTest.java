@@ -18,8 +18,13 @@ package de.hallerweb.enterprise.prioritize.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
+import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -37,11 +42,18 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * End-to-end tests over real HTTP against a running servlet container — the layer the rest of the
@@ -73,9 +85,16 @@ class RestApiIntegrationTest {
     private static final String ADMIN_PASSWORD = "p@ssword";
     private static final String PASSWORD = "secret123";
 
+    /** An ISO date-time with no trailing {@code Z} and no numeric offset — what a LocalDateTime becomes. */
+    private static final Pattern OFFSET_LESS_TIMESTAMP =
+            Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?");
+
     @LocalServerPort private int port;
     @Autowired private UserService userService;
     @Autowired private DepartmentRepository departmentRepository;
+    @Autowired private ResourceRepository resourceRepository;
+    @Autowired private ResourceGroupRepository resourceGroupRepository;
+    @Autowired private ResourceService resourceService;
     @Autowired private EntityManagerFactory entityManagerFactory;
 
     private final HttpClient http = HttpClient.newHttpClient();
@@ -210,6 +229,71 @@ class RestApiIntegrationTest {
     }
 
     // ==========================================
+    // Timestamp wire format
+    // ==========================================
+
+    /**
+     * OpenAPI's {@code format: date-time} is RFC 3339, which requires a UTC offset — every generated,
+     * statically typed client maps it to {@code OffsetDateTime}. The entities store server-zone
+     * {@link java.time.LocalDateTime}, and Jackson writes those <em>without</em> an offset, so before
+     * {@link de.hallerweb.enterprise.prioritize.dto.WireTime} the affected endpoints were unreadable for
+     * the official Java client while the {@code Instant}-backed ones on the same API worked. This walks
+     * the whole response and fails on any timestamp that lost its offset again — including inside the
+     * nested resource/rule structures of the combined status endpoint, where a future DTO would slip
+     * through a field-by-field assertion.
+     */
+    @Test
+    @DisplayName("No endpoint emits a timestamp without a UTC offset")
+    void timestampsAlwaysCarryAnOffset() throws Exception {
+        assertTrue(OFFSET_LESS_TIMESTAMP.matcher("2026-08-02T21:40:20.81039").matches(),
+                "the guard must still recognize the offset-less form this API used to emit — "
+                        + "without this the walk below would pass vacuously");
+
+        Resource resource = createMqttResourceWithPing();
+
+        for (String path : new String[]{"/api/v1/resources", "/api/v1/resources/status", "/api/v1/users"}) {
+            HttpResponse<String> response = send(authorized(path, ADMIN, ADMIN_PASSWORD).GET());
+            assertEquals(200, response.statusCode(), response.body());
+            assertOffsetOnEveryTimestamp(json.readTree(response.body()), path);
+        }
+
+        JsonNode listed = json.readTree(send(authorized("/api/v1/resources", ADMIN, ADMIN_PASSWORD).GET()).body());
+        JsonNode ping = listed.get(0).path("mqttLastPing");
+        assertTrue(ping.isTextual(), "the resource under test must actually carry a ping timestamp");
+        assertEquals(resource.getMqttLastPing().atZone(ZoneId.systemDefault()).toInstant(),
+                OffsetDateTime.parse(ping.asText()).toInstant(),
+                "the emitted instant must denote the stored server-zone wall clock");
+    }
+
+    /**
+     * The write direction of the same defect: the client sends what its {@code OffsetDateTime} produces —
+     * a real numeric offset — and the server used to reject that with 400 while silently discarding a
+     * {@code Z}. Both spellings must now be accepted and mean the same instant, so a value does not
+     * change meaning by travelling through the API.
+     */
+    @Test
+    @DisplayName("A timestamp survives the round trip with its offset, whether Z or numeric")
+    void offsetTimestampsRoundTripUnchanged() throws Exception {
+        Instant birth = OffsetDateTime.parse("1980-05-15T10:00:00Z").toInstant();
+
+        for (String spelling : new String[]{"1980-05-15T10:00:00Z", "1980-05-15T12:00:00+02:00"}) {
+            String body = json.writeValueAsString(json.createObjectNode()
+                    .put("username", "it-dob-" + System.nanoTime())
+                    .put("name", "Birth").put("firstname", "Date")
+                    .put("dateOfBirth", spelling));
+
+            HttpResponse<String> created = send(authorized("/api/v1/users", ADMIN, ADMIN_PASSWORD)
+                    .POST(HttpRequest.BodyPublishers.ofString(body)));
+            assertEquals(201, created.statusCode(),
+                    "a client-shaped offset timestamp must be accepted — " + spelling + ": " + created.body());
+
+            String echoed = json.readTree(created.body()).path("dateOfBirth").asText();
+            assertEquals(birth, OffsetDateTime.parse(echoed).toInstant(),
+                    "the offset in " + spelling + " must be honoured, not dropped");
+        }
+    }
+
+    // ==========================================
     // Persistence through the full request path
     // ==========================================
 
@@ -269,6 +353,47 @@ class RestApiIntegrationTest {
     // ==========================================
     // Helpers
     // ==========================================
+
+    /**
+     * A resource whose {@code mqttLastPing} is actually set. Created through the service (a REST-created
+     * resource leaves the field null — {@code ResourceRequest.toResource} deliberately bypasses the
+     * Lombok builder defaults), then stamped like an MQTT ping would.
+     */
+    private Resource createMqttResourceWithPing() {
+        PUser admin = userService.findUserByUsername(ADMIN);
+        ResourceGroup group = resourceGroupRepository.findAll().stream().findFirst().orElseThrow();
+
+        Resource resource = new Resource();
+        resource.setName("it-ping-" + System.nanoTime());
+        resource.setDescription("created by RestApiIntegrationTest");
+        resource.setMqttResource(true);
+        resource.setMqttOnline(true);
+        resource.setMaxSlots(1);
+        resource.setStationary(true);
+        resource.setRemote(false);
+        resource.setAgent(false);
+
+        Resource created = resourceService.createResource(resource, group.getId(), admin);
+        // millisecond precision: the column rounds sub-microsecond digits away, and comparing the
+        // in-memory value against the persisted one would then fail on the rounding, not on the mapping
+        created.setMqttLastPing(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        return resourceRepository.save(created);
+    }
+
+    /**
+     * Fails on any JSON string that looks like an ISO timestamp but carries no offset — the exact shape
+     * a {@code LocalDateTime} serializes to. Recurses, so nested DTOs are covered too.
+     */
+    private void assertOffsetOnEveryTimestamp(JsonNode node, String path) {
+        if (node.isObject()) {
+            node.properties().forEach(entry -> assertOffsetOnEveryTimestamp(entry.getValue(), path));
+        } else if (node.isArray()) {
+            node.forEach(child -> assertOffsetOnEveryTimestamp(child, path));
+        } else if (node.isTextual() && OFFSET_LESS_TIMESTAMP.matcher(node.asText()).matches()) {
+            fail(path + " emits \"" + node.asText() + "\" — a date-time without a UTC offset, "
+                    + "which no generated client can parse");
+        }
+    }
 
     private PUser createUser(String prefix, boolean admin) {
         return userService.createUser(PUser.builder()

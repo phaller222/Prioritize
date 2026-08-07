@@ -19,7 +19,7 @@ package de.hallerweb.enterprise.prioritize.dto.document;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @AllArgsConstructor
@@ -31,5 +31,5 @@ public class DocumentHistoryDTO {
     private String filename;
     private String modifiedBy;
     private String comment;
-    private LocalDateTime modifiedAt;
+    private Instant modifiedAt;
 }

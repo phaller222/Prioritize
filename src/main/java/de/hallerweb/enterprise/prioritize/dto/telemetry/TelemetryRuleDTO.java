@@ -20,7 +20,8 @@ import de.hallerweb.enterprise.prioritize.model.telemetry.Severity;
 import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryOperator;
 import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryRule;
 import de.hallerweb.enterprise.prioritize.model.telemetry.TelemetryState;
-import java.time.LocalDateTime;
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
+import java.time.Instant;
 
 /**
  * Flat, transport-safe view of a {@link TelemetryRule}. Carries only the owning resource's id, never
@@ -40,7 +41,7 @@ public record TelemetryRuleDTO(Long id,
                                Severity severity,
                                boolean enabled,
                                TelemetryState state,
-                               LocalDateTime lastTransitionAt) {
+                               Instant lastTransitionAt) {
 
     /** Maps an entity to its DTO. Call within a transaction ({@code resource.getId()} is lazy). */
     public static TelemetryRuleDTO from(TelemetryRule rule) {
@@ -55,6 +56,6 @@ public record TelemetryRuleDTO(Long id,
                 rule.getSeverity(),
                 rule.isEnabled(),
                 rule.getState(),
-                rule.getLastTransitionAt());
+                WireTime.toInstant(rule.getLastTransitionAt()));
     }
 }

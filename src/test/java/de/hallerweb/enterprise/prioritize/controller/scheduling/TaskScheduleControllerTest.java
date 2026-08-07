@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,7 +57,7 @@ class TaskScheduleControllerTest {
 
     private static TaskScheduleDTO dto() {
         return new TaskScheduleDTO(42L, 5L, "Nightly", "Generate report", "auto", 3,
-                "0 0 8 * * *", "Europe/Berlin", true, LocalDateTime.of(2026, 1, 2, 8, 0), null);
+                "0 0 8 * * *", "Europe/Berlin", true, Instant.parse("2026-01-02T08:00:00Z"), null);
     }
 
     @Test
