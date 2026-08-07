@@ -17,8 +17,9 @@
 package de.hallerweb.enterprise.prioritize.dto.process;
 
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinition;
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinitionState;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Flat, transport-safe view of a {@link ProcessDefinition}. Carries the source document's id rather
@@ -35,7 +36,7 @@ public record ProcessDefinitionDTO(Long id,
                                    ProcessDefinitionState state,
                                    String deploymentId,
                                    Integer deployedVersion,
-                                   LocalDateTime deployedAt,
+                                   Instant deployedAt,
                                    String deployedBy) {
 
     /** Maps an entity to its DTO. Call within a transaction ({@code documentInfo} is lazy). */
@@ -48,7 +49,7 @@ public record ProcessDefinitionDTO(Long id,
                 definition.getState(),
                 definition.getDeploymentId(),
                 definition.getDeployedVersion(),
-                definition.getDeployedAt(),
+                WireTime.toInstant(definition.getDeployedAt()),
                 definition.getDeployedBy() != null ? definition.getDeployedBy().getUsername() : null);
     }
 }

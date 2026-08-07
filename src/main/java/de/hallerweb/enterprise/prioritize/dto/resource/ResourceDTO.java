@@ -16,9 +16,10 @@
 
 package de.hallerweb.enterprise.prioritize.dto.resource;
 
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Flat, transport-safe view of a {@link Resource}. Carries the scalar state plus the owning department and
@@ -46,7 +47,7 @@ public record ResourceDTO(Long id,
                           String mqttDataSendTopic,
                           String mqttDataReceiveTopic,
                           Boolean mqttOnline,
-                          LocalDateTime mqttLastPing,
+                          Instant mqttLastPing,
                           Boolean agent,
                           Long departmentId,
                           Long resourceGroupId,
@@ -71,7 +72,7 @@ public record ResourceDTO(Long id,
                 resource.getMqttDataSendTopic(),
                 resource.getMqttDataReceiveTopic(),
                 resource.getMqttOnline(),
-                resource.getMqttLastPing(),
+                WireTime.toInstant(resource.getMqttLastPing()),
                 resource.getAgent(),
                 resource.getDepartment() != null ? resource.getDepartment().getId() : null,
                 resource.getResourceGroup() != null ? resource.getResourceGroup().getId() : null,

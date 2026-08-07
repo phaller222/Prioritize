@@ -16,8 +16,9 @@
 
 package de.hallerweb.enterprise.prioritize.dto.scheduling;
 
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.model.scheduling.TaskSchedule;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * Flat, transport-safe view of a {@link TaskSchedule}. Carries only the target project's id, never the
@@ -36,8 +37,8 @@ public record TaskScheduleDTO(Long id,
                               String cronExpression,
                               String zoneId,
                               boolean enabled,
-                              LocalDateTime nextFireAt,
-                              LocalDateTime lastFiredAt) {
+                              Instant nextFireAt,
+                              Instant lastFiredAt) {
 
     /** Maps an entity to its DTO. Call within a transaction ({@code project.getId()} is lazy). */
     public static TaskScheduleDTO from(TaskSchedule schedule) {
@@ -51,7 +52,7 @@ public record TaskScheduleDTO(Long id,
                 schedule.getCronExpression(),
                 schedule.getZoneId(),
                 schedule.isEnabled(),
-                schedule.getNextFireAt(),
-                schedule.getLastFiredAt());
+                WireTime.toInstant(schedule.getNextFireAt()),
+                WireTime.toInstant(schedule.getLastFiredAt()));
     }
 }

@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.controller.document;
 
 import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
+import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentHistoryDTO;
 import de.hallerweb.enterprise.prioritize.dto.document.DocumentSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
@@ -125,7 +126,7 @@ public class DocumentRestController {
                         d.getName(),
                         d.getLastModifiedBy().getUsername(),
                         d.getChanges(),
-                        d.getLastModified()
+                        WireTime.toInstant(d.getLastModified())
                 ))
                 .toList();
         return ResponseEntity.ok(dtos);

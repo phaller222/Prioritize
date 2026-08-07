@@ -28,7 +28,7 @@ import de.hallerweb.enterprise.prioritize.dto.process.ProcessDefinitionDTO;
 import de.hallerweb.enterprise.prioritize.model.process.ProcessDefinitionState;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.process.ProcessDefinitionService;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,7 +62,7 @@ class ProcessDefinitionControllerTest {
 
     private static ProcessDefinitionDTO active() {
         return new ProcessDefinitionDTO(42L, "orderHandling", "Order handling", 7L,
-                ProcessDefinitionState.ACTIVE, "dep-1", 2, LocalDateTime.of(2026, 7, 22, 9, 0), "peter");
+                ProcessDefinitionState.ACTIVE, "dep-1", 2, Instant.parse("2026-07-22T09:00:00Z"), "peter");
     }
 
     @Test
@@ -117,7 +117,7 @@ class ProcessDefinitionControllerTest {
     @DisplayName("deactivate: delegiert und liefert die suspendierte Definition")
     void deactivate_ok() {
         ProcessDefinitionDTO suspended = new ProcessDefinitionDTO(42L, "orderHandling", "Order handling", 7L,
-                ProcessDefinitionState.SUSPENDED, "dep-1", 2, LocalDateTime.of(2026, 7, 22, 9, 0), "peter");
+                ProcessDefinitionState.SUSPENDED, "dep-1", 2, Instant.parse("2026-07-22T09:00:00Z"), "peter");
         when(service.deactivate(eq(42L), eq(user))).thenReturn(suspended);
 
         ResponseEntity<ProcessDefinitionDTO> response = controller.deactivate(42L, user);
