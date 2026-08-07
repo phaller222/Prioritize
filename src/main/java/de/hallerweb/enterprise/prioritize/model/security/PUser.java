@@ -81,7 +81,15 @@ public class PUser extends PActor implements PAuthorizedObject {
     @JsonIgnore
     private String apiKey;
 
-    private LocalDateTime lastLogin;
+    /**
+     * When this account was last seen — stamped on a successful authentication, not on a "login".
+     * The REST API is stateless: with Basic auth or a bearer token every single request authenticates
+     * anew, so there is no login event to record and a naive stamp would mean one write per call.
+     * {@code LastSeenTracker} therefore throttles the update, which makes this a "still in use"
+     * marker rather than a precise timestamp — see that class for the guarantee it gives.
+     */
+    private LocalDateTime lastSeen;
+
     private LocalDateTime dateOfBirth;
 
     @Enumerated(EnumType.STRING)

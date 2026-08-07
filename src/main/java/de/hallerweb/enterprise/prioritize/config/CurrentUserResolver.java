@@ -50,19 +50,29 @@ public class CurrentUserResolver {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             throw new AccessDeniedException("Kein Benutzer angemeldet.");
         }
+        return userService.findUserByUsername(usernameOf(auth));
+    }
 
-        String username;
+    /**
+     * The account name behind an {@link Authentication}, kept here so the JWT special case lives in
+     * exactly one place. Under the {@code keycloak} profile {@code auth.getName()} is the token
+     * <em>subject</em>, not the login name — reading it directly is the mistake this method exists to
+     * prevent (it once shipped in {@code DepartmentController}).
+     *
+     * @param auth the authentication to read, never {@code null} here
+     * @return the username
+     * @throws AccessDeniedException if a JWT carries no {@code preferred_username}
+     */
+    public static String usernameOf(Authentication auth) {
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
             Jwt jwt = jwtAuth.getToken();
-            username = jwt.getClaimAsString("preferred_username");
+            String username = jwt.getClaimAsString("preferred_username");
             if (username == null || username.isBlank()) {
                 throw new AccessDeniedException("Kein preferred_username im Token.");
             }
-        } else {
-            // Basic Auth: principal is UserDetails, getName() returns the username.
-            username = auth.getName();
+            return username;
         }
-
-        return userService.findUserByUsername(username);
+        // Basic Auth: principal is UserDetails, getName() returns the username.
+        return auth.getName();
     }
 }
