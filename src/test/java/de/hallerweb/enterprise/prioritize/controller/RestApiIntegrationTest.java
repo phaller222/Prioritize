@@ -294,6 +294,68 @@ class RestApiIntegrationTest {
     }
 
     // ==========================================
+    // lastSeen
+    // ==========================================
+
+    /**
+     * The point of the throttle: a burst of authenticated requests must cost <b>one</b> write, not one
+     * per request. Without it every REST call would write to {@code puser} — this API is stateless, so
+     * each call authenticates anew — and a polling client would keep the table permanently busy for a
+     * field nothing reads during the request.
+     * <p>
+     * Asserted on the stored value rather than on Hibernate's statistics, which do not book the bulk
+     * update the tracker issues. An unthrottled second write could not go unnoticed: it would carry a
+     * later {@code LocalDateTime.now()}. The second account at the end proves exactly that — its own
+     * first stamp lands after the first account's, so timestamps written moments apart <em>are</em>
+     * distinguishable and the "unchanged" assertion above cannot pass for the wrong reason.
+     */
+    @Test
+    @DisplayName("A burst of authenticated requests stamps lastSeen once, not once per request")
+    void lastSeenIsThrottled() throws Exception {
+        PUser user = createUser("it-last-seen", false);
+
+        assertEquals(200, send(authorized("/api/v1/resources", user.getUsername(), PASSWORD).GET())
+                .statusCode());
+        Instant firstStamp = lastSeenOf(user.getId());
+
+        for (int i = 0; i < 5; i++) {
+            assertEquals(200, send(authorized("/api/v1/resources", user.getUsername(), PASSWORD).GET())
+                    .statusCode());
+        }
+        assertEquals(firstStamp, lastSeenOf(user.getId()),
+                "within the throttle interval no further write may happen");
+
+        PUser other = createUser("it-last-seen-other", false);
+        assertEquals(200, send(authorized("/api/v1/resources", other.getUsername(), PASSWORD).GET())
+                .statusCode());
+        assertTrue(lastSeenOf(other.getId()).isAfter(firstStamp),
+                "a stamp written later must be visibly later — otherwise the assertion above is vacuous");
+    }
+
+    /**
+     * The other half of the guarantee: the stamp does happen, is readable through the API, and lands in
+     * the present. {@code lastSeen} is null until the account is first seen, which is what makes the
+     * "never set" state of the old {@code lastLogin} field distinguishable from a real timestamp.
+     */
+    @Test
+    @DisplayName("lastSeen is null before the first authentication and set afterwards")
+    void lastSeenIsRecordedOnFirstAuthentication() throws Exception {
+        Instant before = Instant.now().minusSeconds(5);
+        PUser user = createUser("it-seen-once", false);
+
+        JsonNode fresh = readUserAsAdmin(user.getId());
+        assertTrue(fresh.path("lastSeen").isNull(), "a user who never authenticated has no lastSeen");
+
+        assertEquals(200, send(authorized("/api/v1/resources", user.getUsername(), PASSWORD).GET())
+                .statusCode());
+
+        JsonNode seen = readUserAsAdmin(user.getId());
+        assertTrue(seen.path("lastSeen").isTextual(), "authenticating must stamp the account");
+        Instant stamped = OffsetDateTime.parse(seen.path("lastSeen").asText()).toInstant();
+        assertTrue(stamped.isAfter(before), "the stamp must be current, got " + stamped);
+    }
+
+    // ==========================================
     // Persistence through the full request path
     // ==========================================
 
@@ -393,6 +455,20 @@ class RestApiIntegrationTest {
             fail(path + " emits \"" + node.asText() + "\" — a date-time without a UTC offset, "
                     + "which no generated client can parse");
         }
+    }
+
+    /** Reads a user through the API as admin, so the assertion sees the wire format, not the entity. */
+    private JsonNode readUserAsAdmin(Long id) throws Exception {
+        HttpResponse<String> response = send(authorized("/api/v1/users/" + id, ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+        return json.readTree(response.body());
+    }
+
+    /** The account's stored {@code lastSeen}, read through the API. Fails if it was never stamped. */
+    private Instant lastSeenOf(Long userId) throws Exception {
+        JsonNode value = readUserAsAdmin(userId).path("lastSeen");
+        assertTrue(value.isTextual(), "expected a lastSeen timestamp, got " + value);
+        return OffsetDateTime.parse(value.asText()).toInstant();
     }
 
     private PUser createUser(String prefix, boolean admin) {
