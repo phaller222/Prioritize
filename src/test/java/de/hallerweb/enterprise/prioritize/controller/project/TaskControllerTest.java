@@ -16,8 +16,10 @@
 
 package de.hallerweb.enterprise.prioritize.controller.project;
 
+import de.hallerweb.enterprise.prioritize.controller.project.TaskController.StopAtRequest;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskRequest;
 import de.hallerweb.enterprise.prioritize.controller.project.TaskController.TaskStatusRequest;
+import de.hallerweb.enterprise.prioritize.controller.project.TaskController.WorkSessionRequest;
 import de.hallerweb.enterprise.prioritize.dto.project.TaskDTO;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -126,5 +130,62 @@ class TaskControllerTest {
 
         assertEquals(summary, response.getBody());
         verify(taskService).getTrackingSummary(eq(5L), eq(user));
+    }
+
+    // --- Correcting tracked time ---
+
+    @Test
+    @DisplayName("stopTrackingAt: delegates end and reason to the service")
+    void stopTrackingAt_delegates() {
+        Instant until = Instant.parse("2026-08-08T17:00:00Z");
+        when(taskService.stopTrackingAt(eq(5L), eq(until), eq("vergessen"), eq(user)))
+                .thenReturn(new Task());
+
+        controller.stopTrackingAt(5L, new StopAtRequest(until, "vergessen"), user);
+
+        verify(taskService).stopTrackingAt(eq(5L), eq(until), eq("vergessen"), eq(user));
+    }
+
+    @Test
+    @DisplayName("addTrackingSession: delegates and answers 201 Created")
+    void addTrackingSession_created() {
+        Instant from = Instant.parse("2026-08-08T08:00:00Z");
+        Instant until = Instant.parse("2026-08-08T12:00:00Z");
+        TaskService.WorkSession session = new TaskService.WorkSession(
+                7L, from, until, 14400L, false, null);
+        when(taskService.addWorkSession(eq(5L), eq(from), eq(until), eq("nachgetragen"), eq(9L), eq(user)))
+                .thenReturn(session);
+
+        ResponseEntity<TaskService.WorkSession> response = controller.addTrackingSession(
+                5L, new WorkSessionRequest(from, until, "nachgetragen", 9L), user);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(session, response.getBody());
+    }
+
+    @Test
+    @DisplayName("updateTrackingSession: delegates the corrected bounds, ignoring userId")
+    void updateTrackingSession_delegates() {
+        Instant from = Instant.parse("2026-08-08T08:00:00Z");
+        Instant until = Instant.parse("2026-08-08T12:00:00Z");
+        TaskService.WorkSession session = new TaskService.WorkSession(
+                7L, from, until, 14400L, false, null);
+        when(taskService.updateWorkSession(eq(5L), eq(7L), eq(from), eq(until), eq("korrigiert"), eq(user)))
+                .thenReturn(session);
+
+        ResponseEntity<TaskService.WorkSession> response = controller.updateTrackingSession(
+                5L, 7L, new WorkSessionRequest(from, until, "korrigiert", 9L), user);
+
+        assertEquals(session, response.getBody());
+        verify(taskService).updateWorkSession(eq(5L), eq(7L), eq(from), eq(until), eq("korrigiert"), eq(user));
+    }
+
+    @Test
+    @DisplayName("deleteTrackingSession: delegates and answers 204 No Content")
+    void deleteTrackingSession_noContent() {
+        ResponseEntity<Void> response = controller.deleteTrackingSession(5L, 7L, user);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(taskService).deleteWorkSession(eq(5L), eq(7L), eq(user));
     }
 }

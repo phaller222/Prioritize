@@ -72,7 +72,30 @@ public class TimeSpan implements PAuthorizedObject {
     @Enumerated(EnumType.STRING)
     private TimeSpanType type;
 
+    // --- Correction audit ---
+    // A tracked work session may be fixed after the fact (someone forgets to clock out), but never
+    // silently: whoever touches a span leaves their name, the time, a reason and the bounds as they
+    // were before. Null on every span that was recorded normally and never touched.
+    // The three cases are told apart by which original bound survives:
+    //   originalFrom != null && originalUntil != null -> a closed session was corrected
+    //   originalFrom != null && originalUntil == null -> a running session was stopped retroactively
+    //   originalFrom == null                          -> the session was entered by hand afterwards
+    // See TaskService for the operations that set these.
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private PUser correctedBy;
+
+    private Instant correctedAt;
+    private Instant originalFrom;
+    private Instant originalUntil;
+    private String correctionReason;
+
     // --- Business Logik ---
+
+    /** Whether this time span was entered or changed by hand after the fact. */
+    public boolean isCorrected() {
+        return correctedAt != null;
+    }
 
     /**
      * Checks whether this time span overlaps with another time span.

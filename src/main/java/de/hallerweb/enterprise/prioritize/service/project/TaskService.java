@@ -28,6 +28,7 @@ import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
 import de.hallerweb.enterprise.prioritize.repository.nfc.NfcUnitRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,7 @@ public class TaskService {
     private final ProjectService projectService;
     private final PActorRepository actorRepository;
     private final NfcUnitRepository nfcUnitRepository;
+    private final EntityManager entityManager;
 
     /**
      * Editable task fields, decoupling the service from HTTP DTOs.
@@ -85,8 +87,33 @@ public class TaskService {
      * One tracked work session on a task: a single start-to-stop interval. For the currently open
      * session {@code until} is {@code null}, {@code running} is {@code true} and {@code seconds} is
      * counted live up to now. Hides the underlying {@code TimeSpan} from API consumers.
+     * <p>
+     * {@code id} addresses the session in the correction endpoints; it is {@code null} for a running
+     * session that has never been persisted as a closed span. {@code correction} is {@code null} for
+     * every session that was recorded normally and never touched.
      */
-    public record WorkSession(Instant from, Instant until, long seconds, boolean running) {
+    public record WorkSession(Long id, Instant from, Instant until, long seconds, boolean running,
+                              Correction correction) {
+    }
+
+    /** How a work session came to differ from what the clock actually recorded. */
+    public enum CorrectionKind {
+        /** A closed session's bounds were changed. */
+        CORRECTED,
+        /** A still-running session was stopped with an earlier timestamp than "now". */
+        BACKDATED_STOP,
+        /** The session was never clocked at all and was entered by hand afterwards. */
+        MANUAL_ENTRY
+    }
+
+    /**
+     * The audit trail of a hand-edited work session: who changed it, when, why, and the bounds as
+     * they were before. {@code originalUntil} is {@code null} when the session was still running at
+     * the time of the fix, {@code originalFrom} is {@code null} when there was nothing to preserve
+     * because the session was entered by hand.
+     */
+    public record Correction(CorrectionKind kind, String correctedBy, Instant correctedAt,
+                             String reason, Instant originalFrom, Instant originalUntil) {
     }
 
     /**
@@ -288,6 +315,11 @@ public class TaskService {
         span.getInvolvedUsers().add(user);
         task.setActiveTimeSpan(span);
         task.setTaskStatus(TaskStatus.STARTED);
+        // Flush so the new span gets its id right away: the correction endpoints address a session
+        // by id, and a caller reading the sessions in the same transaction must not see a null one.
+        // Deliberately the EntityManager, not taskRepository.saveAndFlush — that merges, which would
+        // persist a *copy* of the new span and leave the instance here without an id.
+        entityManager.flush();
         log.info("Time tracking started on task '{}' (id={}) by '{}'.",
                 task.getName(), taskId, user.getUsername());
         return task;
@@ -314,6 +346,7 @@ public class TaskService {
         task.getTimeSpent().add(span);
         task.setActiveTimeSpan(null);
         task.setTaskStatus(TaskStatus.STOPPED);
+        entityManager.flush(); // see startTracking: the closed span needs its id
         log.info("Time tracking stopped on task '{}' (id={}) by '{}'.",
                 task.getName(), taskId, user.getUsername());
         return task;
@@ -374,15 +407,264 @@ public class TaskService {
         projectService.requireMemberOrManager(projectOf(task), user);
         List<WorkSession> sessions = new ArrayList<>();
         for (TimeSpan span : task.getTimeSpent()) {
-            sessions.add(new WorkSession(span.getDateFrom(), span.getDateUntil(),
-                    secondsBetween(span.getDateFrom(), span.getDateUntil()), false));
+            sessions.add(toWorkSession(span, false));
         }
         TimeSpan active = task.getActiveTimeSpan();
         if (active != null) {
-            sessions.add(new WorkSession(active.getDateFrom(), null,
-                    secondsBetween(active.getDateFrom(), Instant.now()), true));
+            sessions.add(toWorkSession(active, true));
         }
         return sessions;
+    }
+
+    /** Maps a span to its outward view; a running span is counted live up to now. */
+    private static WorkSession toWorkSession(TimeSpan span, boolean running) {
+        long seconds = running
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+        return new WorkSession(span.getId(), span.getDateFrom(),
+                running ? null : span.getDateUntil(), seconds, running, correctionOf(span));
+    }
+
+    /** The audit view of a span, or {@code null} if it was never hand-edited. */
+    private static Correction correctionOf(TimeSpan span) {
+        if (!span.isCorrected()) {
+            return null;
+        }
+        CorrectionKind kind;
+        if (span.getOriginalFrom() == null) {
+            kind = CorrectionKind.MANUAL_ENTRY;
+        } else if (span.getOriginalUntil() == null) {
+            kind = CorrectionKind.BACKDATED_STOP;
+        } else {
+            kind = CorrectionKind.CORRECTED;
+        }
+        return new Correction(kind,
+                span.getCorrectedBy() == null ? null : span.getCorrectedBy().getUsername(),
+                span.getCorrectedAt(), span.getCorrectionReason(),
+                span.getOriginalFrom(), span.getOriginalUntil());
+    }
+
+    // --- Correcting tracked time ---
+    // Clocking in and out is honest but not infallible: someone forgets to clock out and the clock
+    // runs all night, someone never clocks in at all, someone scans the wrong tag. Without a way to
+    // fix that the records are worthless after a week. Every operation below therefore leaves an
+    // audit trail on the span (see TimeSpan's correction fields) — a work session may be changed,
+    // but never silently.
+    //
+    // Who may fix what: the project manager corrects any session in the project, everyone else only
+    // the sessions they took part in.
+    //
+    // Known limit of keeping the trail on the span itself: only the bounds as originally recorded
+    // plus the LAST change survive, and deleting a session takes its trail with it (the log line is
+    // what remains). A full history would need a separate audit table; deliberately not built.
+
+    /**
+     * Corrects the bounds of a completed work session, keeping the originally recorded bounds and
+     * recording who changed them and why. The task's status is left alone — a correction is
+     * bookkeeping, not a state transition.
+     *
+     * @param taskId    the task id
+     * @param sessionId the work session's id (from {@link WorkSession#id()})
+     * @param from      the corrected start, must lie before {@code until}
+     * @param until     the corrected end, must not lie in the future
+     * @param reason    why the session is being changed, required
+     * @param user      the requesting user (project manager, or a participant of this session)
+     * @return the corrected session
+     * @throws NoSuchElementException   if no such completed session exists on the task
+     * @throws IllegalStateException    if the session is still running
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public WorkSession updateWorkSession(Long taskId, Long sessionId, Instant from, Instant until,
+                                         String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        TimeSpan span = findClosedSession(task, sessionId);
+        requireCorrectionRights(task, span, user);
+        requireReason(reason);
+        requireValidBounds(from, until);
+
+        rememberOriginalBounds(span);
+        span.setDateFrom(from);
+        span.setDateUntil(until);
+        markCorrected(span, user, reason);
+        log.info("Work session {} on task '{}' (id={}) corrected to {} - {} by '{}': {}",
+                sessionId, task.getName(), taskId, from, until, user.getUsername(), reason);
+        return toWorkSession(span, false);
+    }
+
+    /**
+     * Books a work session that was never clocked at all — someone forgot to scan on arrival. The
+     * session is marked {@link CorrectionKind#MANUAL_ENTRY}: there is no recorded state to preserve,
+     * so it is visible as hand-entered for good.
+     *
+     * @param taskId    the task id
+     * @param from      the session's start, must lie before {@code until}
+     * @param until     the session's end, must not lie in the future
+     * @param reason    why the session is being added, required
+     * @param forUserId the user the time is booked for; {@code null} books it for the requesting
+     *                  user. Booking someone else's time is reserved for the project manager.
+     * @param user      the requesting user (must be manager or member)
+     * @return the newly booked session
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public WorkSession addWorkSession(Long taskId, Instant from, Instant until, String reason,
+                                      Long forUserId, PUser user) {
+        Task task = findOrThrow(taskId);
+        Project project = projectOf(task);
+        projectService.requireMemberOrManager(project, user);
+        requireReason(reason);
+        requireValidBounds(from, until);
+
+        PUser worker = user;
+        if (forUserId != null && !forUserId.equals(user.getId())) {
+            projectService.requireManager(project, user);
+            worker = findUserOrThrow(forUserId);
+        }
+        TimeSpan span = TimeSpan.builder()
+                .title(task.getName())
+                .description(task.getDescription())
+                .dateFrom(from)
+                .dateUntil(until)
+                .type(TimeSpan.TimeSpanType.TIME_TRACKER)
+                .build();
+        span.getInvolvedUsers().add(worker);
+        markCorrected(span, user, reason); // originalFrom stays null — nothing was ever recorded
+        task.getTimeSpent().add(span);
+        entityManager.flush(); // so the new span has its id for the response
+        log.info("Work session {} - {} added by hand on task '{}' (id={}) for '{}' by '{}': {}",
+                from, until, task.getName(), taskId, worker.getUsername(), user.getUsername(), reason);
+        return toWorkSession(span, false);
+    }
+
+    /**
+     * Removes a completed work session — a mis-booking, for instance a scan of the wrong tag.
+     *
+     * @param taskId    the task id
+     * @param sessionId the work session's id
+     * @param user      the requesting user (project manager, or a participant of this session)
+     * @throws NoSuchElementException if no such completed session exists on the task
+     * @throws IllegalStateException  if the session is still running
+     */
+    public void deleteWorkSession(Long taskId, Long sessionId, PUser user) {
+        Task task = findOrThrow(taskId);
+        TimeSpan span = findClosedSession(task, sessionId);
+        requireCorrectionRights(task, span, user);
+        // The audit trail lives on the span, so removing one takes its trail with it. Log it loudly:
+        // this line is the only trace that the session ever existed.
+        log.warn("Work session {} on task '{}' (id={}) ({} - {}) deleted by '{}'.",
+                sessionId, task.getName(), taskId, span.getDateFrom(), span.getDateUntil(),
+                user.getUsername());
+        task.getTimeSpent().remove(span); // orphanRemoval deletes the row
+    }
+
+    /**
+     * Stops a running session with an earlier timestamp than now — the "forgot to clock out last
+     * night, noticed this morning" case. Unlike {@link #stopTracking}, this records who shortened the
+     * session and why; the start is left untouched.
+     *
+     * @param taskId the task id
+     * @param until  when the work actually ended; after the session's start, not in the future
+     * @param reason why the session is being closed retroactively, required
+     * @param user   the requesting user (project manager, or a participant of this session)
+     * @return the updated task
+     * @throws IllegalStateException    if no tracking is currently running for this task
+     * @throws IllegalArgumentException if the reason is missing or {@code until} is not plausible
+     */
+    public Task stopTrackingAt(Long taskId, Instant until, String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        if (!task.isTracking()) {
+            throw new IllegalStateException("No time tracking is running for this task.");
+        }
+        TimeSpan span = task.getActiveTimeSpan();
+        requireCorrectionRights(task, span, user);
+        requireReason(reason);
+        if (until == null) {
+            throw new IllegalArgumentException("until is required.");
+        }
+        if (until.isAfter(Instant.now())) {
+            throw new IllegalArgumentException("A work session cannot end in the future.");
+        }
+        if (until.isBefore(span.getDateFrom())) {
+            throw new IllegalArgumentException("A work session cannot end before it started.");
+        }
+
+        rememberOriginalBounds(span); // originalUntil stays null — the session was still open
+        span.setDateUntil(until);
+        markCorrected(span, user, reason);
+        task.getTimeSpent().add(span);
+        task.setActiveTimeSpan(null);
+        task.setTaskStatus(TaskStatus.STOPPED);
+        log.info("Time tracking on task '{}' (id={}) stopped retroactively at {} by '{}': {}",
+                task.getName(), taskId, until, user.getUsername(), reason);
+        return task;
+    }
+
+    /**
+     * The project manager may correct any session in the project; everyone else only the sessions
+     * they took part in.
+     */
+    private void requireCorrectionRights(Task task, TimeSpan span, PUser user) {
+        Project project = projectOf(task);
+        projectService.requireMemberOrManager(project, user);
+        boolean ownSession = span.getInvolvedUsers().stream()
+                .anyMatch(u -> u.getId().equals(user.getId()));
+        if (!ownSession) {
+            projectService.requireManager(project, user);
+        }
+    }
+
+    /** Looks up a completed session on the task; the running one is not correctable in place. */
+    private static TimeSpan findClosedSession(Task task, Long sessionId) {
+        TimeSpan active = task.getActiveTimeSpan();
+        if (active != null && active.getId() != null && active.getId().equals(sessionId)) {
+            throw new IllegalStateException(
+                    "This work session is still running — stop it, retroactively if needed, before correcting it.");
+        }
+        return task.getTimeSpent().stream()
+                .filter(span -> span.getId() != null && span.getId().equals(sessionId))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Work session not found on this task."));
+    }
+
+    /** Preserves the bounds as first recorded; a second correction must not overwrite them. */
+    private static void rememberOriginalBounds(TimeSpan span) {
+        if (!span.isCorrected()) {
+            span.setOriginalFrom(span.getDateFrom());
+            span.setOriginalUntil(span.getDateUntil());
+        }
+    }
+
+    /** Stamps who changed the span, when and why. */
+    private static void markCorrected(TimeSpan span, PUser user, String reason) {
+        span.setCorrectedBy(user);
+        span.setCorrectedAt(Instant.now());
+        span.setCorrectionReason(reason);
+    }
+
+    private static void requireReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A correction needs a reason.");
+        }
+    }
+
+    private static void requireValidBounds(Instant from, Instant until) {
+        if (from == null || until == null) {
+            throw new IllegalArgumentException("from and until are required.");
+        }
+        if (!from.isBefore(until)) {
+            throw new IllegalArgumentException("A work session must start before it ends.");
+        }
+        if (until.isAfter(Instant.now())) {
+            throw new IllegalArgumentException("A work session cannot end in the future.");
+        }
+    }
+
+    private PUser findUserOrThrow(Long userId) {
+        PActor actor = actorRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
+        if (!(actor instanceof PUser puser)) {
+            throw new IllegalArgumentException("Time can only be booked for a user.");
+        }
+        return puser;
     }
 
     /** Non-negative seconds between two instants; 0 if either bound is missing. */
