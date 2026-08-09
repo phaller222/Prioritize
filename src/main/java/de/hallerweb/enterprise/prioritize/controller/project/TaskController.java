@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -143,6 +144,66 @@ public class TaskController {
     @GetMapping("/tasks/{id}/tracking/sessions")
     public ResponseEntity<List<TaskService.WorkSession>> getTrackingSessions(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(taskService.getWorkSessions(id, currentUser));
+    }
+
+    /**
+     * Stops the running session retroactively, for the "forgot to clock out last night" case.
+     */
+    @Operation(summary = "Stops the running work session at an earlier point in time")
+    @PostMapping("/tasks/{id}/tracking/stop-at")
+    public ResponseEntity<TaskDTO> stopTrackingAt(
+        @PathVariable Long id, @RequestBody StopAtRequest request, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.stopTrackingAt(id, request.until(), request.reason(), currentUser)));
+    }
+
+    /**
+     * Books a work session that was never clocked. Manager or member; booking someone else's time is
+     * reserved for the project manager.
+     */
+    @Operation(summary = "Books a work session by hand that was never clocked")
+    @PostMapping("/tasks/{id}/tracking/sessions")
+    public ResponseEntity<TaskService.WorkSession> addTrackingSession(
+        @PathVariable Long id, @RequestBody WorkSessionRequest request, @AuthenticatedUser PUser currentUser) {
+        TaskService.WorkSession session = taskService.addWorkSession(
+                id, request.from(), request.until(), request.reason(), request.userId(), currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(session);
+    }
+
+    /**
+     * Corrects the bounds of a completed work session. The project manager may correct any session,
+     * everyone else only the sessions they took part in.
+     */
+    @Operation(summary = "Corrects the start and end of a completed work session")
+    @PutMapping("/tasks/{id}/tracking/sessions/{sessionId}")
+    public ResponseEntity<TaskService.WorkSession> updateTrackingSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @RequestBody WorkSessionRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.updateWorkSession(
+                id, sessionId, request.from(), request.until(), request.reason(), currentUser));
+    }
+
+    /** Removes a completed work session, for instance a scan of the wrong tag. */
+    @Operation(summary = "Removes a completed work session")
+    @DeleteMapping("/tasks/{id}/tracking/sessions/{sessionId}")
+    public ResponseEntity<Void> deleteTrackingSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @AuthenticatedUser PUser currentUser) {
+        taskService.deleteWorkSession(id, sessionId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Request body for correcting or hand-booking a work session. All of {@code from}, {@code until}
+     * and {@code reason} are mandatory; {@code userId} is only honoured when booking a new session
+     * for someone else and is ignored on a correction.
+     */
+    public record WorkSessionRequest(Instant from, Instant until, String reason, Long userId) {
+    }
+
+    /**
+     * Request body for stopping the running session retroactively. Both fields are mandatory.
+     */
+    public record StopAtRequest(Instant until, String reason) {
     }
 
     /**

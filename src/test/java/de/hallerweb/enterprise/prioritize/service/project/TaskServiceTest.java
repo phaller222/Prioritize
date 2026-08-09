@@ -29,8 +29,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -49,11 +53,20 @@ class TaskServiceTest {
     private UserService userService;
 
     private PUser admin;
+    private PUser member;
     private Project project;
 
     @BeforeEach
     void setUp() {
         admin = userService.findUserByUsername("admin");
+        member = userService.createUser(PUser.builder()
+                .username("task-member-" + System.nanoTime())
+                .name("Member")
+                .firstname("Miriam")
+                .email("miriam@example.com")
+                .password("plaintext123")
+                .admin(false)
+                .build());
         project = projectService.createProject(
                 new ProjectData("Gemini", "Task project", 3, null, null, 50), admin);
     }
@@ -232,5 +245,216 @@ class TaskServiceTest {
         assertEquals(1, sessions.size());
         assertFalse(sessions.get(0).running());
         assertNotNull(sessions.get(0).until());
+    }
+
+    // --- Correcting tracked time ---
+
+    /** A completed session on the task, tracked by the given user. */
+    private TaskService.WorkSession trackedSession(Task task, PUser user) {
+        taskService.startTracking(task.getId(), user);
+        taskService.stopTracking(task.getId(), user);
+        var sessions = taskService.getWorkSessions(task.getId(), admin);
+        return sessions.get(sessions.size() - 1);
+    }
+
+    @Test
+    @DisplayName("getWorkSessions: eine normal getrackte Session hat eine id und keine Korrektur")
+    void getWorkSessions_untouchedSessionHasIdAndNoCorrection() {
+        Task task = newTask();
+        var session = trackedSession(task, admin);
+
+        assertNotNull(session.id(), "Ohne id ließe sich die Session nicht korrigieren");
+        assertNull(session.correction(), "Eine unangetastete Session trägt keinen Korrekturvermerk");
+    }
+
+    @Test
+    @DisplayName("updateWorkSession: korrigiert die Zeiten, bewahrt den Urzustand und vermerkt Bearbeiter und Grund")
+    void updateWorkSession_correctsBoundsAndRecordsAudit() {
+        Task task = newTask();
+        var session = trackedSession(task, admin);
+        Instant originalFrom = session.from();
+        Instant originalUntil = session.until();
+
+        Instant from = Instant.now().minus(Duration.ofHours(4));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+        var corrected = taskService.updateWorkSession(
+                task.getId(), session.id(), from, until, "Ausstechen vergessen", admin);
+
+        assertEquals(from, corrected.from());
+        assertEquals(until, corrected.until());
+        assertEquals(Duration.ofHours(3).toSeconds(), corrected.seconds());
+
+        var correction = corrected.correction();
+        assertNotNull(correction);
+        assertEquals(TaskService.CorrectionKind.CORRECTED, correction.kind());
+        assertEquals("admin", correction.correctedBy());
+        assertEquals("Ausstechen vergessen", correction.reason());
+        assertNotNull(correction.correctedAt());
+        assertEquals(originalFrom, correction.originalFrom(), "Der Urzustand muss sichtbar bleiben");
+        assertEquals(originalUntil, correction.originalUntil());
+    }
+
+    @Test
+    @DisplayName("updateWorkSession: eine zweite Korrektur überschreibt den Urzustand nicht")
+    void updateWorkSession_secondCorrectionKeepsFirstOriginal() {
+        Task task = newTask();
+        var session = trackedSession(task, admin);
+        Instant originalFrom = session.from();
+
+        taskService.updateWorkSession(task.getId(), session.id(),
+                Instant.now().minus(Duration.ofHours(4)), Instant.now().minus(Duration.ofHours(1)),
+                "erste Korrektur", admin);
+        var twice = taskService.updateWorkSession(task.getId(), session.id(),
+                Instant.now().minus(Duration.ofHours(5)), Instant.now().minus(Duration.ofHours(2)),
+                "zweite Korrektur", admin);
+
+        assertEquals(originalFrom, twice.correction().originalFrom(),
+                "originalFrom bleibt der ursprünglich gestochene Wert");
+        assertEquals("zweite Korrektur", twice.correction().reason());
+    }
+
+    @Test
+    @DisplayName("updateWorkSession: ohne Grund, mit verdrehten oder zukünftigen Zeiten wirft IllegalArgumentException")
+    void updateWorkSession_rejectsImplausibleInput() {
+        Task task = newTask();
+        var session = trackedSession(task, admin);
+        Instant from = Instant.now().minus(Duration.ofHours(4));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        assertThrows(IllegalArgumentException.class, () -> taskService.updateWorkSession(
+                task.getId(), session.id(), from, until, "  ", admin), "Grund ist Pflicht");
+        assertThrows(IllegalArgumentException.class, () -> taskService.updateWorkSession(
+                task.getId(), session.id(), until, from, "verdreht", admin), "Ende vor Beginn");
+        assertThrows(IllegalArgumentException.class, () -> taskService.updateWorkSession(
+                task.getId(), session.id(), from, Instant.now().plus(Duration.ofHours(1)),
+                "Zukunft", admin), "Ende in der Zukunft");
+    }
+
+    @Test
+    @DisplayName("updateWorkSession: die laufende Session ist nicht direkt korrigierbar")
+    void updateWorkSession_runningSessionRejected() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        Long runningId = taskService.getWorkSessions(task.getId(), admin).get(0).id();
+
+        assertThrows(IllegalStateException.class, () -> taskService.updateWorkSession(
+                task.getId(), runningId, Instant.now().minus(Duration.ofHours(2)),
+                Instant.now().minus(Duration.ofHours(1)), "geht nicht", admin));
+    }
+
+    @Test
+    @DisplayName("addWorkSession: trägt eine nie gestochene Session nach und markiert sie als MANUAL_ENTRY")
+    void addWorkSession_bookedByHand() {
+        Task task = newTask();
+        Instant from = Instant.now().minus(Duration.ofHours(6));
+        Instant until = Instant.now().minus(Duration.ofHours(4));
+
+        var added = taskService.addWorkSession(
+                task.getId(), from, until, "Einstechen vergessen", null, admin);
+
+        assertNotNull(added.id());
+        assertEquals(Duration.ofHours(2).toSeconds(), added.seconds());
+        assertFalse(added.running());
+        assertEquals(TaskService.CorrectionKind.MANUAL_ENTRY, added.correction().kind());
+        assertNull(added.correction().originalFrom(),
+                "Es gab keinen aufgezeichneten Zustand, der zu bewahren wäre");
+        assertEquals(1, taskService.getWorkSessions(task.getId(), admin).size());
+    }
+
+    @Test
+    @DisplayName("addWorkSession: fremde Zeit nachtragen darf nur der Projektmanager")
+    void addWorkSession_forSomeoneElseIsManagerOnly() {
+        Task task = newTask();
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Instant from = Instant.now().minus(Duration.ofHours(6));
+        Instant until = Instant.now().minus(Duration.ofHours(4));
+
+        assertThrows(AccessDeniedException.class, () -> taskService.addWorkSession(
+                task.getId(), from, until, "für den Kollegen", admin.getId(), member));
+
+        var forMember = taskService.addWorkSession(
+                task.getId(), from, until, "für den Gesellen", member.getId(), admin);
+        assertNotNull(forMember.id());
+    }
+
+    @Test
+    @DisplayName("deleteWorkSession: entfernt die Fehlbuchung aus der Historie")
+    void deleteWorkSession_removesSession() {
+        Task task = newTask();
+        var session = trackedSession(task, admin);
+
+        taskService.deleteWorkSession(task.getId(), session.id(), admin);
+
+        assertTrue(taskService.getWorkSessions(task.getId(), admin).isEmpty());
+    }
+
+    @Test
+    @DisplayName("Korrekturrechte: ein Mitglied korrigiert die eigene Session, aber keine fremde")
+    void correctionRights_ownSessionYesForeignNo() {
+        Task task = newTask();
+        projectService.addMember(project.getId(), member.getId(), admin);
+
+        var adminSession = trackedSession(task, admin);
+        var memberSession = trackedSession(task, member);
+        Instant from = Instant.now().minus(Duration.ofHours(4));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        var corrected = taskService.updateWorkSession(
+                task.getId(), memberSession.id(), from, until, "selbst korrigiert", member);
+        assertEquals(member.getUsername(), corrected.correction().correctedBy());
+        assertEquals(from, corrected.from());
+
+        assertThrows(AccessDeniedException.class, () -> taskService.updateWorkSession(
+                task.getId(), adminSession.id(), from, until, "fremde Zeit", member));
+        assertThrows(AccessDeniedException.class,
+                () -> taskService.deleteWorkSession(task.getId(), adminSession.id(), member));
+    }
+
+    @Test
+    @DisplayName("stopTrackingAt: beendet die laufende Session rückwirkend und vermerkt BACKDATED_STOP")
+    void stopTrackingAt_closesRunningSessionRetroactively() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        // Pretend the clock-in happened yesterday evening and nobody clocked out.
+        taskRepository.findById(task.getId()).orElseThrow()
+                .getActiveTimeSpan().setDateFrom(Instant.now().minus(Duration.ofHours(14)));
+        Instant until = Instant.now().minus(Duration.ofHours(6));
+
+        Task stopped = taskService.stopTrackingAt(
+                task.getId(), until, "gestern Abend vergessen", admin);
+
+        assertFalse(stopped.isTracking());
+        assertEquals(TaskStatus.STOPPED, stopped.getTaskStatus());
+        var sessions = taskService.getWorkSessions(task.getId(), admin);
+        assertEquals(1, sessions.size());
+        var session = sessions.get(0);
+        assertEquals(until, session.until());
+        assertEquals(TaskService.CorrectionKind.BACKDATED_STOP, session.correction().kind());
+        assertNotNull(session.correction().originalFrom());
+        assertNull(session.correction().originalUntil(),
+                "Die Session war offen — es gab kein Ende, das zu bewahren wäre");
+        assertEquals("gestern Abend vergessen", session.correction().reason());
+    }
+
+    @Test
+    @DisplayName("stopTrackingAt: Ende in der Zukunft oder vor dem Beginn wirft IllegalArgumentException")
+    void stopTrackingAt_rejectsImplausibleEnd() {
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
+                task.getId(), Instant.now().plus(Duration.ofHours(1)), "Zukunft", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
+                task.getId(), Instant.now().minus(Duration.ofHours(1)), "vor dem Start", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
+                task.getId(), Instant.now(), "  ", admin));
+    }
+
+    @Test
+    @DisplayName("stopTrackingAt: ohne laufendes Tracking wirft IllegalStateException")
+    void stopTrackingAt_whenIdle_throws() {
+        Task task = newTask();
+        assertThrows(IllegalStateException.class, () -> taskService.stopTrackingAt(
+                task.getId(), Instant.now(), "nichts läuft", admin));
     }
 }
