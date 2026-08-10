@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.resource;
 
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
@@ -282,6 +283,54 @@ class ResourceServiceTest {
     void deleteResourceGroup_UnknownId_ShouldThrow() {
         assertThrows(NoSuchElementException.class,
                 () -> resourceService.deleteResourceGroup(-999L, adminUser));
+    }
+
+    // ==========================================
+    // partialUpdateResource
+    // ==========================================
+
+    @Test
+    @DisplayName("partialUpdateResource: Alle vom ResourceRequest getragenen Felder werden übernommen")
+    void partialUpdateResource_ShouldApplyEveryRequestField() {
+        ResourceRequest patch = new ResourceRequest("Neuer-Name", "Neue Beschreibung", "10.0.0.7", 1883,
+                5, true, true, true, "50.1109", "8.6821",
+                true, "uuid-patch-test", "send/topic", "receive/topic", true);
+
+        Resource updated = resourceService.partialUpdateResource(testResource.getId(), patch.toResource(), adminUser);
+
+        assertEquals("Neuer-Name", updated.getName());
+        assertEquals("Neue Beschreibung", updated.getDescription());
+        assertEquals("10.0.0.7", updated.getIp());
+        assertEquals(1883, updated.getPort());
+        assertEquals(5, updated.getMaxSlots());
+        assertTrue(updated.getStationary());
+        assertTrue(updated.getRemote());
+        // agent/latitude/longitude were silently dropped before 1.4.0
+        assertTrue(updated.getAgent());
+        assertEquals("50.1109", updated.getLatitude());
+        assertEquals("8.6821", updated.getLongitude());
+        assertTrue(updated.getMqttResource());
+        assertTrue(updated.getMqttOnline());
+        assertEquals("uuid-patch-test", updated.getMqttUUID());
+        assertEquals("send/topic", updated.getMqttDataSendTopic());
+        assertEquals("receive/topic", updated.getMqttDataReceiveTopic());
+    }
+
+    @Test
+    @DisplayName("partialUpdateResource: null bedeutet unverändert")
+    void partialUpdateResource_NullFields_ShouldLeaveResourceUntouched() {
+        ResourceRequest onlyName = new ResourceRequest("Nur-Name-Test", null, null, null,
+                null, null, null, null, null, null,
+                null, null, null, null, null);
+
+        Resource updated = resourceService.partialUpdateResource(testResource.getId(), onlyName.toResource(), adminUser);
+
+        assertEquals("Nur-Name-Test", updated.getName());
+        assertEquals("Eine Ressource für Tests", updated.getDescription());
+        assertEquals(2, updated.getMaxSlots());
+        assertFalse(updated.getAgent());
+        assertNull(updated.getLatitude());
+        assertNull(updated.getLongitude());
     }
 
     // ==========================================
