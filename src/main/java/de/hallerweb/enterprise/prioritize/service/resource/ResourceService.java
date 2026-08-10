@@ -543,13 +543,15 @@ public class ResourceService {
         if (patch.getName() != null) existing.setName(patch.getName());
         if (patch.getDescription() != null) existing.setDescription(patch.getDescription());
         if (patch.getIp() != null) existing.setIp(patch.getIp());
-        if (patch.getIp() != null) existing.setIp(patch.getIp());
         if (patch.getPort() != null) existing.setPort(patch.getPort());
         if (patch.getMaxSlots() != null) existing.setMaxSlots(patch.getMaxSlots());
         if (patch.getStationary() != null) existing.setStationary(patch.getStationary());
         if (patch.getRemote() != null) existing.setRemote(patch.getRemote());
+        if (patch.getLatitude() != null) existing.setLatitude(patch.getLatitude());
+        if (patch.getLongitude() != null) existing.setLongitude(patch.getLongitude());
 
         // MQTT fields
+        if (patch.getAgent() != null) existing.setAgent(patch.getAgent());
         if (patch.getMqttResource() != null) existing.setMqttResource(patch.getMqttResource());
         if (patch.getMqttOnline() != null) existing.setMqttOnline(patch.getMqttOnline());
         if (patch.getMqttUUID() != null) existing.setMqttUUID(patch.getMqttUUID());
