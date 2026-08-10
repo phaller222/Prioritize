@@ -394,19 +394,24 @@ and never hand-written, so the client version tracks the API version (a `1.x` cl
 
 | Language | Repository | Install |
 |---|---|---|
-| **Java** | [prioritize-java-client](https://github.com/phaller222/prioritize-java-client) | Maven Central: `de.hallerweb:prioritize-java-client:1.2.0` |
-| **PHP** | [prioritize-php-client](https://github.com/phaller222/prioritize-php-client) | Composer: `hallerweb/prioritize-php-client` |
+| **Java** | [prioritize-java-client](https://github.com/phaller222/prioritize-java-client) | Maven Central: `de.hallerweb:prioritize-java-client:1.3.1` |
+| **PHP** | [prioritize-php-client](https://github.com/phaller222/prioritize-php-client) | Composer: `composer require hallerweb/prioritize-php-client` |
 | **Python** | [prioritize-python-client](https://github.com/phaller222/prioritize-python-client) | PyPI: `pip install prioritize-client` |
+| **TypeScript** | [prioritize-typescript-client](https://github.com/phaller222/prioritize-typescript-client) | npm: `npm install prioritize-client` |
 
 ```xml
 <dependency>
     <groupId>de.hallerweb</groupId>
     <artifactId>prioritize-java-client</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.1</version>
 </dependency>
 ```
 
-All three support HTTP Basic (default profile) and Bearer/Keycloak authentication.
+All four support HTTP Basic (default profile) and Bearer/Keycloak authentication.
+
+> **Java only:** build the client with `new PrioritizeApiClient()`, not `new ApiClient()`. The generated
+> client transports over `HttpURLConnection`, which rejects `PATCH`, so every partial-update call would
+> fail before leaving the JVM. `PrioritizeApiClient` is the same client on a `PATCH`-capable transport.
 
 ---
 
