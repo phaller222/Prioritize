@@ -93,10 +93,33 @@ public class DepartmentService {
         departmentRepository.deleteById(id);
     }
 
+    /**
+     * Loads a department <b>without</b> checking anything. Internal lookup used by the services and by
+     * {@link AuthorizationService} itself while resolving hierarchical permissions — which is why the
+     * READ check cannot live here: the check would call back into this method and recurse forever.
+     * Callers acting on behalf of a user want {@link #getDepartment(Long, PUser)}.
+     */
     @Transactional(readOnly = true)
     public Department getDepartmentById(Long id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Department with id " + id + " not found."));
+    }
+
+    /**
+     * Reads a single department on behalf of a user, gated by {@link Action#READ} — the authorized
+     * counterpart to {@link #getDepartmentById}.
+     * <p>
+     * Until 1.4.0 the REST read was ungated while the listing underneath a company was not, so a caller
+     * denied the company's department list could still read every one of those departments one id at a
+     * time. Ids are sequential, so that was the whole list with extra steps.
+     */
+    @Transactional(readOnly = true)
+    public Department getDepartment(Long id, PUser requestingUser) {
+        Department department = getDepartmentById(id);
+        if (!authService.hasPermission(requestingUser, department, Action.READ)) {
+            throw new AccessDeniedException("No permission to read this department.");
+        }
+        return department;
     }
 
     @Transactional(readOnly = true)
@@ -131,6 +154,28 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<Department> getAllDepartments() {
         return departmentRepository.findAll();
+    }
+
+    /**
+     * Returns the departments the caller may read, across all companies — the entry point for a client
+     * that has no company id yet.
+     * <p>
+     * This exists because departments were only reachable through {@code /companies/{id}/departments},
+     * and a fresh installation has <em>no</em> company at all: {@code InitializationService} seeds an
+     * admin and a default department, but never a company. A client therefore had no way to discover
+     * the department id it needs for everything hanging below it (resource groups, users, resources).
+     * <p>
+     * Filters on {@link Action#READ} per department rather than returning {@link #getAllDepartments()}
+     * unchanged: a flat listing is exactly the shape that turns "you may read this one" into "here is
+     * every department in the installation". Admins short-circuit to the full list inside
+     * {@link AuthorizationService#hasPermission}. The entities are already loaded, so the check runs
+     * against the in-memory permission records rather than re-reading each department.
+     */
+    @Transactional(readOnly = true)
+    public List<Department> getReadableDepartments(PUser requestingUser) {
+        return departmentRepository.findAll().stream()
+                .filter(department -> authService.hasPermission(requestingUser, department, Action.READ))
+                .toList();
     }
 
     @Transactional(readOnly = true)

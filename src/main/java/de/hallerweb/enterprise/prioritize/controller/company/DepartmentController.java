@@ -58,10 +58,21 @@ public class DepartmentController {
                 .stream().map(DepartmentDTO::from).toList());
     }
 
+    /**
+     * Flat listing across all companies, for clients that do not have a company id to start from —
+     * see {@link DepartmentService#getReadableDepartments} for why that is the normal case.
+     */
+    @Operation(summary = "List the departments the caller may read, across all companies")
+    @GetMapping("/departments")
+    public ResponseEntity<List<DepartmentDTO>> getDepartments(@AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(departmentService.getReadableDepartments(currentUser)
+                .stream().map(DepartmentDTO::from).toList());
+    }
+
     @Operation(summary = "Get department by id")
     @GetMapping("/departments/{id}")
-    public ResponseEntity<DepartmentDTO> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(DepartmentDTO.from(departmentService.getDepartmentById(id)));
+    public ResponseEntity<DepartmentDTO> getById(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(DepartmentDTO.from(departmentService.getDepartment(id, currentUser)));
     }
 
     @Operation(summary = "Update department")
