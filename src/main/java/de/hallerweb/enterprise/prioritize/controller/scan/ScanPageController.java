@@ -67,6 +67,15 @@ import java.util.NoSuchElementException;
  * Lives outside {@code /api/**} on purpose: that path is the stateless Basic-auth chain, while
  * everything else falls into the session-based chain with the form login, which is exactly what a
  * browser needs.
+ * <p>
+ * <b>Where the host comes from.</b> Nothing here knows the address this application is reachable
+ * under, and nothing should: the form action and the redirect below are relative. The absolute URL
+ * — scheme, host, port — lives on the <em>tag</em>. Writing a sticker means storing an NDEF URL
+ * record like {@code http://<your-host>:8080/scan/<uuid>} on it, with any NFC writer; the uuid is
+ * the one the {@code NfcUnit} was registered with, so the tag is written after the tag exists in
+ * Prioritize, not before. Two consequences worth knowing before writing a batch: the host is baked
+ * into each sticker, so moving the installation means rewriting them, and a name only works if the
+ * scanning phone can resolve it — an IP address is the safer choice on a local network.
  *
  * @author peter haller
  */
