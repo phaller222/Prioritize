@@ -165,6 +165,24 @@ public class NfcUnitService {
     }
 
     /**
+     * Looks a tag up by its uuid without touching it — no scan time, no dispatch, no side effect.
+     * <p>
+     * Exists for the scan page, which has to render <em>before</em> anything happens: the URL on an
+     * NDEF tag is opened by the phone's browser, so it arrives as a GET that a prefetch, a reload or
+     * the back button can repeat at will. Toggling there would stop a running clock by accident.
+     * The page therefore reads through this method and only {@link #scan} on the confirming POST.
+     *
+     * @param uuid the tag's uuid
+     * @return the tag
+     * @throws NoSuchElementException if no tag with that uuid exists
+     */
+    @Transactional(readOnly = true)
+    public NfcUnit getByUuid(String uuid) {
+        return nfcUnitRepository.findByUuid(uuid)
+                .orElseThrow(() -> new NoSuchElementException("No NFC tag with uuid '" + uuid + "'"));
+    }
+
+    /**
      * Processes a scan of the tag with the given uuid. Records the scan time and dispatches by
      * type: a TIMETRACKER toggles its bound task's tracking, a COUNTER bumps its sequence number,
      * other types are merely recorded. Available to any authenticated user; the TIMETRACKER path
