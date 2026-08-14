@@ -25,6 +25,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -94,9 +95,34 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Vaadin admin GUI: form login via the Vaadin security integration. */
+    /**
+     * The NFC scan page — a third surface, neither REST nor admin GUI, and it needs its own chain.
+     * <p>
+     * It cannot ride on the REST chain: that one is stateless Basic, while a phone that opened a tag's
+     * URL is a browser and wants a session. It cannot ride on the Vaadin chain either, because
+     * {@link VaadinSecurityConfigurer} authorizes <b>deny-by-default</b> — it permits Vaadin's own
+     * requests, the static resources and the login view, and refuses everything else. A plain MVC path
+     * underneath it is therefore a 302 to the login while anonymous and a <b>403 once logged in</b>,
+     * which is exactly what happened before this chain existed.
+     * <p>
+     * Keeps CSRF enabled (the page's form carries the token) and sends anonymous visitors to the same
+     * login view the admin GUI uses, so there is one login in the application, not two.
+     */
     @Bean
     @Order(2)
+    public SecurityFilterChain scanFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/scan/**")
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                        new LoginUrlAuthenticationEntryPoint("/login")));
+
+        return http.build();
+    }
+
+    /** Vaadin admin GUI: form login via the Vaadin security integration. */
+    @Bean
+    @Order(3)
     public SecurityFilterChain vaadinFilterChain(HttpSecurity http) throws Exception {
         http.with(VaadinSecurityConfigurer.vaadin(), configurer -> configurer.loginView(LoginView.class));
         return http.build();
