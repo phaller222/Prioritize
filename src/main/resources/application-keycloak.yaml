@@ -3,4 +3,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
+          # "memoryalpha" is the Keycloak host on the network this project is developed on — put
+          # your own realm URL here. It has to match the `iss` claim of your tokens exactly, character
+          # for character, or every bearer token is rejected with 401 and the cause is invisible.
+          # The backend also has to reach this host for the JWKS it verifies signatures with.
+          #
+          # Activating this profile switches the security model wholesale: SecurityConfig is
+          # @Profile("!keycloak"), so HTTP Basic disappears and bearer tokens become the only way in
+          # — and the Vaadin admin GUI stops working, because this chain is a resource server with
+          # no form login. "Basic worked, bearer gives 401" almost always means this profile is not
+          # active; "the GUI died after enabling keycloak" means it is.
           issuer-uri: http://memoryalpha:8081/realms/prioritize

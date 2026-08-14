@@ -1,6 +1,9 @@
 prioritize:
   mqtt:
     enabled: true
+    # "memoryalpha" is the broker on the network this project is developed on — put your own broker
+    # here. This whole profile is opt-in: without "mqtt" in spring.profiles.active nothing connects
+    # and no subscription is made, so an unreachable host here costs a fresh checkout nothing.
     broker-url: tcp://memoryalpha:1883
     client-id: prioritize-backend
     #username: prioritize

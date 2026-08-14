@@ -1,5 +1,9 @@
 spring:
   datasource:
+    # "memoryalpha" is the database host on the network this project is developed on — put your own
+    # host here. The commented line above it is the usual local default. Note the non-standard port:
+    # 5431, not 5432. You do not need any of this to run the application: the default profile is h2
+    # and brings its own file database, so a fresh checkout starts with no external server at all.
     #url: jdbc:postgresql://localhost:5432/prioritize
     url: jdbc:postgresql://memoryalpha:5431/prioritize
     username: prioritize
