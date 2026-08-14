@@ -41,6 +41,8 @@ node_modules/
 /frontend/generated/
 vite.generated.ts
 package-lock.json
+# Dropped in the project root by every dev run of the app.
+.vaadin-node-tasks.lock
 
 ### Project scratch / generated artifacts ###
 # Zip archives (source/model exports, never source of truth)

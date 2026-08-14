@@ -16,11 +16,10 @@
 
 package de.hallerweb.enterprise.prioritize.dto.security;
 
-import de.hallerweb.enterprise.prioritize.dto.WireTime;
 import de.hallerweb.enterprise.prioritize.dto.address.AddressRequest;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 
-import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * Request body for creating or updating a {@link PUser}. Carries the profile base data only. It deliberately
@@ -37,7 +36,7 @@ public record UserRequest(String username,
                           String firstname,
                           String email,
                           String occupation,
-                          Instant dateOfBirth,
+                          LocalDate dateOfBirth,
                           PUser.Gender gender,
                           AddressRequest address,
                           Boolean admin,
@@ -57,7 +56,7 @@ public record UserRequest(String username,
         user.setFirstname(firstname);
         user.setEmail(email);
         user.setOccupation(occupation);
-        user.setDateOfBirth(WireTime.toLocal(dateOfBirth));
+        user.setDateOfBirth(dateOfBirth);
         user.setGender(gender);
         user.setAddress(address != null ? address.toAddress() : null);
         if (admin != null) {

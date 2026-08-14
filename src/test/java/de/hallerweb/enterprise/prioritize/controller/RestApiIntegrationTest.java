@@ -18,12 +18,16 @@ package de.hallerweb.enterprise.prioritize.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.hallerweb.enterprise.prioritize.model.project.Project;
+import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
 import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
+import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
+import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import org.hibernate.SessionFactory;
@@ -43,6 +47,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -95,6 +100,8 @@ class RestApiIntegrationTest {
     @Autowired private ResourceRepository resourceRepository;
     @Autowired private ResourceGroupRepository resourceGroupRepository;
     @Autowired private ResourceService resourceService;
+    @Autowired private ProjectService projectService;
+    @Autowired private TaskService taskService;
     @Autowired private EntityManagerFactory entityManagerFactory;
 
     private final HttpClient http = HttpClient.newHttpClient();
@@ -201,13 +208,15 @@ class RestApiIntegrationTest {
      * {@code /resourcegroups/{groupId}/...} endpoint stayed unreachable in practice. Once the listing
      * answers, the id it hands out has to work on the group-scoped read — that is the pair this pins.
      * <p>
-     * The department id is taken from the repository rather than walked to over REST: the seeded
-     * structure has no company, and departments are only listed underneath one.
+     * Walks the whole chain over REST, starting at the flat department listing: until 1.4.0 the
+     * department id had to be taken from the repository here, because the seeded structure has no
+     * company and departments were only listed underneath one. That this test now needs no repository
+     * access is the point of {@code GET /departments}.
      */
     @Test
     @DisplayName("Listing a department's resource groups yields an id that works on the group's resources")
     void resourceGroupsAreDiscoverable() throws Exception {
-        long deptId = departmentRepository.findAll().stream().findFirst().orElseThrow().getId();
+        long deptId = firstDepartmentIdOverRest();
 
         HttpResponse<String> groupsResponse = send(
                 authorized("/api/v1/departments/" + deptId + "/resourcegroups", ADMIN, ADMIN_PASSWORD).GET());
@@ -226,6 +235,72 @@ class RestApiIntegrationTest {
     @DisplayName("The resource group listing is not readable anonymously")
     void resourceGroupsRequireAuthentication() throws Exception {
         assertEquals(401, send(request("/api/v1/departments/1/resourcegroups").GET()).statusCode());
+    }
+
+    // ==========================================
+    // Departments
+    // ==========================================
+
+    /**
+     * The entry point a client without a company id needs. {@code InitializationService} seeds a
+     * department but no company, so before this endpoint existed the seeded department — the one every
+     * fresh installation actually has — could not be reached through the API at all.
+     */
+    @Test
+    @DisplayName("The flat department listing exposes the seeded department to an admin")
+    void departmentsAreListedFlat() throws Exception {
+        HttpResponse<String> response = send(authorized("/api/v1/departments", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+
+        JsonNode departments = json.readTree(response.body());
+        assertTrue(departments.isArray() && departments.size() > 0,
+                "the seeded default department must be listed");
+
+        long seeded = departmentRepository.findAll().stream().findFirst().orElseThrow().getId();
+        assertTrue(json.readTree(response.body()).findValuesAsText("id").contains(String.valueOf(seeded)),
+                "the listing must contain the department that actually exists, not some other id");
+    }
+
+    /**
+     * The listing filters on READ per department instead of handing out the whole installation. Without
+     * that filter this test would see the same list the admin sees, so it is what keeps
+     * {@code getReadableDepartments} from being an unauthorized dump.
+     */
+    @Test
+    @DisplayName("A user without permissions sees no departments in the flat listing")
+    void departmentListingIsFilteredByPermission() throws Exception {
+        PUser stranger = createUser("it-dept-stranger", false);
+
+        HttpResponse<String> response = send(
+                authorized("/api/v1/departments", stranger.getUsername(), PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(0, json.readTree(response.body()).size(),
+                "a user with no READ permission must not learn which departments exist");
+    }
+
+    @Test
+    @DisplayName("The flat department listing is not readable anonymously")
+    void departmentListingRequiresAuthentication() throws Exception {
+        assertEquals(401, send(request("/api/v1/departments").GET()).statusCode());
+    }
+
+    /**
+     * The single read is gated the same way the listing is. It used to be ungated while the listing
+     * underneath a company was not, so filtering the listing alone would have been decoration: a caller
+     * denied the list could still walk the sequential ids and read every department individually.
+     */
+    @Test
+    @DisplayName("Reading a single department requires READ permission on it")
+    void singleDepartmentReadIsAuthorized() throws Exception {
+        long deptId = firstDepartmentIdOverRest();
+        PUser stranger = createUser("it-dept-single", false);
+
+        assertEquals(403, send(authorized("/api/v1/departments/" + deptId,
+                stranger.getUsername(), PASSWORD).GET()).statusCode(),
+                "a user without READ must not reach the department by id either");
+
+        assertEquals(200, send(authorized("/api/v1/departments/" + deptId, ADMIN, ADMIN_PASSWORD).GET())
+                .statusCode(), "the admin must still be able to read it — otherwise the check is too tight");
     }
 
     // ==========================================
@@ -268,29 +343,82 @@ class RestApiIntegrationTest {
     /**
      * The write direction of the same defect: the client sends what its {@code OffsetDateTime} produces —
      * a real numeric offset — and the server used to reject that with 400 while silently discarding a
-     * {@code Z}. Both spellings must now be accepted and mean the same instant, so a value does not
-     * change meaning by travelling through the API.
+     * {@code Z}. Both spellings must be accepted and mean the same instant, so a value does not change
+     * meaning by travelling through the API.
+     * <p>
+     * Rides on a hand-booked work session because {@code WorkSessionRequest} is the only request body
+     * left carrying an {@link Instant} — {@code dateOfBirth}, which used to carry this test, is a
+     * {@link LocalDate} since 1.4.0. That is the better subject anyway: a session boundary is a real
+     * point in time where an hour lost to a dropped offset is an hour missing from an invoice.
      */
     @Test
     @DisplayName("A timestamp survives the round trip with its offset, whether Z or numeric")
     void offsetTimestampsRoundTripUnchanged() throws Exception {
-        Instant birth = OffsetDateTime.parse("1980-05-15T10:00:00Z").toInstant();
+        long taskId = createTaskAsAdmin();
+        Instant from = OffsetDateTime.parse("2026-03-02T08:00:00Z").toInstant();
+        Instant until = OffsetDateTime.parse("2026-03-02T12:00:00Z").toInstant();
 
-        for (String spelling : new String[]{"1980-05-15T10:00:00Z", "1980-05-15T12:00:00+02:00"}) {
+        String[][] spellings = {
+                {"2026-03-02T08:00:00Z", "2026-03-02T12:00:00Z"},
+                {"2026-03-02T10:00:00+02:00", "2026-03-02T14:00:00+02:00"}
+        };
+
+        for (String[] spelling : spellings) {
             String body = json.writeValueAsString(json.createObjectNode()
-                    .put("username", "it-dob-" + System.nanoTime())
-                    .put("name", "Birth").put("firstname", "Date")
-                    .put("dateOfBirth", spelling));
+                    .put("from", spelling[0])
+                    .put("until", spelling[1])
+                    .put("reason", "offset round trip"));
 
-            HttpResponse<String> created = send(authorized("/api/v1/users", ADMIN, ADMIN_PASSWORD)
-                    .POST(HttpRequest.BodyPublishers.ofString(body)));
+            HttpResponse<String> created = send(
+                    authorized("/api/v1/tasks/" + taskId + "/tracking/sessions", ADMIN, ADMIN_PASSWORD)
+                            .POST(HttpRequest.BodyPublishers.ofString(body)));
             assertEquals(201, created.statusCode(),
-                    "a client-shaped offset timestamp must be accepted — " + spelling + ": " + created.body());
+                    "a client-shaped offset timestamp must be accepted — " + spelling[0] + ": " + created.body());
 
-            String echoed = json.readTree(created.body()).path("dateOfBirth").asText();
-            assertEquals(birth, OffsetDateTime.parse(echoed).toInstant(),
-                    "the offset in " + spelling + " must be honoured, not dropped");
+            JsonNode session = json.readTree(created.body());
+            assertEquals(from, OffsetDateTime.parse(session.path("from").asText()).toInstant(),
+                    "the offset in " + spelling[0] + " must be honoured, not dropped");
+            assertEquals(until, OffsetDateTime.parse(session.path("until").asText()).toInstant(),
+                    "the offset in " + spelling[1] + " must be honoured, not dropped");
         }
+    }
+
+    /**
+     * A birthday is a calendar date, not an instant. Sent and echoed as a plain {@code yyyy-MM-dd}, it
+     * denotes the same day regardless of the reader's zone; as an instant it used to render a day early
+     * or late whenever client and server zones differed, which is why the field moved to
+     * {@link LocalDate} in 1.4.0.
+     * <p>
+     * The zone offset in the assertion is deliberate: {@code 1980-05-15} must come back as that day even
+     * though the server interprets it in a zone that is <em>not</em> UTC, and a timestamp spelling must
+     * be rejected outright rather than silently truncated to some neighbouring day.
+     */
+    @Test
+    @DisplayName("A date of birth is a plain calendar date, not a timestamp")
+    void dateOfBirthIsACalendarDate() throws Exception {
+        String body = json.writeValueAsString(json.createObjectNode()
+                .put("username", "it-dob-" + System.nanoTime())
+                .put("name", "Birth").put("firstname", "Date")
+                .put("dateOfBirth", "1980-05-15"));
+
+        HttpResponse<String> created = send(authorized("/api/v1/users", ADMIN, ADMIN_PASSWORD)
+                .POST(HttpRequest.BodyPublishers.ofString(body)));
+        assertEquals(201, created.statusCode(), created.body());
+        assertEquals("1980-05-15", json.readTree(created.body()).path("dateOfBirth").asText(),
+                "the day must survive unchanged, without a time or a zone shifting it");
+
+        String withTimestamp = json.writeValueAsString(json.createObjectNode()
+                .put("username", "it-dob-ts-" + System.nanoTime())
+                .put("name", "Birth").put("firstname", "Stamp")
+                .put("dateOfBirth", "1980-05-15T23:00:00Z"));
+
+        HttpResponse<String> legacy = send(authorized("/api/v1/users", ADMIN, ADMIN_PASSWORD)
+                .POST(HttpRequest.BodyPublishers.ofString(withTimestamp)));
+        assertEquals(201, legacy.statusCode(), legacy.body());
+        assertEquals("1980-05-15", json.readTree(legacy.body()).path("dateOfBirth").asText(),
+                "a client still sending a 1.3.x timestamp must keep the day it wrote — the late hour "
+                        + "here would tip over into the next day if the value were shifted into the "
+                        + "server zone first, which is the very defect this field was moved to fix");
     }
 
     // ==========================================
@@ -469,6 +597,30 @@ class RestApiIntegrationTest {
         JsonNode value = readUserAsAdmin(userId).path("lastSeen");
         assertTrue(value.isTextual(), "expected a lastSeen timestamp, got " + value);
         return OffsetDateTime.parse(value.asText()).toInstant();
+    }
+
+    /** The first department's id, discovered the way a client has to discover it: over the API. */
+    private long firstDepartmentIdOverRest() throws Exception {
+        HttpResponse<String> response = send(authorized("/api/v1/departments", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode departments = json.readTree(response.body());
+        assertTrue(departments.size() > 0, "the seeded default department must be listed");
+        return departments.get(0).path("id").asLong();
+    }
+
+    /**
+     * Creates a project with a single task through the services, owned by the seeded admin, and returns
+     * the task id. Goes through the services rather than REST because the endpoints under test are the
+     * tracking ones; the admin is manager of the project and may therefore book sessions on the task.
+     */
+    private long createTaskAsAdmin() {
+        PUser admin = userService.findUserByUsername(ADMIN);
+        Project project = projectService.createProject(new ProjectService.ProjectData(
+                "IT Project " + System.nanoTime(), "created by RestApiIntegrationTest", 1,
+                LocalDate.now(), LocalDate.now().plusDays(7), 10), admin);
+        Task task = taskService.createTask(project.getId(),
+                new TaskService.TaskData("IT Task", "created by RestApiIntegrationTest", 1), admin);
+        return task.getId();
     }
 
     private PUser createUser(String prefix, boolean admin) {

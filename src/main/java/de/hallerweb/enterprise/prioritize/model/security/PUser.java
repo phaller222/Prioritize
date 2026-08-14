@@ -24,6 +24,7 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -90,7 +91,12 @@ public class PUser extends PActor implements PAuthorizedObject {
      */
     private LocalDateTime lastSeen;
 
-    private LocalDateTime dateOfBirth;
+    /**
+     * The day someone was born — a calendar date, not a point in time. Modelled as {@link LocalDate}
+     * because a birthday does not move with the time zone the reader happens to sit in: as an instant
+     * it renders a day early or late whenever server and client zones differ.
+     */
+    private LocalDate dateOfBirth;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "gender", nullable = true)
