@@ -1,14 +1,21 @@
 # Migrating an existing database
 
 Prioritize has no schema migration tool. Both profiles run Hibernate with `ddl-auto: update`, which
-**adds** tables and columns but never drops one and never changes an existing column's type. A fresh
-installation therefore needs nothing from this document — Hibernate creates the current schema. An
-installation that has been running since an earlier release needs the statements below, applied once,
-with the application stopped.
+**adds** tables and columns but never drops one. A fresh installation therefore needs nothing from
+this document — Hibernate creates the current schema. An installation that has been running since an
+earlier release needs the statements below, applied once, with the application stopped.
 
-Check first whether a statement applies at all: a database created after the release in question
-already has the target state, and re-running these is either a no-op or an error depending on the
-engine.
+**Check the current state before running anything.** Do not assume a statement still applies:
+`ddl-auto: update` turns out to widen some column types on its own, at least on PostgreSQL — when
+1.4.0 was migrated, `date_of_birth` had already become a `date` there while the same column on H2 was
+still a `timestamp`. The two engines had drifted apart without anybody touching them. Re-running a
+statement that no longer applies is an error on both.
+
+Reading the columns is one query:
+
+```sql
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'puser';
+```
 
 ## 1.4.0
 
