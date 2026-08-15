@@ -29,7 +29,7 @@ logging:
       springframework:
         security: INFO
       hibernate:
-        SQL: INFO
+        SQL: WARN
         orm.results: INFO
         orm.jdbc.bind: INFO
         #Falls du noch mehr Details zum Schema-Export willst:
