@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.ui.resource;
 import de.hallerweb.enterprise.prioritize.ui.telemetry.TelemetryRulesPanel;
+import de.hallerweb.enterprise.prioritize.ui.nfc.NfcTagsPanel;
 import de.hallerweb.enterprise.prioritize.ui.group.GroupsView;
 import de.hallerweb.enterprise.prioritize.ui.document.DocumentsView;
 import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
@@ -46,6 +47,7 @@ import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
+import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.annotation.security.PermitAll;
@@ -77,6 +79,9 @@ import java.util.stream.Stream;
  * <b>Reservations are display + cancel only</b> (admin-lite, mirroring {@link DocumentsView}): the detail pane
  * shows the selected resource's reservations and lets the admin release one. Creating a reservation stays a
  * user/client concern over REST.
+ * <p>
+ * The detail pane also carries the resource's {@link de.hallerweb.enterprise.prioritize.ui.nfc.NfcTagsPanel NFC
+ * tags}, read-only, for the one step that has no other home: getting the URL that belongs on the sticker.
  *
  * @author peter haller
  */
@@ -130,16 +135,21 @@ public class ResourcesView extends VerticalLayout {
     // --- telemetry-rules sub-panel (full CRUD on the selected resource's monitoring rules) ---
     private final TelemetryRulesPanel rulesPanel;
 
+    // --- NFC-tags sub-panel (the tags on this resource and the URL each sticker has to carry) ---
+    private final NfcTagsPanel nfcTagsPanel;
+
     private Long selectedGroupId;
     private Long editingId;   // null while creating
     private boolean creating;
 
     public ResourcesView(ResourceService resourceService, DepartmentService departmentService,
-                         TelemetryRuleService telemetryRuleService, CurrentUser currentUser) {
+                         TelemetryRuleService telemetryRuleService, NfcUnitService nfcUnitService,
+                         CurrentUser currentUser) {
         this.resourceService = resourceService;
         this.departmentService = departmentService;
         this.currentUser = currentUser;
         this.rulesPanel = new TelemetryRulesPanel(telemetryRuleService, currentUser);
+        this.nfcTagsPanel = new NfcTagsPanel(nfcUnitService, currentUser);
 
         setSizeFull();
         setPadding(false);
@@ -307,7 +317,7 @@ public class ResourcesView extends VerticalLayout {
         configureReservationGrid();
 
         formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, actions,
-                reservationTitle, reservationGrid, rulesPanel);
+                reservationTitle, reservationGrid, rulesPanel, nfcTagsPanel);
         formFields.setPadding(false);
 
         placeholder.getStyle().set("color", "var(--lumo-secondary-text-color)");
@@ -392,8 +402,10 @@ public class ResourcesView extends VerticalLayout {
         if (showRes) {
             loadReservations();
         }
-        // Rules need a persisted resource; bind on edit, clear while creating (the panel hides itself when null).
+        // Rules and tags need a persisted resource; bind on edit, clear while creating (both panels
+        // hide themselves when null).
         rulesPanel.setResource(creating ? null : editingId);
+        nfcTagsPanel.setResource(creating ? null : editingId);
         showEditor(true);
     }
 
