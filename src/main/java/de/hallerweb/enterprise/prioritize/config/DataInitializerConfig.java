@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 @Configuration
 @RequiredArgsConstructor
@@ -28,10 +29,14 @@ public class DataInitializerConfig {
 
     private final InitializationService initializationService;
 
+    /**
+     * The platform's own startup data. Ordered explicitly because anything that seeds on top of it
+     * has to run afterwards, and an unordered runner sorts as lowest precedence — which would put a
+     * later addition first without any visible reason.
+     */
     @Bean
+    @Order(0)
     public CommandLineRunner initData() {
-        return args -> {
-            initializationService.initData();
-        };
+        return args -> initializationService.initData();
     }
 }
