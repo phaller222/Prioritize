@@ -175,6 +175,33 @@ class NfcUnitServiceTest {
     }
 
     @Test
+    @DisplayName("getTagOverview: liefert den NAMEN des gebundenen Tasks, nicht nur dessen id")
+    void getTagOverview_carriesBoundTaskName() {
+        NfcUnit tracker = register(NfcUnitType.TIMETRACKER);
+        nfcUnitService.bindTask(tracker.getId(), task.getId(), admin);
+        NfcUnit counter = register(NfcUnitType.COUNTER);
+
+        var overview = nfcUnitService.getTagOverview(resource.getId(), admin);
+
+        var bound = overview.stream().filter(t -> t.id().equals(tracker.getId())).findFirst().orElseThrow();
+        assertEquals(task.getId(), bound.taskId());
+        // The point of the projection: a screen shows the task, and a screen cannot render an id.
+        assertEquals("Montage", bound.taskName());
+        assertEquals(tracker.getUuid(), bound.uuid());
+
+        var unbound = overview.stream().filter(t -> t.id().equals(counter.getId())).findFirst().orElseThrow();
+        assertNull(unbound.taskId());
+        assertNull(unbound.taskName());
+    }
+
+    @Test
+    @DisplayName("getTagOverview: unbekannte Resource wirft NoSuchElementException")
+    void getTagOverview_unknownResource_throws() {
+        assertThrows(NoSuchElementException.class,
+                () -> nfcUnitService.getTagOverview(-1L, admin));
+    }
+
+    @Test
     @DisplayName("deleteNfcUnit: Tag wird entfernt")
     void deleteNfcUnit_removesTag() {
         NfcUnit unit = register(NfcUnitType.INFOPOINT);

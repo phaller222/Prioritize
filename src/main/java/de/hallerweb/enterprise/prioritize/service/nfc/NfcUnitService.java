@@ -123,6 +123,37 @@ public class NfcUnitService {
     }
 
     /**
+     * A tag as an administrator needs to see it: the bound task by <em>name</em> rather than by id,
+     * and no lazy relations left over.
+     */
+    public record TagOverview(Long id, String uuid, String name, NfcUnitType type,
+                              Long taskId, String taskName, Instant lastScanTime) {
+    }
+
+    /**
+     * The resource's tags for display. Same {@link Action#READ} gate as
+     * {@link #getNfcUnitsForResource}, but it resolves the bound task's name while the transaction
+     * is still open — a caller outside it (the admin GUI) would otherwise hit the lazy proxy.
+     * <p>
+     * Kept apart from {@link de.hallerweb.enterprise.prioritize.dto.nfc.NfcUnitDTO}, which carries
+     * the task as an id because it is the published wire contract; widening that for the sake of a
+     * screen would mean regenerating four client libraries.
+     */
+    @Transactional(readOnly = true)
+    public List<TagOverview> getTagOverview(Long resourceId, PUser user) {
+        return getNfcUnitsForResource(resourceId, user).stream()
+                .map(unit -> new TagOverview(
+                        unit.getId(),
+                        unit.getUuid(),
+                        unit.getName(),
+                        unit.getType(),
+                        unit.getBoundTaskId(),
+                        unit.getTask() != null ? unit.getTask().getName() : null,
+                        unit.getLastScanTime()))
+                .toList();
+    }
+
+    /**
      * Binds a {@link NfcUnitType#TIMETRACKER} tag to the task whose tracking it should toggle
      * (Variant 2: one tracker tag &harr; exactly one task). Requires {@link Action#UPDATE} on the
      * tag's resource.
