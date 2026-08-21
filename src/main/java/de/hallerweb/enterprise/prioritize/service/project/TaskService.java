@@ -75,12 +75,18 @@ public class TaskService {
     }
 
     /**
-     * Aggregated time-tracking total for a task. {@code totalSeconds} sums all completed spans and,
-     * while tracking runs, the open span up to now; {@code totalText} is that as an ISO-8601
-     * duration. {@code runningSince} is the start of the open span, or {@code null} when idle.
+     * Aggregated time-tracking total for a task. {@code totalSeconds} sums all completed spans plus
+     * every clock currently running, each counted live up to now; {@code totalText} is that as an
+     * ISO-8601 duration.
+     * <p>
+     * {@code trackingForMe} and {@code runningSince} describe the <em>requesting</em> user's own
+     * clock ({@code runningSince} is {@code null} when they are not clocked in), while
+     * {@code runningCount} is how many people are on this task right now. The field was renamed
+     * from {@code tracking} when clocks became per-person: keeping the old name would have left
+     * every client compiling happily against a changed meaning.
      */
-    public record TrackingSummary(Long taskId, boolean tracking, long totalSeconds,
-                                  String totalText, Instant runningSince) {
+    public record TrackingSummary(Long taskId, boolean trackingForMe, int runningCount,
+                                  long totalSeconds, String totalText, Instant runningSince) {
     }
 
     /**
@@ -286,10 +292,12 @@ public class TaskService {
     }
 
     // --- Time tracking ---
-    // A task accumulates closed TIME_TRACKER spans in its timeSpent list; while tracking runs the
-    // open span is held in activeTimeSpan. This works with or without NFC — an NFC TIMETRACKER tag
-    // is just one trigger for toggleTracking (see NfcUnitService). Authorization is the usual
-    // project membership: whoever may work on the task may clock time on it.
+    // A task accumulates closed TIME_TRACKER spans in its timeSpent list; the clocks currently
+    // running are held in activeTimeSpans, one per person. Tracking is therefore per user, not per
+    // task: one sticker on the site container serves the whole crew, and the second person to scan
+    // starts their own clock instead of stopping the first one's. This works with or without NFC —
+    // an NFC TIMETRACKER tag is just one trigger for toggleTracking (see NfcUnitService).
+    // Authorization is the usual project membership: whoever may work on the task may clock time.
 
     /**
      * Starts time tracking on a task: opens a new {@link TimeSpan.TimeSpanType#TIME_TRACKER} span
@@ -298,13 +306,14 @@ public class TaskService {
      * @param taskId the task id
      * @param user   the requesting user (must be manager or member); recorded on the span
      * @return the updated task
-     * @throws IllegalStateException if tracking is already running for this task
+     * @throws IllegalStateException if this user already has a clock running on this task
      */
     public Task startTracking(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
         projectService.requireMemberOrManager(projectOf(task), user);
-        if (task.isTracking()) {
-            throw new IllegalStateException("Time tracking is already running for this task.");
+        // Only this user's own clock blocks a start — colleagues may be tracking the same task.
+        if (task.isTrackingFor(user)) {
+            throw new IllegalStateException("Time tracking is already running for you on this task.");
         }
         TimeSpan span = TimeSpan.builder()
                 .title(task.getName())
@@ -313,7 +322,7 @@ public class TaskService {
                 .type(TimeSpan.TimeSpanType.TIME_TRACKER)
                 .build();
         span.getInvolvedUsers().add(user);
-        task.setActiveTimeSpan(span);
+        task.getActiveTimeSpans().add(span);
         task.setTaskStatus(TaskStatus.STARTED);
         // Flush so the new span gets its id right away: the correction endpoints address a session
         // by id, and a caller reading the sessions in the same transaction must not see a null one.
@@ -333,19 +342,19 @@ public class TaskService {
      * @param taskId the task id
      * @param user   the requesting user (must be manager or member)
      * @return the updated task
-     * @throws IllegalStateException if no tracking is currently running for this task
+     * @throws IllegalStateException if this user has no clock running on this task
      */
     public Task stopTracking(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
         projectService.requireMemberOrManager(projectOf(task), user);
-        if (!task.isTracking()) {
-            throw new IllegalStateException("No time tracking is running for this task.");
+        TimeSpan span = task.activeTimeSpanFor(user);
+        if (span == null) {
+            throw new IllegalStateException("No time tracking is running for you on this task.");
         }
-        TimeSpan span = task.getActiveTimeSpan();
         span.setDateUntil(Instant.now());
         task.getTimeSpent().add(span);
-        task.setActiveTimeSpan(null);
-        task.setTaskStatus(TaskStatus.STOPPED);
+        task.getActiveTimeSpans().remove(span);
+        stopIfLastClock(task);
         entityManager.flush(); // see startTracking: the closed span needs its id
         log.info("Time tracking stopped on task '{}' (id={}) by '{}'.",
                 task.getName(), taskId, user.getUsername());
@@ -353,7 +362,19 @@ public class TaskService {
     }
 
     /**
-     * Toggles time tracking on a task: stops it if running, otherwise starts it. This is the entry
+     * A task only goes STOPPED once the last clock is out — while colleagues keep working it stays
+     * STARTED. Otherwise the first person to knock off would mark the whole task stopped underneath
+     * the rest of the crew.
+     */
+    private static void stopIfLastClock(Task task) {
+        if (!task.isTracking()) {
+            task.setTaskStatus(TaskStatus.STOPPED);
+        }
+    }
+
+    /**
+     * Toggles time tracking for the calling user: stops their clock if it runs, otherwise starts
+     * one. Colleagues tracking the same task are untouched. This is the entry
      * point an NFC scan of a {@link de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType#TIMETRACKER}
      * tag maps to.
      *
@@ -363,7 +384,7 @@ public class TaskService {
      */
     public Task toggleTracking(Long taskId, PUser user) {
         Task task = findOrThrow(taskId);
-        return task.isTracking() ? stopTracking(taskId, user) : startTracking(taskId, user);
+        return task.isTrackingFor(user) ? stopTracking(taskId, user) : startTracking(taskId, user);
     }
 
     /**
@@ -382,13 +403,17 @@ public class TaskService {
         for (TimeSpan span : task.getTimeSpent()) {
             seconds += secondsBetween(span.getDateFrom(), span.getDateUntil());
         }
-        Instant runningSince = null;
-        if (task.getActiveTimeSpan() != null) {
-            runningSince = task.getActiveTimeSpan().getDateFrom();
-            seconds += secondsBetween(runningSince, Instant.now()); // count the open span live
+        // Every open clock counts live and they add up: two people clocked in for an hour are two
+        // hours of work on this task. Counting only one of them was the bug that forced per-person
+        // clocks in the first place.
+        Instant now = Instant.now();
+        for (TimeSpan span : task.getActiveTimeSpans()) {
+            seconds += secondsBetween(span.getDateFrom(), now);
         }
-        return new TrackingSummary(task.getId(), task.isTracking(), seconds,
-                Duration.ofSeconds(seconds).toString(), runningSince);
+        TimeSpan mine = task.activeTimeSpanFor(user);
+        return new TrackingSummary(task.getId(), mine != null, task.getActiveTimeSpans().size(),
+                seconds, Duration.ofSeconds(seconds).toString(),
+                mine != null ? mine.getDateFrom() : null);
     }
 
     /**
@@ -409,8 +434,7 @@ public class TaskService {
         for (TimeSpan span : task.getTimeSpent()) {
             sessions.add(toWorkSession(span, false));
         }
-        TimeSpan active = task.getActiveTimeSpan();
-        if (active != null) {
+        for (TimeSpan active : task.getActiveTimeSpans()) {
             sessions.add(toWorkSession(active, true));
         }
         return sessions;
@@ -562,19 +586,27 @@ public class TaskService {
      * session and why; the start is left untouched.
      *
      * @param taskId the task id
-     * @param until  when the work actually ended; after the session's start, not in the future
-     * @param reason why the session is being closed retroactively, required
-     * @param user   the requesting user (project manager, or a participant of this session)
+     * @param until        when the work actually ended; after the session's start, not in the future
+     * @param reason       why the session is being closed retroactively, required
+     * @param targetUserId whose clock to close; {@code null} means the caller's own. Closing
+     *                     someone else's is a manager job (enforced via the correction rights).
+     * @param user         the requesting user (project manager, or a participant of this session)
      * @return the updated task
-     * @throws IllegalStateException    if no tracking is currently running for this task
+     * @throws IllegalStateException    if that user has no clock running on this task
      * @throws IllegalArgumentException if the reason is missing or {@code until} is not plausible
      */
-    public Task stopTrackingAt(Long taskId, Instant until, String reason, PUser user) {
+    public Task stopTrackingAt(Long taskId, Instant until, String reason, Long targetUserId, PUser user) {
         Task task = findOrThrow(taskId);
-        if (!task.isTracking()) {
-            throw new IllegalStateException("No time tracking is running for this task.");
+        // With one clock per person there is no longer "the" running span: say whose. Defaulting to
+        // the caller keeps the common case simple, while a manager can still close the clock a crew
+        // member left running overnight — which used to work only because there was ever just one.
+        PUser owner = targetUserId != null ? findUserOrThrow(targetUserId) : user;
+        TimeSpan span = task.activeTimeSpanFor(owner);
+        if (span == null) {
+            throw new IllegalStateException(targetUserId != null
+                    ? "No time tracking is running for that user on this task."
+                    : "No time tracking is running for you on this task.");
         }
-        TimeSpan span = task.getActiveTimeSpan();
         requireCorrectionRights(task, span, user);
         requireReason(reason);
         if (until == null) {
@@ -591,8 +623,8 @@ public class TaskService {
         span.setDateUntil(until);
         markCorrected(span, user, reason);
         task.getTimeSpent().add(span);
-        task.setActiveTimeSpan(null);
-        task.setTaskStatus(TaskStatus.STOPPED);
+        task.getActiveTimeSpans().remove(span);
+        stopIfLastClock(task);
         log.info("Time tracking on task '{}' (id={}) stopped retroactively at {} by '{}': {}",
                 task.getName(), taskId, until, user.getUsername(), reason);
         return task;
@@ -614,8 +646,9 @@ public class TaskService {
 
     /** Looks up a completed session on the task; the running one is not correctable in place. */
     private static TimeSpan findClosedSession(Task task, Long sessionId) {
-        TimeSpan active = task.getActiveTimeSpan();
-        if (active != null && active.getId() != null && active.getId().equals(sessionId)) {
+        boolean stillRunning = task.getActiveTimeSpans().stream()
+                .anyMatch(span -> span.getId() != null && span.getId().equals(sessionId));
+        if (stillRunning) {
             throw new IllegalStateException(
                     "This work session is still running — stop it, retroactively if needed, before correcting it.");
         }

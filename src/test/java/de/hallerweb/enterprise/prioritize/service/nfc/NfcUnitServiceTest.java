@@ -137,13 +137,13 @@ class NfcUnitServiceTest {
 
         ScanResult first = nfcUnitService.scan(unit.getUuid(), admin);
         assertEquals("TRACKING_STARTED", first.action());
-        assertTrue(first.tracking());
+        assertTrue(first.trackingForMe());
         assertEquals(task.getId(), first.taskId());
         assertEquals(TaskStatus.STARTED, taskService.getTask(task.getId(), admin).getTaskStatus());
 
         ScanResult second = nfcUnitService.scan(unit.getUuid(), admin);
         assertEquals("TRACKING_STOPPED", second.action());
-        assertFalse(second.tracking());
+        assertFalse(second.trackingForMe());
         assertEquals(1, taskService.getTask(task.getId(), admin).getTimeSpent().size());
     }
 

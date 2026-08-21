@@ -55,20 +55,20 @@ public class TaskController {
     public ResponseEntity<TaskDTO> createTask(
         @PathVariable Long projectId, @RequestBody TaskRequest request, @AuthenticatedUser PUser currentUser) {
         Task task = taskService.createTask(projectId, request.toData(), currentUser);
-        return ResponseEntity.status(HttpStatus.CREATED).body(TaskDTO.from(task));
+        return ResponseEntity.status(HttpStatus.CREATED).body(TaskDTO.from(task, currentUser));
     }
 
     @Operation(summary = "Get task")
     @GetMapping("/tasks/{id}")
     public ResponseEntity<TaskDTO> getTask(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.getTask(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.getTask(id, currentUser), currentUser));
     }
 
     @Operation(summary = "Update task")
     @PatchMapping("/tasks/{id}")
     public ResponseEntity<TaskDTO> updateTask(
         @PathVariable Long id, @RequestBody TaskRequest request, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.updateTask(id, request.toData(), currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.updateTask(id, request.toData(), currentUser), currentUser));
     }
 
     @Operation(summary = "Delete task")
@@ -82,13 +82,13 @@ public class TaskController {
     @PutMapping("/tasks/{id}/assignee/{actorId}")
     public ResponseEntity<TaskDTO> assignTask(
         @PathVariable Long id, @PathVariable Long actorId, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.assignTask(id, actorId, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.assignTask(id, actorId, currentUser), currentUser));
     }
 
     @Operation(summary = "Unassign task")
     @DeleteMapping("/tasks/{id}/assignee")
     public ResponseEntity<TaskDTO> unassignTask(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.unassignTask(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.unassignTask(id, currentUser), currentUser));
     }
 
     @Operation(summary = "Change status")
@@ -98,38 +98,38 @@ public class TaskController {
         if (request == null || request.status() == null) {
             throw new IllegalArgumentException("status is required.");
         }
-        return ResponseEntity.ok(TaskDTO.from(taskService.changeStatus(id, request.status(), currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.changeStatus(id, request.status(), currentUser), currentUser));
     }
 
     @Operation(summary = "Assign goal")
     @PutMapping("/tasks/{id}/goal/{goalId}")
     public ResponseEntity<TaskDTO> assignGoal(
         @PathVariable Long id, @PathVariable Long goalId, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.assignGoal(id, goalId, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.assignGoal(id, goalId, currentUser), currentUser));
     }
 
     @Operation(summary = "Unassign goal")
     @DeleteMapping("/tasks/{id}/goal")
     public ResponseEntity<TaskDTO> unassignGoal(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.unassignGoal(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.unassignGoal(id, currentUser), currentUser));
     }
 
     @Operation(summary = "Start tracking")
     @PostMapping("/tasks/{id}/tracking/start")
     public ResponseEntity<TaskDTO> startTracking(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.startTracking(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.startTracking(id, currentUser), currentUser));
     }
 
     @Operation(summary = "Stop tracking")
     @PostMapping("/tasks/{id}/tracking/stop")
     public ResponseEntity<TaskDTO> stopTracking(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.stopTracking(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.stopTracking(id, currentUser), currentUser));
     }
 
     @Operation(summary = "Toggle tracking")
     @PostMapping("/tasks/{id}/tracking/toggle")
     public ResponseEntity<TaskDTO> toggleTracking(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
-        return ResponseEntity.ok(TaskDTO.from(taskService.toggleTracking(id, currentUser)));
+        return ResponseEntity.ok(TaskDTO.from(taskService.toggleTracking(id, currentUser), currentUser));
     }
 
     /** Returns the total time tracked on the task (completed spans plus the running one, live). */
@@ -154,7 +154,7 @@ public class TaskController {
     public ResponseEntity<TaskDTO> stopTrackingAt(
         @PathVariable Long id, @RequestBody StopAtRequest request, @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(TaskDTO.from(
-                taskService.stopTrackingAt(id, request.until(), request.reason(), currentUser)));
+                taskService.stopTrackingAt(id, request.until(), request.reason(), request.userId(), currentUser), currentUser));
     }
 
     /**
@@ -203,7 +203,11 @@ public class TaskController {
     /**
      * Request body for stopping the running session retroactively. Both fields are mandatory.
      */
-    public record StopAtRequest(Instant until, String reason) {
+    /**
+     * {@code userId} names whose clock to close; omit it to close your own. Closing a colleague's
+     * is a manager job — the case where somebody left a clock running overnight.
+     */
+    public record StopAtRequest(Instant until, String reason, Long userId) {
     }
 
     /**

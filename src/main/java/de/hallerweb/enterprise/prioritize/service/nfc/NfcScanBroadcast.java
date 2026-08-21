@@ -24,6 +24,10 @@ import java.time.Instant;
  * Wire format of an NFC scan broadcast on the MQTT status channel. The {@code type} discriminator
  * ({@value #TYPE}) mirrors the inbound convention (STATUS/DISCOVERY/VALUE), so consumers can route
  * on it the same way.
+ * <p>
+ * {@code trackingForScanner} is the clock state of the person named in {@code scannedBy}, not of the
+ * task: several people can be clocked in on one task at once. Named for the scanner rather than "me"
+ * because a broadcast is read by somebody else entirely.
  *
  * @author peter haller
  */
@@ -33,7 +37,7 @@ public record NfcScanBroadcast(String type,
                                String action,
                                Long resourceId,
                                Long taskId,
-                               Boolean tracking,
+                               Boolean trackingForScanner,
                                long sequenceNumber,
                                String scannedBy,
                                Instant timestamp) {
@@ -45,7 +49,7 @@ public record NfcScanBroadcast(String type,
     public static NfcScanBroadcast from(NfcScannedEvent event) {
         var r = event.result();
         return new NfcScanBroadcast(TYPE, r.uuid(), r.type(), r.action(),
-                event.resourceId(), r.taskId(), r.tracking(), r.sequenceNumber(),
+                event.resourceId(), r.taskId(), r.trackingForMe(), r.sequenceNumber(),
                 event.scannedBy(), event.scannedAt());
     }
 }

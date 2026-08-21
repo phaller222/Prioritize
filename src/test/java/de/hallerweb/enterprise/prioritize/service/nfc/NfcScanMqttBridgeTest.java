@@ -72,7 +72,7 @@ class NfcScanMqttBridgeTest {
         assertTrue(json.contains("\"nfcType\":\"TIMETRACKER\""), json);
         assertTrue(json.contains("\"action\":\"TRACKING_STARTED\""), json);
         assertTrue(json.contains("\"taskId\":42"), json);
-        assertTrue(json.contains("\"tracking\":true"), json);
+        assertTrue(json.contains("\"trackingForScanner\":true"), json);
         assertTrue(json.contains("\"resourceId\":7"), json);
         assertTrue(json.contains("\"scannedBy\":\"admin\""), json);
     }

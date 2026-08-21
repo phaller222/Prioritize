@@ -67,9 +67,13 @@ public class NfcUnitService {
                               NfcUnitType type, String payload) {
     }
 
-    /** Outcome of a scan, describing what the tag triggered. */
+    /**
+     * Outcome of a scan, describing what the tag triggered. {@code trackingForMe} is the state of
+     * the <em>scanning</em> user's own clock afterwards — clocks are per person, so a task-wide flag
+     * would answer a question nobody asked while standing at the sticker.
+     */
     public record ScanResult(String uuid, NfcUnitType type, String action,
-                             Long taskId, Boolean tracking, long sequenceNumber) {
+                             Long taskId, Boolean trackingForMe, long sequenceNumber) {
     }
 
     /**
@@ -237,9 +241,13 @@ public class NfcUnitService {
                     throw new IllegalStateException("NFC tracker '" + uuid + "' is not bound to a task.");
                 }
                 Task task = taskService.toggleTracking(bound.getId(), user);
-                String action = task.isTracking() ? "TRACKING_STARTED" : "TRACKING_STOPPED";
+                // The scanner's own clock decides the outcome. Asking the task ("is anything
+                // running?") would report STARTED to someone who just clocked out, whenever a
+                // colleague is still booked in on the same task.
+                boolean mine = task.isTrackingFor(user);
+                String action = mine ? "TRACKING_STARTED" : "TRACKING_STOPPED";
                 yield new ScanResult(uuid, unit.getType(), action,
-                        task.getId(), task.isTracking(), unit.getSequenceNumber());
+                        task.getId(), mine, unit.getSequenceNumber());
             }
             case COUNTER -> {
                 unit.setSequenceNumber(unit.getSequenceNumber() + 1);

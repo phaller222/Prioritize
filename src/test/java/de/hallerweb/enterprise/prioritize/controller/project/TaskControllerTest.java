@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -123,7 +124,7 @@ class TaskControllerTest {
     @DisplayName("getTracking: delegates and returns the tracking summary")
     void getTracking_delegates() {
         TaskService.TrackingSummary summary =
-                new TaskService.TrackingSummary(5L, false, 90L, "PT1M30S", null);
+                new TaskService.TrackingSummary(5L, false, 0, 90L, "PT1M30S", null);
         when(taskService.getTrackingSummary(eq(5L), eq(user))).thenReturn(summary);
 
         ResponseEntity<TaskService.TrackingSummary> response = controller.getTracking(5L, user);
@@ -138,12 +139,12 @@ class TaskControllerTest {
     @DisplayName("stopTrackingAt: delegates end and reason to the service")
     void stopTrackingAt_delegates() {
         Instant until = Instant.parse("2026-08-08T17:00:00Z");
-        when(taskService.stopTrackingAt(eq(5L), eq(until), eq("vergessen"), eq(user)))
+        when(taskService.stopTrackingAt(eq(5L), eq(until), eq("vergessen"), isNull(), eq(user)))
                 .thenReturn(new Task());
 
-        controller.stopTrackingAt(5L, new StopAtRequest(until, "vergessen"), user);
+        controller.stopTrackingAt(5L, new StopAtRequest(until, "vergessen", null), user);
 
-        verify(taskService).stopTrackingAt(eq(5L), eq(until), eq("vergessen"), eq(user));
+        verify(taskService).stopTrackingAt(eq(5L), eq(until), eq("vergessen"), isNull(), eq(user));
     }
 
     @Test

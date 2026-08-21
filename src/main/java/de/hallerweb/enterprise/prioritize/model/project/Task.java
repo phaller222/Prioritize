@@ -23,6 +23,7 @@ import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.document.Document;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
@@ -111,15 +112,49 @@ public class Task extends PObject {
     private List<TimeSpan> timeSpent = new ArrayList<>();
 
     /**
-     * The currently running time-tracking span, or {@code null} when tracking is idle. On stop the
-     * span is closed and moved into {@link #timeSpent}.
+     * The currently running time-tracking spans, one per person clocked in; empty while nobody
+     * tracks. On stop a span is closed and moved into {@link #timeSpent}.
+     * <p>
+     * A collection rather than a single span because a crew works the same task at once - one
+     * sticker on the site container serves everybody. With a single span the second person to scan
+     * would stop the first one's clock, which made the task total itself wrong (two hours booked
+     * where four were worked), quite apart from any per-person reporting.
+     * <p>
+     * A {@code List} for the same reason as {@link #timeSpent}: an id-based {@code hashCode} would
+     * break removal from a hash-based collection.
+     * <p>
+     * Deliberately without {@code orphanRemoval}: stopping moves a span out of here and into
+     * {@link #timeSpent}, and orphan removal would read that departure as "delete it" - silently
+     * destroying the very session that was just recorded.
      */
     @JsonIgnore
-    @OneToOne(cascade = CascadeType.ALL)
-    private TimeSpan activeTimeSpan;
+    @Builder.Default
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "active_task_id")
+    private List<TimeSpan> activeTimeSpans = new ArrayList<>();
 
-    /** Whether time tracking is currently running for this task. */
+    /** Whether time tracking is currently running for this task, for anybody at all. */
     public boolean isTracking() {
-        return activeTimeSpan != null;
+        return !activeTimeSpans.isEmpty();
+    }
+
+    /** Whether the given user has a clock running on this task. */
+    public boolean isTrackingFor(PUser user) {
+        return activeTimeSpanFor(user) != null;
+    }
+
+    /**
+     * The given user's open span on this task, or {@code null} when they are not clocked in. The
+     * owner of a span is the participant recorded on it, so this matches on {@code involvedUsers}.
+     */
+    public TimeSpan activeTimeSpanFor(PUser user) {
+        if (user == null || user.getId() == null) {
+            return null;
+        }
+        return activeTimeSpans.stream()
+                .filter(span -> span.getInvolvedUsers().stream()
+                        .anyMatch(u -> user.getId().equals(u.getId())))
+                .findFirst()
+                .orElse(null);
     }
 }
