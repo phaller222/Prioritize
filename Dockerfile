@@ -22,7 +22,7 @@ RUN apt-get update \
 
 # Run as an unprivileged account.
 RUN groupadd --system prioritize \
-    && useradd --system --gid prioritize --home-dir /app prioritize
+    && useradd --system --gid prioritize --home-dir /app/data prioritize
 
 # The production build emits exactly one bootable jar; the *.original artifact does not
 # end in .jar, so the wildcard picks only the runnable one regardless of the version.
@@ -34,7 +34,8 @@ RUN mkdir -p /app/data \
     && chown -R prioritize:prioritize /app
 USER prioritize
 
-# The H2 URL uses ~ (home) for its file DB; point home at the data volume.
+# The H2 URL uses ~ (home) for its file DB, and the JVM takes user.home from the passwd
+# entry - not from $HOME - so the account above is created with /app/data as its home.
 ENV HOME=/app/data
 VOLUME ["/app/data"]
 
