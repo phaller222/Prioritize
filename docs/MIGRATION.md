@@ -57,3 +57,43 @@ was midnight, or whatever offset a client's timestamp happened to carry, and nev
 **This changes the published API contract**, so clients generated against 1.3.x must be regenerated
 against the 1.4.0 specification. `dateOfBirth` becomes `LocalDate`/`date` in every generated client
 instead of `OffsetDateTime`.
+
+### `task.active_time_span_id` — the running clock moves to the span
+
+Time tracking used to hang off the task: one `active_time_span_id` column, so exactly one clock could
+run per task. That was wrong as soon as two people worked the same job — the second person to scan
+the sticker stopped the first one's clock, and the **task total itself** came out wrong (two hours
+booked where four were worked), quite apart from any per-person reporting. Clocks are now per person:
+a task holds as many open spans as there are people on it, and the link lives on the span
+(`time_span.active_task_id`).
+
+Hibernate adds the new column on its own at the next start; it does not move the data and does not
+drop the old column. So: start the application once (or add the column by hand), then carry over any
+clock that was running, then drop the old column.
+
+```sql
+UPDATE time_span ts SET active_task_id =
+    (SELECT t.id FROM task t WHERE t.active_time_span_id = ts.id)
+  WHERE EXISTS (SELECT 1 FROM task t WHERE t.active_time_span_id = ts.id);
+
+ALTER TABLE task DROP COLUMN active_time_span_id;
+```
+
+The `UPDATE` is a no-op on an installation where nobody was clocked in at the moment of the upgrade —
+check before you worry:
+
+```sql
+SELECT COUNT(*) FROM task WHERE active_time_span_id IS NOT NULL;
+```
+
+Closed sessions are not affected: they always lived in `time_span.task_id` and stay there.
+
+**This changes the published API contract.** The field `tracking` is renamed to `trackingForMe` in
+the task DTO, in the tracking summary and in an NFC scan result, and it now answers "is *my* clock
+running" rather than "is anything running on this task" — a task-wide flag can no longer say whose
+clock it means. The tracking summary also gains `runningCount` (how many people are on the task right
+now), and the MQTT scan broadcast renames the same field to `trackingForScanner`, since a broadcast
+is read by somebody other than the scanner. The rename is deliberate: keeping the old name would have
+left every generated client compiling happily against a silently changed meaning. `POST
+/tasks/{id}/tracking/stop-at` additionally accepts an optional `userId`, naming whose clock to close
+— without it a manager could no longer close a clock a crew member left running overnight.
