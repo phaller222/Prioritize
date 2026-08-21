@@ -32,7 +32,6 @@ COPY --from=build /build/target/prioritize-*.jar app.jar
 # it a volume so a standalone `docker run` keeps its data across restarts.
 RUN mkdir -p /app/data \
     && chown -R prioritize:prioritize /app
-USER prioritize
 
 # The H2 URL uses ~ (home) for its file DB, and the JVM takes user.home from the passwd
 # entry - not from $HOME - so the account above is created with /app/data as its home.
@@ -46,4 +45,10 @@ EXPOSE 8080
 HEALTHCHECK --start-period=120s --interval=15s --timeout=5s --retries=5 \
     CMD curl --fail --silent --show-error http://localhost:8080/login || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# The entrypoint runs as root only long enough to make the data volume writable for the
+# service account, then drops to it. See docker/entrypoint.sh.
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["java", "-jar", "app.jar"]
