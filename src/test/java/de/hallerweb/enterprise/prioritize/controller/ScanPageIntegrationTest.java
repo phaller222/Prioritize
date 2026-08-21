@@ -95,6 +95,7 @@ class ScanPageIntegrationTest {
 
     private String trackerUuid;
     private Long taskId;
+    private Long projectId;
 
     @BeforeEach
     void setUp() {
@@ -105,6 +106,7 @@ class ScanPageIntegrationTest {
         Task task = taskService.createTask(project.getId(),
                 new TaskService.TaskData("Schlitze klopfen", "created by test", 1), admin);
         taskId = task.getId();
+        projectId = project.getId();
 
         trackerUuid = "it-tracker-" + System.nanoTime();
         nfcUnitRepository.save(NfcUnit.builder()
@@ -142,7 +144,7 @@ class ScanPageIntegrationTest {
 
         assertTrue(body.contains("Schlitze klopfen"), "the page must say what the sticker points at");
         assertTrue(body.contains("Einstechen"), "an idle task offers to start: " + body);
-        assertFalse(taskService.getTrackingSummary(taskId, admin()).tracking(),
+        assertFalse(taskService.getTrackingSummary(taskId, admin()).trackingForMe(),
                 "merely looking at the page must not have started anything");
     }
 
@@ -159,16 +161,16 @@ class ScanPageIntegrationTest {
         get("/scan/" + trackerUuid);
         get("/scan/" + trackerUuid);
         get("/scan/" + trackerUuid);
-        assertFalse(taskService.getTrackingSummary(taskId, admin()).tracking(),
+        assertFalse(taskService.getTrackingSummary(taskId, admin()).trackingForMe(),
                 "three views must leave the clock exactly as they found it");
 
         post("/scan/" + trackerUuid);
-        assertTrue(taskService.getTrackingSummary(taskId, admin()).tracking(),
+        assertTrue(taskService.getTrackingSummary(taskId, admin()).trackingForMe(),
                 "the confirming POST is what starts the clock");
 
         get("/scan/" + trackerUuid);
         get("/scan/" + trackerUuid);
-        assertTrue(taskService.getTrackingSummary(taskId, admin()).tracking(),
+        assertTrue(taskService.getTrackingSummary(taskId, admin()).trackingForMe(),
                 "and reloading afterwards must not stop it again");
     }
 
@@ -209,7 +211,7 @@ class ScanPageIntegrationTest {
         String location = response.headers().firstValue("Location").orElse("");
         assertTrue(location.startsWith("/scan/" + trackerUuid),
                 "and send the browser back to the page it came from, got: " + location);
-        assertTrue(taskService.getTrackingSummary(taskId, admin()).tracking(),
+        assertTrue(taskService.getTrackingSummary(taskId, admin()).trackingForMe(),
                 "the scan itself must still have happened");
     }
 
@@ -302,5 +304,33 @@ class ScanPageIntegrationTest {
         assertTrue(matcher.find(), "the page must carry a CSRF token in its form: " + html);
         return URLEncoder.encode(matcher.group(1), StandardCharsets.UTF_8) + "="
                 + URLEncoder.encode(matcher.group(2), StandardCharsets.UTF_8);
+    }
+    /**
+     * Clocks are per person, so the page has to distinguish "my clock" from "someone is working
+     * here". Without the colleague line a second person scanning the same sticker gets no hint that
+     * the job is already manned.
+     */
+    @Test
+    @DisplayName("Die Seite nennt Kollegen, die gerade eingestochen sind, und lässt die eigene Uhr stehen")
+    void pageNamesColleaguesCurrentlyClockedIn() throws Exception {
+        PUser mate = userService.createUser(PUser.builder()
+                .username("scan-mate-" + System.nanoTime())
+                .name("Mate")
+                .firstname("Max")
+                .email("max@example.com")
+                .password("plaintext123")
+                .admin(false)
+                .build());
+        projectService.addMember(projectId, mate.getId(), admin());
+        taskService.startTracking(taskId, mate);
+
+        login();
+        String page = get("/scan/" + trackerUuid);
+
+        assertTrue(page.contains("Kollege eingestochen"),
+                "die Seite sollte den eingestochenen Kollegen erwähnen: " + page);
+        assertTrue(page.contains("Du bist nicht eingestochen"),
+                "die Uhr des Kollegen ist nicht meine: " + page);
+        assertTrue(page.contains("Einstechen"), "der Knopf bietet weiterhin das eigene Einstechen an");
     }
 }

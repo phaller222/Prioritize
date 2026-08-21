@@ -52,7 +52,7 @@ class TaskDtoMappingTest {
         task.setGoal(goal);
         task.setProcessInstanceId("proc-1");
 
-        TaskDTO dto = TaskDTO.from(task);
+        TaskDTO dto = TaskDTO.from(task, null);
         assertEquals(3L, dto.id());
         assertEquals("Design", dto.name());
         assertEquals("d", dto.description());
@@ -61,7 +61,7 @@ class TaskDtoMappingTest {
         assertEquals(5L, dto.assigneeId());
         assertEquals(8L, dto.goalId());
         assertEquals("proc-1", dto.processInstanceId());
-        assertFalse(dto.tracking(), "no active span -> not tracking");
+        assertFalse(dto.trackingForMe(), "no active span -> not tracking");
     }
 
     @Test
@@ -70,11 +70,11 @@ class TaskDtoMappingTest {
         Task bare = new Task();
         bare.setId(1L);
 
-        TaskDTO dto = TaskDTO.from(bare);
+        TaskDTO dto = TaskDTO.from(bare, null);
         assertEquals(1L, dto.id());
         assertNull(dto.assigneeId());
         assertNull(dto.goalId());
         assertNull(dto.processInstanceId());
-        assertFalse(dto.tracking());
+        assertFalse(dto.trackingForMe());
     }
 }

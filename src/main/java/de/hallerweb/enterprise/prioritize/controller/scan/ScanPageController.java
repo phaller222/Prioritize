@@ -165,7 +165,10 @@ public class ScanPageController {
         }
 
         TaskService.TrackingSummary summary = taskService.getTrackingSummary(task.getId(), user);
-        boolean running = summary.tracking();
+        // "running" is this user's own clock: several people can be on the same task at once, so the
+        // button has to reflect the scanner, not the task.
+        boolean running = summary.trackingForMe();
+        int others = summary.runningCount() - (running ? 1 : 0);
 
         StringBuilder state = new StringBuilder();
         if (done != null) {
@@ -175,15 +178,30 @@ public class ScanPageController {
         }
         state.append("<p class=\"state\">")
                 .append(running
-                        ? "Die Uhr läuft" + since(summary.runningSince()) + "."
-                        : "Die Uhr steht.")
+                        ? "Deine Uhr läuft" + since(summary.runningSince()) + "."
+                        : "Du bist nicht eingestochen.")
                 .append("</p>")
+                .append(othersLine(others))
                 .append("<p class=\"total\">Bisher gebucht: ")
                 .append(escape(humanDuration(summary.totalSeconds())))
                 .append("</p>");
 
         return page(escape(task.getName()), state.toString(),
                 button(uuid, running ? "Ausstechen" : "Einstechen", request));
+    }
+
+    /**
+     * Who else is on this task right now. Worth showing because the clocks are independent: without
+     * this line a second person scanning the same sticker gets no hint that a colleague is already
+     * booked in, and the crew cannot tell a shared task from a lonely one.
+     */
+    private String othersLine(int others) {
+        if (others <= 0) {
+            return "";
+        }
+        return "<p class=\"state\">" + (others == 1
+                ? "Außerdem ist gerade 1 Kollege eingestochen."
+                : "Außerdem sind gerade " + others + " Kollegen eingestochen.") + "</p>";
     }
 
     private String since(Instant runningSince) {

@@ -142,7 +142,7 @@ class DemoDataServiceTest {
         TaskService.TrackingSummary summary = taskService.getTrackingSummary(taskId, admin());
         assertTrue(summary.totalSeconds() > 0,
                 "„Stunden auf dieser Baustelle\" muss sofort etwas zeigen, nicht erst nach einem Tag");
-        assertFalse(summary.tracking(), "beim Start läuft noch keine Uhr");
+        assertFalse(summary.trackingForMe(), "beim Start läuft noch keine Uhr");
 
         assertTrue(taskService.getWorkSessions(taskId, admin()).size() >= 4,
                 "zwei Tage mit Vormittag und Nachmittag, für mehr als eine Person");

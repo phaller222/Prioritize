@@ -151,7 +151,7 @@ public class ProjectController {
     @GetMapping("/projects/{id}/tasks")
     public ResponseEntity<List<TaskDTO>> getTasks(@PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(taskService.getTasksForProject(id, currentUser)
-                .stream().map(TaskDTO::from).toList());
+                .stream().map(task -> TaskDTO.from(task, currentUser)).toList());
     }
 
     /**

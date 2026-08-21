@@ -193,7 +193,7 @@ class TaskServiceTest {
         var summary = taskService.getTrackingSummary(task.getId(), admin);
 
         assertEquals(task.getId(), summary.taskId());
-        assertTrue(summary.tracking());
+        assertTrue(summary.trackingForMe());
         assertNotNull(summary.runningSince());
         assertTrue(summary.totalSeconds() >= 0);
         assertTrue(summary.totalText().startsWith("PT"), "ISO-8601 duration expected");
@@ -208,7 +208,7 @@ class TaskServiceTest {
 
         var summary = taskService.getTrackingSummary(task.getId(), admin);
 
-        assertFalse(summary.tracking());
+        assertFalse(summary.trackingForMe());
         assertNull(summary.runningSince());
         assertTrue(summary.totalSeconds() >= 0);
     }
@@ -417,11 +417,11 @@ class TaskServiceTest {
         taskService.startTracking(task.getId(), admin);
         // Pretend the clock-in happened yesterday evening and nobody clocked out.
         taskRepository.findById(task.getId()).orElseThrow()
-                .getActiveTimeSpan().setDateFrom(Instant.now().minus(Duration.ofHours(14)));
+                .activeTimeSpanFor(admin).setDateFrom(Instant.now().minus(Duration.ofHours(14)));
         Instant until = Instant.now().minus(Duration.ofHours(6));
 
         Task stopped = taskService.stopTrackingAt(
-                task.getId(), until, "gestern Abend vergessen", admin);
+                task.getId(), until, "gestern Abend vergessen", null, admin);
 
         assertFalse(stopped.isTracking());
         assertEquals(TaskStatus.STOPPED, stopped.getTaskStatus());
@@ -443,11 +443,11 @@ class TaskServiceTest {
         taskService.startTracking(task.getId(), admin);
 
         assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
-                task.getId(), Instant.now().plus(Duration.ofHours(1)), "Zukunft", admin));
+                task.getId(), Instant.now().plus(Duration.ofHours(1)), "Zukunft", null, admin));
         assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
-                task.getId(), Instant.now().minus(Duration.ofHours(1)), "vor dem Start", admin));
+                task.getId(), Instant.now().minus(Duration.ofHours(1)), "vor dem Start", null, admin));
         assertThrows(IllegalArgumentException.class, () -> taskService.stopTrackingAt(
-                task.getId(), Instant.now(), "  ", admin));
+                task.getId(), Instant.now(), "  ", null, admin));
     }
 
     @Test
@@ -455,6 +455,79 @@ class TaskServiceTest {
     void stopTrackingAt_whenIdle_throws() {
         Task task = newTask();
         assertThrows(IllegalStateException.class, () -> taskService.stopTrackingAt(
-                task.getId(), Instant.now(), "nichts läuft", admin));
+                task.getId(), Instant.now(), "nichts läuft", null, admin));
+    }
+    // --- Parallel clocks: several people on one task ---
+
+    @Test
+    @DisplayName("Zwei Personen am selben Task: die zweite Uhr stoppt die erste nicht")
+    void parallelClocks_secondPersonDoesNotStopTheFirst() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+
+        taskService.startTracking(task.getId(), admin);
+        taskService.startTracking(task.getId(), member);
+
+        Task both = taskRepository.findById(task.getId()).orElseThrow();
+        assertTrue(both.isTrackingFor(admin), "die Uhr des Ersten läuft weiter");
+        assertTrue(both.isTrackingFor(member), "der Zweite bekommt eine eigene Uhr");
+        assertEquals(2, taskService.getTrackingSummary(task.getId(), admin).runningCount());
+    }
+
+    @Test
+    @DisplayName("Der Aufwand pro Task summiert alle parallelen Uhren, nicht nur eine")
+    void parallelClocks_taskTotalSumsEveryOpenSpan() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        taskService.startTracking(task.getId(), member);
+
+        // Beide sind seit zwei Stunden eingestochen.
+        Instant twoHoursAgo = Instant.now().minus(Duration.ofHours(2));
+        Task persisted = taskRepository.findById(task.getId()).orElseThrow();
+        persisted.activeTimeSpanFor(admin).setDateFrom(twoHoursAgo);
+        persisted.activeTimeSpanFor(member).setDateFrom(twoHoursAgo);
+
+        long total = taskService.getTrackingSummary(task.getId(), admin).totalSeconds();
+
+        // Genau der Fehler, der parallele Uhren erzwungen hat: mit einer einzigen Uhr stünden hier
+        // 2 h, obwohl 4 h gearbeitet wurden — der Aufwand pro Task wäre falsch, ganz ohne dass
+        // irgendjemand eine Auswertung pro Person wollte.
+        assertEquals(4 * 3600, total, 60, "zwei Leute mal zwei Stunden sind vier Stunden am Task");
+    }
+
+    @Test
+    @DisplayName("Ausstechen beendet nur die eigene Uhr; der Task bleibt STARTED solange jemand arbeitet")
+    void parallelClocks_stoppingOneLeavesTheOthersRunning() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        taskService.startTracking(task.getId(), member);
+
+        taskService.stopTracking(task.getId(), member);
+
+        Task after = taskRepository.findById(task.getId()).orElseThrow();
+        assertTrue(after.isTrackingFor(admin), "der Kollege arbeitet weiter");
+        assertFalse(after.isTrackingFor(member), "die eigene Uhr steht");
+        assertEquals(TaskStatus.STARTED, after.getTaskStatus(),
+                "der Task ist erst STOPPED, wenn die letzte Uhr aus ist");
+
+        taskService.stopTracking(task.getId(), admin);
+        Task idle = taskRepository.findById(task.getId()).orElseThrow();
+        assertFalse(idle.isTracking());
+        assertEquals(TaskStatus.STOPPED, idle.getTaskStatus());
+        assertEquals(2, taskService.getWorkSessions(task.getId(), admin).size(),
+                "beide Sitzungen bleiben getrennt erhalten");
+    }
+
+    @Test
+    @DisplayName("Einstechen scheitert nur an der eigenen laufenden Uhr, nicht an der des Kollegen")
+    void parallelClocks_ownClockBlocksStartButColleaguesDoNot() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+
+        assertDoesNotThrow(() -> taskService.startTracking(task.getId(), member));
+        assertThrows(IllegalStateException.class, () -> taskService.startTracking(task.getId(), admin));
     }
 }

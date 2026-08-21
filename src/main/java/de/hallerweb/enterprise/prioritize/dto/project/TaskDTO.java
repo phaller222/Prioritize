@@ -18,13 +18,16 @@ package de.hallerweb.enterprise.prioritize.dto.project;
 
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 
 /**
  * Flat, transport-safe view of a {@link Task}. Carries the scalar task state plus the assignee and goal
  * by id, but never the lazy relations (assignee/goal entities, resources, documents, skills, blackboard,
  * time spans) — so serializing a task never triggers a {@code LazyInitializationException} nor drags the
- * polymorphic {@code PActor}/{@code ProjectGoal} graph onto the wire. {@code tracking} mirrors
- * {@link Task#isTracking()}. The assignee/goal ids read off the lazy proxies without initializing them.
+ * polymorphic {@code PActor}/{@code ProjectGoal} graph onto the wire. {@code trackingForMe} mirrors
+ * {@link Task#isTrackingFor(PUser)} for the viewing user — clocks are per person, so a task-wide
+ * "is it tracking" would not say whose. The assignee/goal ids read off the lazy proxies without
+ * initializing them.
  *
  * @author peter haller
  */
@@ -36,10 +39,14 @@ public record TaskDTO(Long id,
                       Long assigneeId,
                       Long goalId,
                       String processInstanceId,
-                      boolean tracking) {
+                      boolean trackingForMe) {
 
-    /** Maps an entity to its DTO. Reads the lazy assignee/goal ids only (safe under open-in-view). */
-    public static TaskDTO from(Task task) {
+    /**
+     * Maps an entity to its DTO for a given viewer. Reads the lazy assignee/goal ids only (safe under
+     * open-in-view). The viewer decides {@code trackingForMe}; a colleague looking at the same task
+     * sees their own clock, not this one's.
+     */
+    public static TaskDTO from(Task task, PUser viewer) {
         return new TaskDTO(
                 task.getId(),
                 task.getName(),
@@ -49,6 +56,6 @@ public record TaskDTO(Long id,
                 task.getAssignee() != null ? task.getAssignee().getId() : null,
                 task.getGoal() != null ? task.getGoal().getId() : null,
                 task.getProcessInstanceId(),
-                task.isTracking());
+                task.isTrackingFor(viewer));
     }
 }
