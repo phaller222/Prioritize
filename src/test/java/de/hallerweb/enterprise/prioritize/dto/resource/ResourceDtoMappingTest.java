@@ -44,7 +44,7 @@ class ResourceDtoMappingTest {
     void toResourcePreservesNulls() {
         // only two fields supplied; everything else must stay null
         Resource r = new ResourceRequest("Printer", null, null, 8080, null, null, null, null,
-                null, null, null, null, null, null, null).toResource();
+                null, null, null, null, null, null, null, null, null, null).toResource();
 
         assertEquals("Printer", r.getName());
         assertEquals(8080, r.getPort());
@@ -60,7 +60,8 @@ class ResourceDtoMappingTest {
     @DisplayName("ResourceRequest.toResource maps every supplied field")
     void toResourceFull() {
         Resource r = new ResourceRequest("Robot", "arm", "10.0.0.5", 1883, 3, true, false, true,
-                "50.1", "8.6", true, "uuid-1", "send/topic", "recv/topic", false).toResource();
+                "50.1", "8.6", true, "uuid-1", "send/topic", "recv/topic", false,
+                null, null, null).toResource();
 
         assertNull(r.getId());
         assertEquals("Robot", r.getName());

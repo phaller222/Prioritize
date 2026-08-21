@@ -16,7 +16,10 @@
 
 package de.hallerweb.enterprise.prioritize.dto.resource;
 
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+
+import java.math.BigDecimal;
 
 /**
  * Request body for creating or patching a {@link Resource}. Carries only the client-writable base data —
@@ -41,7 +44,10 @@ public record ResourceRequest(String name,
                               String mqttUUID,
                               String mqttDataSendTopic,
                               String mqttDataReceiveTopic,
-                              Boolean mqttOnline) {
+                              Boolean mqttOnline,
+                              BigDecimal costRate,
+                              String costCurrency,
+                              CostRateUnit costRateUnit) {
 
     /**
      * Builds a plain, id-less {@link Resource} carrying exactly the supplied fields. Uses the no-arg
@@ -66,6 +72,9 @@ public record ResourceRequest(String name,
         resource.setMqttDataSendTopic(mqttDataSendTopic);
         resource.setMqttDataReceiveTopic(mqttDataReceiveTopic);
         resource.setMqttOnline(mqttOnline);
+        resource.setCostRate(costRate);
+        resource.setCostCurrency(costCurrency);
+        resource.setCostRateUnit(costRateUnit);
         return resource;
     }
 }

@@ -16,7 +16,9 @@
 
 package de.hallerweb.enterprise.prioritize.service.resource;
 
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
+import java.math.BigDecimal;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
@@ -294,7 +296,8 @@ class ResourceServiceTest {
     void partialUpdateResource_ShouldApplyEveryRequestField() {
         ResourceRequest patch = new ResourceRequest("Neuer-Name", "Neue Beschreibung", "10.0.0.7", 1883,
                 5, true, true, true, "50.1109", "8.6821",
-                true, "uuid-patch-test", "send/topic", "receive/topic", true);
+                true, "uuid-patch-test", "send/topic", "receive/topic", true,
+                null, null, null);
 
         Resource updated = resourceService.partialUpdateResource(testResource.getId(), patch.toResource(), adminUser);
 
@@ -321,7 +324,7 @@ class ResourceServiceTest {
     void partialUpdateResource_NullFields_ShouldLeaveResourceUntouched() {
         ResourceRequest onlyName = new ResourceRequest("Nur-Name-Test", null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
 
         Resource updated = resourceService.partialUpdateResource(testResource.getId(), onlyName.toResource(), adminUser);
 
@@ -661,5 +664,87 @@ class ResourceServiceTest {
         assertTrue(resourceService.getResourceStatus(plainUser).stream()
                         .noneMatch(entry -> entry.resource().id().equals(testResource.getId())),
                 "ohne Leserecht darf die Ressource auch im Statusblick nicht auftauchen");
+    }
+    // ==========================================
+    // Kostensatz
+    // ==========================================
+
+    @Test
+    @DisplayName("createResource: vollständiger Kostensatz wird übernommen")
+    void createResource_keepsACompleteCostRate() {
+        Resource lift = Resource.builder()
+                .name("Hubarbeitsbühne")
+                .costRate(new BigDecimal("89.50"))
+                .costCurrency("EUR")
+                .costRateUnit(CostRateUnit.DAY)
+                .build();
+
+        Resource created = resourceService.createResource(lift, testGroup.getId(), adminUser);
+
+        assertEquals(0, new BigDecimal("89.50").compareTo(created.getCostRate()));
+        assertEquals("EUR", created.getCostCurrency());
+        assertEquals(CostRateUnit.DAY, created.getCostRateUnit());
+    }
+
+    @Test
+    @DisplayName("Kostensatz: ein Betrag ohne Einheit oder Währung wird abgelehnt")
+    void costRate_isRejectedWhenIncomplete() {
+        // Eine Zahl ohne Einheit ist nicht interpretierbar, ohne Währung nicht summierbar.
+        Resource noUnit = Resource.builder().name("Ohne-Einheit")
+                .costRate(new BigDecimal("10.00")).costCurrency("EUR").build();
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(noUnit, testGroup.getId(), adminUser));
+
+        Resource noCurrency = Resource.builder().name("Ohne-Waehrung")
+                .costRate(new BigDecimal("10.00")).costRateUnit(CostRateUnit.HOUR).build();
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(noCurrency, testGroup.getId(), adminUser));
+    }
+
+    @Test
+    @DisplayName("Kostensatz: negativ wird abgelehnt, null ist erlaubt und heißt kostenfrei")
+    void costRate_rejectsNegativeButAllowsZero() {
+        Resource negative = Resource.builder().name("Negativ")
+                .costRate(new BigDecimal("-1.00")).costCurrency("EUR").costRateUnit(CostRateUnit.HOUR).build();
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(negative, testGroup.getId(), adminUser));
+
+        // Null ist eine echte Aussage ("kostenfrei") und etwas anderes als "nicht erfasst".
+        Resource free = Resource.builder().name("Kostenfrei")
+                .costRate(BigDecimal.ZERO).costCurrency("EUR").costRateUnit(CostRateUnit.USAGE).build();
+        Resource created = resourceService.createResource(free, testGroup.getId(), adminUser);
+        assertEquals(0, BigDecimal.ZERO.compareTo(created.getCostRate()));
+    }
+
+    @Test
+    @DisplayName("Kostensatz: eine Ressource ohne Satz bleibt gültig")
+    void costRate_isOptional() {
+        Resource plain = Resource.builder().name("Ohne-Satz").build();
+
+        Resource created = resourceService.createResource(plain, testGroup.getId(), adminUser);
+
+        assertNull(created.getCostRate());
+        assertNull(created.getCostCurrency());
+        assertNull(created.getCostRateUnit());
+    }
+
+    @Test
+    @DisplayName("partialUpdateResource: der Satz lässt sich nachtragen, aber nicht halb")
+    void partialUpdate_addsACostRateButRefusesAPartialOne() {
+        Resource patch = new Resource();
+        patch.setCostRate(new BigDecimal("42.00"));
+        patch.setCostCurrency("EUR");
+        patch.setCostRateUnit(CostRateUnit.HOUR);
+
+        Resource updated = resourceService.partialUpdateResource(testResource.getId(), patch, adminUser);
+        assertEquals(CostRateUnit.HOUR, updated.getCostRateUnit());
+
+        // Nur einen Betrag auf eine satzlose Ressource zu patchen, ergäbe eine nicht deutbare Zahl.
+        Resource bare = resourceService.createResource(
+                Resource.builder().name("Noch-ohne-Satz").build(), testGroup.getId(), adminUser);
+        Resource amountOnly = new Resource();
+        amountOnly.setCostRate(new BigDecimal("5.00"));
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.partialUpdateResource(bare.getId(), amountOnly, adminUser));
     }
 }

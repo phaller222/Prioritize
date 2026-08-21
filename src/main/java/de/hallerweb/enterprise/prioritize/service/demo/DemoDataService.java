@@ -24,6 +24,7 @@ import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
@@ -53,6 +54,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -325,6 +327,11 @@ public class DemoDataService {
                 "Mietgerät, Rückgabe am " + date(LocalDate.now().plusDays(4)), admin);
         // The one piece of equipment that reports anything at all. A toolbox has no sensor, and
         // inflated IoT would distract from what the demo is actually about.
+        // The one rented machine, so the one with a rate that actually costs money while it stands
+        // around. A day rate, because that is how rental equipment is billed.
+        liftPlatform.setCostRate(new BigDecimal("89.00"));
+        liftPlatform.setCostCurrency("EUR");
+        liftPlatform.setCostRateUnit(CostRateUnit.DAY);
         liftPlatform.setMqttResource(true);
         liftPlatform.setMqttUUID("demo-hubarbeitsbuehne");
         liftPlatform.setMqttOnline(true);
