@@ -29,6 +29,7 @@ import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -90,6 +91,24 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private LocalDateTime mqttLastPing = LocalDateTime.now();
     @Builder.Default
     private Boolean agent = false;
+
+    /**
+     * What this resource costs per {@link #costRateUnit}, or {@code null} when no rate is kept.
+     * Master data, not a calculation: the platform stores the rate and can multiply it by a
+     * duration, while tariffs, surcharges and VAT belong to the vertical using it.
+     * <p>
+     * The three cost fields are set together or not at all — a bare number without its unit could
+     * not be interpreted, and without a currency it could not be added up across resources.
+     */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal costRate;
+
+    /** ISO-4217 code of {@link #costRate}, e.g. {@code EUR}. */
+    private String costCurrency;
+
+    /** Whether {@link #costRate} is per hour, per day or per use. */
+    @Enumerated(EnumType.STRING)
+    private CostRateUnit costRateUnit;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "resource_id") // Prevents a join table for MqttCommands

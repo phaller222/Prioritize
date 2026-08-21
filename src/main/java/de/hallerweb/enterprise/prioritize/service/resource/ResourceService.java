@@ -128,6 +128,8 @@ public class ResourceService {
             throw new AccessDeniedException("No permission to add resources to this group.");
         }
 
+        requireConsistentCostRate(resource);
+
         resource.setResourceGroup(group);
         resource.setDepartment(group.getDepartment());
 
@@ -558,6 +560,14 @@ public class ResourceService {
         if (patch.getMqttDataReceiveTopic() != null) existing.setMqttDataReceiveTopic(patch.getMqttDataReceiveTopic());
         if (patch.getMqttDataSendTopic() != null) existing.setMqttDataSendTopic(patch.getMqttDataSendTopic());
 
+        // Cost rate. The three fields travel together, so a PATCH that touches any of them is
+        // validated as a whole against the result — otherwise a rate could be set on one request
+        // and its unit removed by the next, leaving a number nobody can interpret.
+        if (patch.getCostRate() != null) existing.setCostRate(patch.getCostRate());
+        if (patch.getCostCurrency() != null) existing.setCostCurrency(patch.getCostCurrency());
+        if (patch.getCostRateUnit() != null) existing.setCostRateUnit(patch.getCostRateUnit());
+        requireConsistentCostRate(existing);
+
         // Relationships (department, resourceGroup), reservations, skills are NOT modifiable via PATCH!
         // Dedicated endpoints exist for that (createResource, reserveResource, assignSkillToResource).
 
@@ -694,4 +704,24 @@ public class ResourceService {
     }
 
 
+    /**
+     * A cost rate is only meaningful complete: an amount without a unit cannot be interpreted, and
+     * without a currency it cannot be added up across resources. Either all three are set or none.
+     * A negative rate is rejected outright; a rate of zero is allowed and means "free of charge",
+     * which is a real answer and different from "not recorded".
+     */
+    private static void requireConsistentCostRate(Resource resource) {
+        java.math.BigDecimal rate = resource.getCostRate();
+        boolean any = rate != null || resource.getCostCurrency() != null || resource.getCostRateUnit() != null;
+        if (!any) {
+            return;
+        }
+        if (rate == null || resource.getCostCurrency() == null || resource.getCostRateUnit() == null) {
+            throw new IllegalArgumentException(
+                    "A cost rate needs an amount, a currency and a unit — set all three or none.");
+        }
+        if (rate.signum() < 0) {
+            throw new IllegalArgumentException("A cost rate cannot be negative.");
+        }
+    }
 }

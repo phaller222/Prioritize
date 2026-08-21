@@ -16,7 +16,9 @@
 
 package de.hallerweb.enterprise.prioritize.dto.resource;
 
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.dto.WireTime;
+import java.math.BigDecimal;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 
 import java.time.Instant;
@@ -51,7 +53,10 @@ public record ResourceDTO(Long id,
                           Boolean agent,
                           Long departmentId,
                           Long resourceGroupId,
-                          Integer occupiedSlots) {
+                          Integer occupiedSlots,
+                          BigDecimal costRate,
+                          String costCurrency,
+                          CostRateUnit costRateUnit) {
 
     /** Maps an entity to its DTO. Reads the lazy department/group ids only (safe under open-in-view). */
     public static ResourceDTO from(Resource resource) {
@@ -76,6 +81,9 @@ public record ResourceDTO(Long id,
                 resource.getAgent(),
                 resource.getDepartment() != null ? resource.getDepartment().getId() : null,
                 resource.getResourceGroup() != null ? resource.getResourceGroup().getId() : null,
-                resource.getCurrentOccupiedSlots());
+                resource.getCurrentOccupiedSlots(),
+                resource.getCostRate(),
+                resource.getCostCurrency(),
+                resource.getCostRateUnit());
     }
 }
