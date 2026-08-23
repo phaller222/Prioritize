@@ -28,6 +28,10 @@ import de.hallerweb.enterprise.prioritize.model.security.PUser;
  * {@link Task#isTrackingFor(PUser)} for the viewing user — clocks are per person, so a task-wide
  * "is it tracking" would not say whose. The assignee/goal ids read off the lazy proxies without
  * initializing them.
+ * <p>
+ * {@code runningCount} is the other half of that answer: how many people are on the task right now,
+ * the viewer included. Without it a task list could show "my clock is running" but not "two
+ * colleagues are on this one" without one extra call per row.
  *
  * @author peter haller
  */
@@ -39,7 +43,8 @@ public record TaskDTO(Long id,
                       Long assigneeId,
                       Long goalId,
                       String processInstanceId,
-                      boolean trackingForMe) {
+                      boolean trackingForMe,
+                      int runningCount) {
 
     /**
      * Maps an entity to its DTO for a given viewer. Reads the lazy assignee/goal ids only (safe under
@@ -56,6 +61,7 @@ public record TaskDTO(Long id,
                 task.getAssignee() != null ? task.getAssignee().getId() : null,
                 task.getGoal() != null ? task.getGoal().getId() : null,
                 task.getProcessInstanceId(),
-                task.isTrackingFor(viewer));
+                task.isTrackingFor(viewer),
+                task.getRunningCount());
     }
 }

@@ -541,6 +541,36 @@ class RestApiIntegrationTest {
     }
 
     // ==========================================
+    // The published contract
+    // ==========================================
+
+    /**
+     * {@code docs/openapi.json} is the single source for all four generated client libraries, so
+     * anything the document lists becomes a published API class. The scan page is a browser page that
+     * hands back HTML, but it carries {@code @ResponseBody}, which is all springdoc needs to document
+     * it — it appeared in the document under the generated tag {@code scan-page-controller} and would
+     * have shipped as an API returning {@code String}, removable afterwards only by breaking the
+     * contract a second time.
+     * <p>
+     * Asserting the general rule rather than the one path: the REST contract lives under
+     * {@code /api/v1}, so any handler outside it that reaches the document is the same mistake with a
+     * different name.
+     */
+    @Test
+    @DisplayName("The OpenAPI document describes the REST API only, nothing outside /api/v1")
+    void openApiDocumentCoversTheRestApiOnly() throws Exception {
+        HttpResponse<String> response = send(authorized("/v3/api-docs", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+
+        JsonNode paths = json.readTree(response.body()).path("paths");
+        assertTrue(paths.size() > 50, "the document must actually describe the API, not be empty");
+
+        paths.fieldNames().forEachRemaining(path -> assertTrue(path.startsWith("/api/v1/"),
+                "the generated clients would get an API class for " + path
+                        + " — annotate the handler with @Hidden"));
+    }
+
+    // ==========================================
     // Helpers
     // ==========================================
 

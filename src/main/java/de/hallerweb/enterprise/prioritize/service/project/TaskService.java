@@ -97,9 +97,15 @@ public class TaskService {
      * {@code id} addresses the session in the correction endpoints; it is {@code null} for a running
      * session that has never been persisted as a closed span. {@code correction} is {@code null} for
      * every session that was recorded normally and never touched.
+     * <p>
+     * {@code userId} and {@code username} name whose session it is. Since clocks became per person a
+     * task carries the sessions of everybody who worked on it, and a list of intervals that does not
+     * say whose they are cannot be shown to anyone or corrected by anyone — the correction endpoints
+     * already decide by participation, so the caller has to be able to see it too. Both are
+     * {@code null} for a session with no participant recorded, which only legacy rows can be.
      */
-    public record WorkSession(Long id, Instant from, Instant until, long seconds, boolean running,
-                              Correction correction) {
+    public record WorkSession(Long id, Long userId, String username, Instant from, Instant until,
+                              long seconds, boolean running, Correction correction) {
     }
 
     /** How a work session came to differ from what the clock actually recorded. */
@@ -117,9 +123,13 @@ public class TaskService {
      * they were before. {@code originalUntil} is {@code null} when the session was still running at
      * the time of the fix, {@code originalFrom} is {@code null} when there was nothing to preserve
      * because the session was entered by hand.
+     * <p>
+     * {@code correctedBy} is the username, so the audit trail reads without a second call;
+     * {@code correctedById} addresses the same person the way the rest of the API does.
      */
-    public record Correction(CorrectionKind kind, String correctedBy, Instant correctedAt,
-                             String reason, Instant originalFrom, Instant originalUntil) {
+    public record Correction(CorrectionKind kind, Long correctedById, String correctedBy,
+                             Instant correctedAt, String reason,
+                             Instant originalFrom, Instant originalUntil) {
     }
 
     /**
@@ -445,8 +455,21 @@ public class TaskService {
         long seconds = running
                 ? secondsBetween(span.getDateFrom(), Instant.now())
                 : secondsBetween(span.getDateFrom(), span.getDateUntil());
-        return new WorkSession(span.getId(), span.getDateFrom(),
+        PUser owner = ownerOf(span);
+        return new WorkSession(span.getId(),
+                owner == null ? null : owner.getId(),
+                owner == null ? null : owner.getUsername(),
+                span.getDateFrom(),
                 running ? null : span.getDateUntil(), seconds, running, correctionOf(span));
+    }
+
+    /**
+     * Whose session this is. A span records exactly one participant — {@link #startTracking} and
+     * {@link #addWorkSession} each add a single user, which is what makes one clock per person work —
+     * so the set has at most one element and the first is the owner.
+     */
+    private static PUser ownerOf(TimeSpan span) {
+        return span.getInvolvedUsers().stream().findFirst().orElse(null);
     }
 
     /** The audit view of a span, or {@code null} if it was never hand-edited. */
@@ -463,6 +486,7 @@ public class TaskService {
             kind = CorrectionKind.CORRECTED;
         }
         return new Correction(kind,
+                span.getCorrectedBy() == null ? null : span.getCorrectedBy().getId(),
                 span.getCorrectedBy() == null ? null : span.getCorrectedBy().getUsername(),
                 span.getCorrectedAt(), span.getCorrectionReason(),
                 span.getOriginalFrom(), span.getOriginalUntil());

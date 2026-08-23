@@ -173,12 +173,20 @@ public class TaskController {
     /**
      * Corrects the bounds of a completed work session. The project manager may correct any session,
      * everyone else only the sessions they took part in.
+     * <p>
+     * A correction cannot move a session to a different person, so a {@code userId} in the body is
+     * refused rather than dropped: a caller who sends one believes the session changed hands, and
+     * accepting the request silently would confirm a belief that is wrong.
      */
     @Operation(summary = "Corrects the start and end of a completed work session")
     @PutMapping("/tasks/{id}/tracking/sessions/{sessionId}")
     public ResponseEntity<TaskService.WorkSession> updateTrackingSession(
         @PathVariable Long id, @PathVariable Long sessionId, @RequestBody WorkSessionRequest request,
         @AuthenticatedUser PUser currentUser) {
+        if (request.userId() != null) {
+            throw new IllegalArgumentException(
+                    "A correction cannot reassign a session — delete it and book a new one for the other person.");
+        }
         return ResponseEntity.ok(taskService.updateWorkSession(
                 id, sessionId, request.from(), request.until(), request.reason(), currentUser));
     }
@@ -194,18 +202,17 @@ public class TaskController {
 
     /**
      * Request body for correcting or hand-booking a work session. All of {@code from}, {@code until}
-     * and {@code reason} are mandatory; {@code userId} is only honoured when booking a new session
-     * for someone else and is ignored on a correction.
+     * and {@code reason} are mandatory. {@code userId} books the session for somebody else, which is
+     * a manager's job; on a correction it is rejected, since a correction cannot move a session to a
+     * different person.
      */
     public record WorkSessionRequest(Instant from, Instant until, String reason, Long userId) {
     }
 
     /**
-     * Request body for stopping the running session retroactively. Both fields are mandatory.
-     */
-    /**
-     * {@code userId} names whose clock to close; omit it to close your own. Closing a colleague's
-     * is a manager job — the case where somebody left a clock running overnight.
+     * Request body for stopping the running session retroactively. {@code until} and {@code reason}
+     * are mandatory. {@code userId} names whose clock to close; omit it to close your own. Closing a
+     * colleague's is a manager job — the case where somebody left a clock running overnight.
      */
     public record StopAtRequest(Instant until, String reason, Long userId) {
     }

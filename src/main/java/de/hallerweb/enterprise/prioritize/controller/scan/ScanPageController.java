@@ -22,6 +22,7 @@ import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -76,9 +77,15 @@ import java.util.NoSuchElementException;
  * Prioritize, not before. Two consequences worth knowing before writing a batch: the host is baked
  * into each sticker, so moving the installation means rewriting them, and a name only works if the
  * scanning phone can resolve it — an IP address is the safer choice on a local network.
+ * <p>
+ * <b>Not part of the REST contract.</b> {@link Hidden} keeps this page out of the OpenAPI document.
+ * The handlers below carry {@code @ResponseBody}, which is all springdoc needs to document them, and
+ * a browser page handing back HTML would otherwise become an API class returning {@code String} in
+ * every generated client — published, and only removable by breaking the contract again.
  *
  * @author peter haller
  */
+@Hidden
 @Controller
 @RequestMapping("/scan")
 @RequiredArgsConstructor

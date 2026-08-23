@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -153,7 +154,7 @@ class TaskControllerTest {
         Instant from = Instant.parse("2026-08-08T08:00:00Z");
         Instant until = Instant.parse("2026-08-08T12:00:00Z");
         TaskService.WorkSession session = new TaskService.WorkSession(
-                7L, from, until, 14400L, false, null);
+                7L, 9L, "geselle", from, until, 14400L, false, null);
         when(taskService.addWorkSession(eq(5L), eq(from), eq(until), eq("nachgetragen"), eq(9L), eq(user)))
                 .thenReturn(session);
 
@@ -165,20 +166,37 @@ class TaskControllerTest {
     }
 
     @Test
-    @DisplayName("updateTrackingSession: delegates the corrected bounds, ignoring userId")
+    @DisplayName("updateTrackingSession: delegates the corrected bounds")
     void updateTrackingSession_delegates() {
         Instant from = Instant.parse("2026-08-08T08:00:00Z");
         Instant until = Instant.parse("2026-08-08T12:00:00Z");
         TaskService.WorkSession session = new TaskService.WorkSession(
-                7L, from, until, 14400L, false, null);
+                7L, 9L, "geselle", from, until, 14400L, false, null);
         when(taskService.updateWorkSession(eq(5L), eq(7L), eq(from), eq(until), eq("korrigiert"), eq(user)))
                 .thenReturn(session);
 
         ResponseEntity<TaskService.WorkSession> response = controller.updateTrackingSession(
-                5L, 7L, new WorkSessionRequest(from, until, "korrigiert", 9L), user);
+                5L, 7L, new WorkSessionRequest(from, until, "korrigiert", null), user);
 
         assertEquals(session, response.getBody());
         verify(taskService).updateWorkSession(eq(5L), eq(7L), eq(from), eq(until), eq("korrigiert"), eq(user));
+    }
+
+    /**
+     * A correction cannot move a session to somebody else. The field used to be dropped silently,
+     * which left the caller believing the session had changed hands while nothing had happened —
+     * the kind of success that is worse than an error.
+     */
+    @Test
+    @DisplayName("updateTrackingSession: a userId in the body is refused, not silently dropped")
+    void updateTrackingSession_rejectsReassignment() {
+        Instant from = Instant.parse("2026-08-08T08:00:00Z");
+        Instant until = Instant.parse("2026-08-08T12:00:00Z");
+
+        assertThrows(IllegalArgumentException.class, () -> controller.updateTrackingSession(
+                5L, 7L, new WorkSessionRequest(from, until, "korrigiert", 9L), user));
+
+        verify(taskService, never()).updateWorkSession(any(), any(), any(), any(), any(), any());
     }
 
     @Test

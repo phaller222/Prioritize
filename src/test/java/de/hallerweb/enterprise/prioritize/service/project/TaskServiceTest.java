@@ -530,4 +530,51 @@ class TaskServiceTest {
         assertDoesNotThrow(() -> taskService.startTracking(task.getId(), member));
         assertThrows(IllegalStateException.class, () -> taskService.startTracking(task.getId(), admin));
     }
+
+    /**
+     * Seit die Uhren pro Person laufen, liegen in einem Task die Sitzungen mehrerer Leute nebeneinander.
+     * Eine Liste von Intervallen, die nicht sagt, wem sie gehören, kann niemand anzeigen und niemand
+     * korrigieren — die Korrektur-Endpunkte entscheiden ohnehin nach Beteiligung, also muss der Aufrufer
+     * dieselbe Auskunft bekommen.
+     */
+    @Test
+    @DisplayName("Jede Sitzung nennt die Person, zu der sie gehört")
+    void workSessions_nameTheirOwner() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+        taskService.startTracking(task.getId(), admin);
+        taskService.startTracking(task.getId(), member);
+        taskService.stopTracking(task.getId(), member);
+
+        var sessions = taskService.getWorkSessions(task.getId(), admin);
+        assertEquals(2, sessions.size());
+
+        var mine = sessions.stream().filter(s -> admin.getId().equals(s.userId())).findFirst().orElseThrow(
+                () -> new AssertionError("die eigene Sitzung muss über die userId auffindbar sein"));
+        assertEquals(admin.getUsername(), mine.username());
+        assertTrue(mine.running(), "die eigene Uhr läuft noch");
+
+        var his = sessions.stream().filter(s -> member.getId().equals(s.userId())).findFirst().orElseThrow(
+                () -> new AssertionError("die Sitzung des Kollegen muss ebenso zuzuordnen sein"));
+        assertEquals(member.getUsername(), his.username());
+        assertFalse(his.running(), "der Kollege hat ausgestochen");
+    }
+
+    /** Eine nachgetragene fremde Sitzung gehört dem Beschäftigten, nicht dem, der sie eingebucht hat. */
+    @Test
+    @DisplayName("Eine nachgetragene Sitzung gehört dem, für den gebucht wurde")
+    void workSessions_bookedForSomeoneElseBelongToThem() {
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Task task = newTask();
+        Instant from = Instant.now().minus(Duration.ofHours(3));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        taskService.addWorkSession(task.getId(), from, until, "Zettel vom Montag", member.getId(), admin);
+
+        var session = taskService.getWorkSessions(task.getId(), admin).get(0);
+        assertEquals(member.getId(), session.userId(), "gearbeitet hat der Geselle");
+        assertEquals(member.getUsername(), session.username());
+        assertEquals(admin.getId(), session.correction().correctedById(), "gebucht hat der Meister");
+        assertEquals(admin.getUsername(), session.correction().correctedBy());
+    }
 }
