@@ -97,3 +97,41 @@ is read by somebody other than the scanner. The rename is deliberate: keeping th
 left every generated client compiling happily against a silently changed meaning. `POST
 /tasks/{id}/tracking/stop-at` additionally accepts an optional `userId`, naming whose clock to close
 — without it a manager could no longer close a clock a crew member left running overnight.
+
+The task DTO gains `runningCount` alongside `trackingForMe`, and every work session now names its
+owner (`userId`, `username`). Both follow from the same change: a task holds the sessions of
+everybody who worked on it, so a list of bare intervals says neither how many people are on the job
+nor whose time it is, and the correction endpoints decide by exactly that.
+
+## 1.4.0 — changes with no database work
+
+These need no SQL. They are listed because they change the published contract, and a client
+generated against 1.3.x will not see them until it is regenerated.
+
+### Reading a department now needs permission
+
+`GET /departments/{id}` used to answer for any authenticated caller, without checking whether that
+caller may see the department at all. It is now gated on `READ` like every other department access,
+so a caller outside the department receives `403` where it previously received the department. This
+is a fix, not a restriction — but an integration that read departments it had no rights to will stop
+working, and that is worth knowing before the upgrade rather than after.
+
+Alongside it, `GET /departments` lists the departments the caller may read across all companies.
+Until now the only way in was `GET /companies/{companyId}/departments`, and a fresh installation has
+no company to start from, so the department tree was unreachable over REST.
+
+### Work sessions can be corrected
+
+`GET /tasks/{id}/tracking/sessions` gains an `id` per session and a `correction` block — who changed
+a session, when, why, and what the bounds were before. Sessions that were recorded normally and never
+touched carry `correction: null`. Four endpoints go with it: `POST /tasks/{id}/tracking/stop-at` for
+the forgotten clock-out, and `POST`, `PUT` and `DELETE` on
+`/tasks/{id}/tracking/sessions[/{sessionId}]` for booking, correcting and removing one by hand. A
+reason is mandatory on all of them.
+
+### A resource can state what it costs
+
+`Resource` gains `costRate`, `costCurrency` and `costRateUnit` (`HOUR`, `DAY`, `USAGE`), readable and
+writable over REST. The three travel together: either all are set or none, the currency must be an
+ISO 4217 code, and a rate of `0` means "free of charge", which is a different statement from "not
+recorded". The columns are additive, so Hibernate adds them at the next start.

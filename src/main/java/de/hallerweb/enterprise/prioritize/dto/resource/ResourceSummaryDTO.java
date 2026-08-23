@@ -27,6 +27,12 @@ import java.time.LocalDateTime;
  * entity's all-fields {@code equals}/{@code hashCode} would touch its lazy relations there and throw a
  * {@code LazyInitializationException}. {@code occupiedSlots} is the number of reservations overlapping "now",
  * computed against {@code maxSlots} for the occupancy display; the online fields drive the green/grey status dot.
+ * <p>
+ * <b>Not a wire DTO — never return this from a controller.</b> It sits in the {@code dto} package next to
+ * the REST DTOs but serves the Vaadin admin GUI only, and {@code mqttLastPing} is a {@link LocalDateTime}:
+ * on the wire that serializes without a UTC offset, which is precisely the defect 1.3.1 was released to
+ * fix. Anything the REST API returns converts its timestamps through
+ * {@link de.hallerweb.enterprise.prioritize.dto.WireTime} — see {@link ResourceDTO}.
  */
 @Data
 @AllArgsConstructor
