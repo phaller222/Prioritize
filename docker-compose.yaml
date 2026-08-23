@@ -34,6 +34,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Without a limit the JVM sizes its heap against the whole host: on a 32 GB machine that is a
+    # ceiling of 8.4 GB for a stack meant to be run on a home server. One gigabyte is the sensible
+    # default here - measured idle usage is well under half of it - and it makes the container's
+    # appetite predictable instead of proportional to whoever's machine it lands on. Raise it with
+    # MEM_LIMIT in .env; the image's own MaxRAMPercentage then follows automatically.
+    mem_limit: ${MEM_LIMIT:-1g}
     ports:
       - "8080:8080"
     environment:
