@@ -575,6 +575,33 @@ public class ResourceService {
     }
 
     /**
+     * Clears the cost rate: the resource is no longer charged for. All three fields go at once, since
+     * they only mean anything together and removing them one by one would pass through a state
+     * {@link #requireConsistentCostRate} rejects.
+     * <p>
+     * This cannot be done through {@link #partialUpdateResource}, where {@code null} means "unchanged"
+     * — that is what makes a partial update partial, so no patch body can ask for a removal. Clearing
+     * an already-empty rate is not an error: the caller wanted no cost rate and there is none.
+     *
+     * @param resourceId ID of the resource
+     * @param user       the requesting user, who needs UPDATE on the resource
+     * @return the resource without its cost rate
+     */
+    public Resource clearCostRate(Long resourceId, PUser user) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
+
+        if (!authService.hasPermission(user, resource, Action.UPDATE)) {
+            throw new AccessDeniedException("No permission to update this resource.");
+        }
+
+        resource.setCostRate(null);
+        resource.setCostCurrency(null);
+        resource.setCostRateUnit(null);
+        return resourceRepository.save(resource);
+    }
+
+    /**
      * Validates whether a resource belongs to the given resource group.
      * Throws EntityNotFoundException if the resource or group does not exist,
      * IllegalArgumentException if the resource does not belong to the group.
