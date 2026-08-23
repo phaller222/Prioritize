@@ -143,6 +143,11 @@ public class Task extends PObject {
         return activeTimeSpanFor(user) != null;
     }
 
+    /** How many people have a clock running on this task right now. */
+    public int getRunningCount() {
+        return activeTimeSpans.size();
+    }
+
     /**
      * The given user's open span on this task, or {@code null} when they are not clocked in. The
      * owner of a span is the participant recorded on it, so this matches on {@code involvedUsers}.

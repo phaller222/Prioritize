@@ -16,6 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.dto.project;
 
+import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
@@ -23,14 +24,17 @@ import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Plain unit tests (no Spring context) for {@link TaskDTO#from(Task)}: the scalar task state maps across,
- * the polymorphic assignee and the goal flatten to their ids, {@code tracking} mirrors the entity, and both
- * relations are null-safe.
+ * Plain unit tests (no Spring context) for {@link TaskDTO#from(Task, PUser)}: the scalar task state maps
+ * across, the polymorphic assignee and the goal flatten to their ids, the two tracking fields answer for
+ * the viewer and for the task respectively, and both relations are null-safe.
  */
 class TaskDtoMappingTest {
 
@@ -76,5 +80,44 @@ class TaskDtoMappingTest {
         assertNull(dto.goalId());
         assertNull(dto.processInstanceId());
         assertFalse(dto.trackingForMe());
+        assertEquals(0, dto.runningCount(), "nobody is clocked in on a bare task");
+    }
+
+    /**
+     * The two tracking fields answer different questions and must not be conflated: {@code trackingForMe}
+     * is about the viewer, {@code runningCount} is about the task. A colleague looking at a task somebody
+     * else is working on has to see that the work is under way, without that turning into "my clock is
+     * running" — that conflation was the bug the per-person clocks fixed.
+     */
+    @Test
+    @DisplayName("trackingForMe answers for the viewer, runningCount for the whole crew")
+    void trackingFieldsAnswerDifferentQuestions() {
+        PUser worker = new PUser();
+        worker.setId(11L);
+        PUser colleague = new PUser();
+        colleague.setId(12L);
+
+        Task task = new Task();
+        task.setId(4L);
+        task.getActiveTimeSpans().add(clockOf(worker));
+        task.getActiveTimeSpans().add(clockOf(colleague));
+
+        TaskDTO forWorker = TaskDTO.from(task, worker);
+        assertTrue(forWorker.trackingForMe(), "the worker's own clock is running");
+        assertEquals(2, forWorker.runningCount(), "both people on the task are counted");
+
+        PUser stranger = new PUser();
+        stranger.setId(13L);
+        TaskDTO forStranger = TaskDTO.from(task, stranger);
+        assertFalse(forStranger.trackingForMe(), "a bystander's clock is not running");
+        assertEquals(2, forStranger.runningCount(), "the crew is the same whoever is looking");
+    }
+
+    /** An open span belonging to one person, the shape {@code startTracking} produces. */
+    private static TimeSpan clockOf(PUser user) {
+        TimeSpan span = new TimeSpan();
+        span.setDateFrom(Instant.now());
+        span.getInvolvedUsers().add(user);
+        return span;
     }
 }

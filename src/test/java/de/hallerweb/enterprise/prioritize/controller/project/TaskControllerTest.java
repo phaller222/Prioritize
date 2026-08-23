@@ -153,7 +153,7 @@ class TaskControllerTest {
         Instant from = Instant.parse("2026-08-08T08:00:00Z");
         Instant until = Instant.parse("2026-08-08T12:00:00Z");
         TaskService.WorkSession session = new TaskService.WorkSession(
-                7L, from, until, 14400L, false, null);
+                7L, 9L, "geselle", from, until, 14400L, false, null);
         when(taskService.addWorkSession(eq(5L), eq(from), eq(until), eq("nachgetragen"), eq(9L), eq(user)))
                 .thenReturn(session);
 
@@ -170,7 +170,7 @@ class TaskControllerTest {
         Instant from = Instant.parse("2026-08-08T08:00:00Z");
         Instant until = Instant.parse("2026-08-08T12:00:00Z");
         TaskService.WorkSession session = new TaskService.WorkSession(
-                7L, from, until, 14400L, false, null);
+                7L, 9L, "geselle", from, until, 14400L, false, null);
         when(taskService.updateWorkSession(eq(5L), eq(7L), eq(from), eq(until), eq("korrigiert"), eq(user)))
                 .thenReturn(session);
 
