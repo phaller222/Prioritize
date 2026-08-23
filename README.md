@@ -164,8 +164,10 @@ Just want a quick look with no database to manage? A single self-contained conta
 
 ```bash
 docker build -t prioritize .
-docker run --rm -p 8080:8080 prioritize
+docker run --rm -m 1g -p 8080:8080 prioritize
 ```
+
+`-m 1g` is not decoration: without a limit the JVM sizes its heap against the host's RAM, so on a large machine the ceiling ends up in the tens of gigabytes. Compose sets the limit for you; a plain `docker run` does not. See [Memory](#memory).
 
 The optional stacks are opt-in via Compose profiles (copy `.env.example` to `.env` and add the profile to `SPRING_PROFILES_ACTIVE`, e.g. `postgres,mqtt`):
 
@@ -175,6 +177,18 @@ docker compose --profile keycloak up    # + Keycloak (OIDC bearer-token auth)
 ```
 
 Data persists in the `db-data` volume (PostgreSQL) or the container's `/app/data` volume (H2). Stop with `docker compose down` to keep the data, or `docker compose down -v` to drop it.
+
+#### Memory
+
+Give the app container **1 GB**. Compose does that by default (`mem_limit`, override with `MEM_LIMIT` in `.env`); for a plain `docker run`, pass `-m 1g`. Measured on 1.4.0: about **480 MiB** idle at that limit, plus roughly **90 MiB** for the PostgreSQL container. It starts in around 30 seconds.
+
+The limit matters more than it looks. The JVM is container-aware and sizes its heap from the container's limit — but with no limit it falls back to a share of the *host's* RAM, which on a 32 GB machine means a heap ceiling of 8.4 GB. The image sets `-XX:MaxRAMPercentage=60` rather than a fixed `-Xmx`, so it adapts to whatever limit you give it. 60 and not the usual 75 because this application's non-heap footprint — metaspace, code cache, threads, natives — measures around 310 MiB: at a 1 GB limit, 75% would place the heap ceiling beyond the limit and a heap that filled up would be OOM-killed instead of collected. If you want 75%, give the container 2 GB:
+
+```bash
+docker run -m 2g -e JDK_JAVA_OPTIONS="-XX:MaxRAMPercentage=75" -p 8080:8080 prioritize
+```
+
+It does fit in 512 MB — verified, no OOM kill under a few hundred API calls — but at ~92% of the limit there is no headroom, so that is a demo size rather than one to run on.
 
 ### From source (JDK 21 + Maven)
 

@@ -38,6 +38,22 @@ RUN mkdir -p /app/data \
 ENV HOME=/app/data
 VOLUME ["/app/data"]
 
+# Heap budget. The JVM is container-aware (UseContainerSupport is on by default), so it sizes the
+# heap from the container's memory limit rather than the host's RAM - but the default ceiling is a
+# conservative 25% of it, and with no limit at all that becomes 25% of the whole machine: on a 32 GB
+# host this image was measured with a max heap of 8.4 GB. Hence a percentage, not a fixed -Xmx: a
+# fixed value is wrong in both directions, OOM-killed on a small host and wasteful on a large one.
+#
+# 60 and not the customary 75: this application's non-heap footprint - metaspace, code cache,
+# threads, the Vaadin and engine natives - was measured at roughly 310 MiB. At a 1 GiB limit, 75%
+# would put the ceiling at 768 MiB heap plus that 310 MiB, i.e. past the limit, so a heap that
+# genuinely filled up would get the container OOM-killed instead of collected. 60% leaves the margin.
+#
+# JDK_JAVA_OPTIONS is the JVM's own mechanism, so no shell wrapping is needed and the launcher
+# echoes the value it picked up. Override it to tune without rebuilding:
+#   docker run -e JDK_JAVA_OPTIONS="-XX:MaxRAMPercentage=75" ...   (with >= 2 GiB, see above)
+ENV JDK_JAVA_OPTIONS="-XX:MaxRAMPercentage=60"
+
 EXPOSE 8080
 
 # /login is public (Vaadin login view) and returns 200 once the app is fully up.
