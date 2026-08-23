@@ -741,6 +741,34 @@ class ResourceServiceTest {
         assertEquals("CHF", created.getCostCurrency());
     }
 
+    /**
+     * „Das Gerät wird nicht mehr berechnet" muss ausdrückbar sein. Über PATCH geht es nicht: dort heißt
+     * `null` „nicht angefasst" — genau das macht ein Teil-Update zu einem Teil-Update —, also kann kein
+     * Request-Body eine Entfernung verlangen. Der erste Teil des Tests hält diese Eigenschaft fest,
+     * damit sie nicht unbemerkt kippt und den eigenen Endpunkt überflüssig aussehen lässt.
+     */
+    @Test
+    @DisplayName("Kostensatz: PATCH kann ihn nicht löschen, der eigene Endpunkt schon")
+    void costRate_isClearedByItsOwnEndpoint() {
+        Resource lift = Resource.builder().name("Miet-Buehne")
+                .costRate(new BigDecimal("89.00")).costCurrency("EUR").costRateUnit(CostRateUnit.DAY).build();
+        Resource created = resourceService.createResource(lift, testGroup.getId(), adminUser);
+
+        Resource blank = Resource.builder().name("Miet-Buehne").build();
+        Resource afterPatch = resourceService.partialUpdateResource(created.getId(), blank, adminUser);
+        assertEquals(0, new BigDecimal("89.00").compareTo(afterPatch.getCostRate()),
+                "ein leeres PATCH-Feld bedeutet nicht angefasst, nicht loeschen");
+
+        Resource cleared = resourceService.clearCostRate(created.getId(), adminUser);
+
+        assertNull(cleared.getCostRate());
+        assertNull(cleared.getCostCurrency());
+        assertNull(cleared.getCostRateUnit(), "alle drei Felder gehen zusammen weg");
+
+        // Nochmal löschen ist kein Fehler: gewollt war „kein Kostensatz", und den gibt es jetzt.
+        assertDoesNotThrow(() -> resourceService.clearCostRate(created.getId(), adminUser));
+    }
+
     @Test
     @DisplayName("Kostensatz: eine Ressource ohne Satz bleibt gültig")
     void costRate_isOptional() {

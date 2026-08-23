@@ -229,6 +229,27 @@ public class ResourceController {
     }
 
     /**
+     * Removes the cost rate, so the resource is no longer charged for.
+     * <p>
+     * Its own endpoint because PATCH cannot express it: there {@code null} means "unchanged", which is
+     * what makes a partial update partial, so no request body can say "remove this". The three cost
+     * fields also only make sense together — clearing them one at a time would go through a state the
+     * validation rejects. Both reasons are specific to removal, which is why this is a small endpoint
+     * rather than a change to PATCH semantics across the API.
+     *
+     * @param id ID of the resource
+     * @return the resource without its cost rate
+     */
+    @Operation(summary = "Removes a resource's cost rate")
+    @DeleteMapping("/resources/{id}/cost-rate")
+    public ResponseEntity<ResourceDTO> clearCostRate(
+        @PathVariable Long id,
+        @AuthenticatedUser PUser currentUser) {
+
+        return ResponseEntity.ok(ResourceDTO.from(resourceService.clearCostRate(id, currentUser)));
+    }
+
+    /**
      * Deletes a resource, if the current user is authorized.
      *
      * @param id ID of the resource to delete

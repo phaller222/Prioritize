@@ -135,3 +135,8 @@ reason is mandatory on all of them.
 writable over REST. The three travel together: either all are set or none, the currency must be an
 ISO 4217 code, and a rate of `0` means "free of charge", which is a different statement from "not
 recorded". The columns are additive, so Hibernate adds them at the next start.
+
+Removing a rate again has its own endpoint, `DELETE /resources/{id}/cost-rate`. PATCH cannot express
+it: there `null` means "unchanged", which is what makes a partial update partial, so no request body
+can ask for a removal — and the three fields have to go at once anyway, since clearing them one at a
+time passes through a state the validation rejects.
