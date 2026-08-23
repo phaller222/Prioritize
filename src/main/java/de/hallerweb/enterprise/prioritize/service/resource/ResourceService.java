@@ -709,6 +709,11 @@ public class ResourceService {
      * without a currency it cannot be added up across resources. Either all three are set or none.
      * A negative rate is rejected outright; a rate of zero is allowed and means "free of charge",
      * which is a real answer and different from "not recorded".
+     * <p>
+     * The currency must be an ISO 4217 code, checked against the JDK's table and stored upper case.
+     * A free-form string looks harmless until the data exists: {@code EUR}, {@code eur} and
+     * {@code Euro} are three currencies as far as any sum is concerned, and tightening the rule
+     * afterwards would reject rows that are already in the database.
      */
     private static void requireConsistentCostRate(Resource resource) {
         java.math.BigDecimal rate = resource.getCostRate();
@@ -722,6 +727,18 @@ public class ResourceService {
         }
         if (rate.signum() < 0) {
             throw new IllegalArgumentException("A cost rate cannot be negative.");
+        }
+        resource.setCostCurrency(normalizedCurrency(resource.getCostCurrency()));
+    }
+
+    /** The ISO 4217 code in its canonical spelling, or an {@link IllegalArgumentException}. */
+    private static String normalizedCurrency(String currency) {
+        String code = currency.trim().toUpperCase(java.util.Locale.ROOT);
+        try {
+            return java.util.Currency.getInstance(code).getCurrencyCode();
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            throw new IllegalArgumentException(
+                    "'" + currency + "' is not an ISO 4217 currency code — use three letters, for instance EUR.");
         }
     }
 }

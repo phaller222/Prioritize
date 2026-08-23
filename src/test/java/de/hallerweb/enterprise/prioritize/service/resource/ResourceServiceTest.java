@@ -716,6 +716,31 @@ class ResourceServiceTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(created.getCostRate()));
     }
 
+    /**
+     * Eine freie Zeichenkette sieht harmlos aus, bis Daten da sind: für jede Summe sind "EUR", "eur"
+     * und "Euro" drei verschiedene Währungen. Nachträglich strenger zu werden würde Datensätze
+     * ablehnen, die längst in der Datenbank stehen — also jetzt.
+     */
+    @Test
+    @DisplayName("Kostensatz: die Währung muss ein ISO-4217-Code sein und wird normalisiert")
+    void costRate_currencyMustBeAnIsoCode() {
+        Resource wordy = Resource.builder().name("Wort-Waehrung")
+                .costRate(new BigDecimal("10.00")).costCurrency("Euro").costRateUnit(CostRateUnit.HOUR).build();
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(wordy, testGroup.getId(), adminUser));
+
+        Resource nonsense = Resource.builder().name("Unsinn-Waehrung")
+                .costRate(new BigDecimal("10.00")).costCurrency("XYZ").costRateUnit(CostRateUnit.HOUR).build();
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(nonsense, testGroup.getId(), adminUser));
+
+        // Kleinschreibung ist ein Tippfehler, kein Fehler: derselbe Code, kanonisch gespeichert.
+        Resource lowercase = Resource.builder().name("Klein-Waehrung")
+                .costRate(new BigDecimal("10.00")).costCurrency(" chf ").costRateUnit(CostRateUnit.HOUR).build();
+        Resource created = resourceService.createResource(lowercase, testGroup.getId(), adminUser);
+        assertEquals("CHF", created.getCostCurrency());
+    }
+
     @Test
     @DisplayName("Kostensatz: eine Ressource ohne Satz bleibt gültig")
     void costRate_isOptional() {
