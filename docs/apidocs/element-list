@@ -7,6 +7,7 @@ de.hallerweb.enterprise.prioritize.controller.nfc
 de.hallerweb.enterprise.prioritize.controller.process
 de.hallerweb.enterprise.prioritize.controller.project
 de.hallerweb.enterprise.prioritize.controller.resource
+de.hallerweb.enterprise.prioritize.controller.scan
 de.hallerweb.enterprise.prioritize.controller.scheduling
 de.hallerweb.enterprise.prioritize.controller.security
 de.hallerweb.enterprise.prioritize.controller.skill
@@ -53,6 +54,7 @@ de.hallerweb.enterprise.prioritize.repository.skill
 de.hallerweb.enterprise.prioritize.repository.telemetry
 de.hallerweb.enterprise.prioritize.service
 de.hallerweb.enterprise.prioritize.service.company
+de.hallerweb.enterprise.prioritize.service.demo
 de.hallerweb.enterprise.prioritize.service.document
 de.hallerweb.enterprise.prioritize.service.nfc
 de.hallerweb.enterprise.prioritize.service.process
@@ -70,6 +72,7 @@ de.hallerweb.enterprise.prioritize.ui.common
 de.hallerweb.enterprise.prioritize.ui.company
 de.hallerweb.enterprise.prioritize.ui.document
 de.hallerweb.enterprise.prioritize.ui.group
+de.hallerweb.enterprise.prioritize.ui.nfc
 de.hallerweb.enterprise.prioritize.ui.process
 de.hallerweb.enterprise.prioritize.ui.resource
 de.hallerweb.enterprise.prioritize.ui.scheduling

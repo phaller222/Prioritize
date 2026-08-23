@@ -12,7 +12,7 @@
       "name": "Apache License 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.3.1"
+    "version": "1.4.0"
   },
   "servers": [
     {
@@ -220,6 +220,89 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/tracking/sessions/{sessionId}": {
+      "put": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Corrects the start and end of a completed work session",
+        "operationId": "task_updateTrackingSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkSession"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Removes a completed work session",
+        "operationId": "task_deleteTrackingSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -1101,6 +1184,48 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/tracking/stop-at": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Stops the running work session at an earlier point in time",
+        "operationId": "task_stopTrackingAt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAtRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/tracking/start": {
       "post": {
         "tags": [
@@ -1126,6 +1251,81 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/tracking/sessions": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the individual tracked work sessions of the task (completed spans plus the running one)",
+        "operationId": "task_getTrackingSessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkSession"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Books a work session by hand that was never clocked",
+        "operationId": "task_addTrackingSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkSession"
                 }
               }
             }
@@ -3523,41 +3723,6 @@
         }
       }
     },
-    "/api/v1/tasks/{id}/tracking/sessions": {
-      "get": {
-        "tags": [
-          "Tasks"
-        ],
-        "summary": "Returns the individual tracked work sessions of the task (completed spans plus the running one)",
-        "operationId": "task_getTrackingSessions",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkSession"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/resources": {
       "get": {
         "tags": [
@@ -4179,6 +4344,30 @@
         }
       }
     },
+    "/api/v1/departments": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "List the departments the caller may read, across all companies",
+        "operationId": "department_getDepartments",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DepartmentDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/goal": {
       "delete": {
         "tags": [
@@ -4236,6 +4425,38 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources/{id}/cost-rate": {
+      "delete": {
+        "tags": [
+          "Resources"
+        ],
+        "summary": "Removes a resource's cost rate",
+        "operationId": "resource_clearCostRate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceDTO"
                 }
               }
             }
@@ -4430,7 +4651,7 @@
           },
           "dateOfBirth": {
             "type": "string",
-            "format": "date-time"
+            "format": "date"
           },
           "gender": {
             "type": "string",
@@ -4510,13 +4731,13 @@
           "occupation": {
             "type": "string"
           },
-          "lastLogin": {
+          "lastSeen": {
             "type": "string",
             "format": "date-time"
           },
           "dateOfBirth": {
             "type": "string",
-            "format": "date-time"
+            "format": "date"
           },
           "gender": {
             "type": "string",
@@ -4539,6 +4760,95 @@
           },
           "active": {
             "type": "boolean"
+          }
+        }
+      },
+      "WorkSessionRequest": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Correction": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CORRECTED",
+              "BACKDATED_STOP",
+              "MANUAL_ENTRY"
+            ]
+          },
+          "correctedById": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "correctedBy": {
+            "type": "string"
+          },
+          "correctedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "originalFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "originalUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "username": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "correction": {
+            "$ref": "#/components/schemas/Correction"
           }
         }
       },
@@ -4603,8 +4913,12 @@
           "processInstanceId": {
             "type": "string"
           },
-          "tracking": {
+          "trackingForMe": {
             "type": "boolean"
+          },
+          "runningCount": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -4940,6 +5254,22 @@
           }
         }
       },
+      "StopAtRequest": {
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "TelemetryRuleRequest": {
         "type": "object",
         "properties": {
@@ -5159,6 +5489,20 @@
           },
           "mqttOnline": {
             "type": "boolean"
+          },
+          "costRate": {
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "costRateUnit": {
+            "type": "string",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
           }
         }
       },
@@ -5234,6 +5578,20 @@
           "occupiedSlots": {
             "type": "integer",
             "format": "int32"
+          },
+          "costRate": {
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "costRateUnit": {
+            "type": "string",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
           }
         }
       },
@@ -5521,7 +5879,7 @@
             "type": "integer",
             "format": "int64"
           },
-          "tracking": {
+          "trackingForMe": {
             "type": "boolean"
           },
           "sequenceNumber": {
@@ -5614,8 +5972,12 @@
             "type": "integer",
             "format": "int64"
           },
-          "tracking": {
+          "trackingForMe": {
             "type": "boolean"
+          },
+          "runningCount": {
+            "type": "integer",
+            "format": "int32"
           },
           "totalSeconds": {
             "type": "integer",
@@ -5627,26 +5989,6 @@
           "runningSince": {
             "type": "string",
             "format": "date-time"
-          }
-        }
-      },
-      "WorkSession": {
-        "type": "object",
-        "properties": {
-          "from": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "until": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "seconds": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "running": {
-            "type": "boolean"
           }
         }
       },
