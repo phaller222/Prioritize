@@ -196,6 +196,28 @@ class NfcUnitServiceTest {
         assertThrows(IllegalStateException.class, () -> nfcUnitService.scan(unit.getUuid(), admin));
     }
 
+    /**
+     * Der Normalfall einer Baustelle: der Zeit-Aufkleber am Container UND ein Geräte-Aufkleber je
+     * Maschine zeigen auf dieselbe Aufgabe. Ein OneToOne-Mapping hat das mit einem Unique-Constraint
+     * auf {@code task_id} unmöglich gemacht — gefunden beim Live-Test, nicht im Unit-Test, weil die
+     * Tests bis dahin jedem Tag einen eigenen Task gaben.
+     */
+    @Test
+    @DisplayName("bindTask: mehrere Tags dürfen auf denselben Task zeigen (Container + Geräte)")
+    void bindTask_severalTagsMayShareOneTask() {
+        NfcUnit tracker = register(NfcUnitType.TIMETRACKER);
+        NfcUnit lift = register(NfcUnitType.EQUIPMENT);
+        NfcUnit dryer = register(NfcUnitType.EQUIPMENT);
+
+        nfcUnitService.bindTask(tracker.getId(), task.getId(), admin);
+        nfcUnitService.bindTask(lift.getId(), task.getId(), admin);
+        nfcUnitService.bindTask(dryer.getId(), task.getId(), admin);
+
+        assertEquals(3, nfcUnitService.getNfcUnitsForResource(resource.getId(), admin).stream()
+                .filter(u -> task.getId().equals(u.getBoundTaskId()))
+                .count());
+    }
+
     @Test
     @DisplayName("scan: COUNTER-Tag erhöht die Sequenznummer")
     void scan_counter_incrementsSequence() {

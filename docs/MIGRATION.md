@@ -56,6 +56,25 @@ The two engines have drifted here for the same reason as with `date_of_birth`: t
 emitted at table creation time, so what a database carries depends on which release first created the
 table, not on which release it runs now.
 
+### `nfc_unit.task_id` — the unique constraint has to go
+
+A tag points at one task, but a task carries as many tags as the job needs: the tracker sticker on the
+site container plus one equipment sticker per machine working there. The relation was mapped
+`@OneToOne`, which put a `UNIQUE` constraint on `task_id` and made the second sticker impossible — the
+binding failed with a plain "conflicts with existing data". The mapping is now `@ManyToOne`, so an
+older schema keeps a constraint that no longer belongs there; `ddl-auto: update` never removes one.
+
+The constraint carries a generated name, so read it before touching anything. Keep the one on `uuid`,
+which is intended, and remove only the one reported as `UNIQUE (task_id)`:
+
+```sql
+SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'nfc_unit'::regclass AND contype = 'u';
+```
+
+H2 names it differently again; the same lookup against `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` with
+`CONSTRAINT_TYPE = 'UNIQUE'` finds it there.
+
 ### `time_span.equipment_task_id` / `time_span.active_equipment_task_id` — no work needed
 
 The bookkeeping for equipment bookings is two additional columns on `time_span` plus the existing

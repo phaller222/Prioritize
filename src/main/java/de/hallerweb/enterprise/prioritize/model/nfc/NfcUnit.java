@@ -87,8 +87,14 @@ public class NfcUnit implements PAuthorizedObject {
      * <p>
      * An equipment tag travels with the device while the task changes, so its binding is re-pointed
      * whenever the device moves to a new job - that act <em>is</em> "this device now works here".
+     * <p>
+     * {@code ManyToOne}, not {@code OneToOne}: a tag points at one task, but a task carries as many
+     * tags as the job needs - the tracker sticker on the site container plus one equipment sticker
+     * per machine working there. A one-to-one mapping put a unique constraint on {@code task_id} and
+     * made the second sticker impossible, which is the state a job with a crew and two devices is
+     * normally in.
      */
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "task_id")
     @JsonIgnore
     private Task task;
