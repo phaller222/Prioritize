@@ -259,6 +259,17 @@ public class TaskController {
     }
 
     /**
+     * Returns what the equipment on this task has cost: duration times each device's rate, per
+     * device and summed per currency. Labour is not part of it — people carry no rates.
+     */
+    @Operation(summary = "Returns the equipment cost of the task (duration times rate, per currency)")
+    @GetMapping("/tasks/{id}/equipment/cost")
+    public ResponseEntity<TaskService.EquipmentCostReport> getEquipmentCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentCost(id, currentUser));
+    }
+
+    /**
      * Request body for clocking a device off retroactively. Both {@code until} and {@code reason} are
      * mandatory. No {@code userId} counterpart to {@link StopAtRequest}: a booking belongs to the
      * device, not to a person, so there is nobody else's clock to close.

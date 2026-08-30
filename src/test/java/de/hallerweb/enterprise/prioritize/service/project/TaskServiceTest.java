@@ -20,6 +20,7 @@ import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
@@ -38,6 +39,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -83,6 +85,27 @@ class TaskServiceTest {
     private Task newTask() {
         return taskService.createTask(project.getId(),
                 new TaskData("Design", "Design the thing", 2), admin);
+    }
+
+    /** The same, but carrying a cost rate — the three cost fields only mean anything together. */
+    private Resource ratedResource(String name, String rate, CostRateUnit unit) {
+        Resource resource = newResource(name);
+        resource.setCostRate(new BigDecimal(rate));
+        resource.setCostCurrency("EUR");
+        resource.setCostRateUnit(unit);
+        return resource;
+    }
+
+    /**
+     * Books a closed equipment span of the given length, ending now. Clocking in and straight out
+     * would measure milliseconds, so the start is moved back afterwards — the same trick the
+     * retroactive-stop tests use.
+     */
+    private void bookEquipment(Task task, Resource device, Duration length) {
+        taskService.startEquipmentUsage(task.getId(), device.getId(), admin);
+        taskRepository.findById(task.getId()).orElseThrow()
+                .activeEquipmentSpanFor(device).setDateFrom(Instant.now().minus(length));
+        taskService.stopEquipmentUsage(task.getId(), device.getId(), admin);
     }
 
     /** A piece of equipment in the default department's own group, ready to be clocked onto a task. */
@@ -801,6 +824,143 @@ class TaskServiceTest {
                 task.getId(), lift.getId(), Instant.now().minus(Duration.ofHours(1)), "vor dem Start", admin));
         assertThrows(IllegalArgumentException.class, () -> taskService.stopEquipmentUsageAt(
                 task.getId(), lift.getId(), Instant.now(), "  ", admin));
+    }
+
+    // --- Dauer × Satz ---
+
+    /** Mietgeräte werden nach angefangenem Tag abgerechnet — 30 h sind zwei Tage, nicht 1,25. */
+    @Test
+    @DisplayName("Kosten DAY: 30 Stunden sind zwei angefangene Tage")
+    void equipmentCost_dayRateBillsStartedDays() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        bookEquipment(task, lift, Duration.ofHours(30));
+
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+
+        assertEquals(0, new BigDecimal("2").compareTo(line.billedUnits()), "zwei angefangene Tage");
+        assertEquals(0, new BigDecimal("178.00").compareTo(line.amount()));
+        assertEquals("EUR", line.currency());
+    }
+
+    @Test
+    @DisplayName("Kosten DAY: auch ein kurzer Einsatz kostet einen angefangenen Tag, nie null")
+    void equipmentCost_dayRateNeverBillsZeroDays() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        bookEquipment(task, lift, Duration.ofMinutes(20));
+
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+
+        assertEquals(0, new BigDecimal("1").compareTo(line.billedUnits()));
+        assertEquals(0, new BigDecimal("89.00").compareTo(line.amount()));
+    }
+
+    /** Ein Stundensatz misst Nutzung und wird anteilig berechnet — 90 min zu 12,00 sind 18,00. */
+    @Test
+    @DisplayName("Kosten HOUR: anteilig, nicht auf volle Stunden aufgerundet")
+    void equipmentCost_hourRateIsFractional() {
+        Task task = newTask();
+        Resource drill = ratedResource("Kernbohrmaschine", "12.00", CostRateUnit.HOUR);
+        bookEquipment(task, drill, Duration.ofMinutes(90));
+
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+
+        assertEquals(0, new BigDecimal("18.00").compareTo(line.amount()));
+        assertEquals(1, line.bookings());
+    }
+
+    @Test
+    @DisplayName("Kosten USAGE: zählt Einsätze, nicht Stunden")
+    void equipmentCost_usageRateCountsBookings() {
+        Task task = newTask();
+        Resource tester = ratedResource("Isolationsmessgerät", "7.50", CostRateUnit.USAGE);
+        bookEquipment(task, tester, Duration.ofHours(3));
+        bookEquipment(task, tester, Duration.ofHours(9));
+
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+
+        assertEquals(2, line.bookings());
+        assertEquals(0, new BigDecimal("15.00").compareTo(line.amount()),
+                "zwei Einsätze zu 7,50 — die 12 Stunden sind egal");
+    }
+
+    /**
+     * Ohne Satz ist der Betrag {@code null} und die Summe ausdrücklich unvollständig. {@code 0} wäre
+     * die Behauptung, das Gerät sei kostenlos — eine andere Aussage als „nicht erfasst".
+     */
+    @Test
+    @DisplayName("Kosten: Gerät ohne Satz liefert null statt 0 und markiert die Summe als unvollständig")
+    void equipmentCost_unratedDeviceIsNullNotZero() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        Resource ladder = newResource("Anlegeleiter");
+        bookEquipment(task, lift, Duration.ofHours(2));
+        bookEquipment(task, ladder, Duration.ofHours(2));
+
+        var report = taskService.getEquipmentCost(task.getId(), admin);
+
+        assertTrue(report.ratesMissing(), "die Leiter hat keinen Satz");
+        var ladderLine = report.lines().stream()
+                .filter(l -> l.resourceId().equals(ladder.getId())).findFirst().orElseThrow();
+        assertNull(ladderLine.amount(), "kein Satz heißt nicht kostenlos");
+        assertEquals(Duration.ofHours(2).getSeconds(), ladderLine.totalSeconds(),
+                "die Zeit ist trotzdem erfasst");
+        assertEquals(1, report.totals().size());
+        assertEquals(0, new BigDecimal("89.00").compareTo(report.totals().get(0).amount()));
+    }
+
+    /** Euro und Franken zu addieren ergäbe eine Zahl, die in beiden Währungen falsch ist. */
+    @Test
+    @DisplayName("Kosten: zwei Währungen ergeben zwei Summen, keine Gesamtsumme")
+    void equipmentCost_neverSumsAcrossCurrencies() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        Resource crane = ratedResource("Kran", "100.00", CostRateUnit.DAY);
+        crane.setCostCurrency("CHF");
+        bookEquipment(task, lift, Duration.ofHours(2));
+        bookEquipment(task, crane, Duration.ofHours(2));
+
+        var totals = taskService.getEquipmentCost(task.getId(), admin).totals();
+
+        assertEquals(2, totals.size());
+        assertEquals(0, new BigDecimal("89.00").compareTo(totals.stream()
+                .filter(t -> t.currency().equals("EUR")).findFirst().orElseThrow().amount()));
+        assertEquals(0, new BigDecimal("100.00").compareTo(totals.stream()
+                .filter(t -> t.currency().equals("CHF")).findFirst().orElseThrow().amount()));
+    }
+
+    /**
+     * Mehrere Einsätze eines Geräts sind zusammen zu betrachten: 3 × 8 h an einem Tagessatz ist ein
+     * Tag, nicht drei — sonst kostet Zwischendurch-Abholen mehr als Dastehenlassen.
+     */
+    @Test
+    @DisplayName("Kosten DAY: mehrere Einsätze eines Geräts werden zusammengezählt, nicht je Einsatz gerundet")
+    void equipmentCost_severalBookingsOfOneDeviceAreFoldedFirst() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        // Bewusst 3 × 7 h statt 3 × 8 h: bei exakt 24 h läge der Test auf der Rundungsgrenze und die
+        // Millisekunden zwischen Ein- und Ausstechen würden über ein oder zwei Tage entscheiden.
+        bookEquipment(task, lift, Duration.ofHours(7));
+        bookEquipment(task, lift, Duration.ofHours(7));
+        bookEquipment(task, lift, Duration.ofHours(7));
+
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+
+        assertEquals(3, line.bookings());
+        assertEquals(0, new BigDecimal("1").compareTo(line.billedUnits()), "21 h sind ein Tag");
+        assertEquals(0, new BigDecimal("89.00").compareTo(line.amount()));
+    }
+
+    @Test
+    @DisplayName("Kosten: ohne Gerätebuchung ist der Bericht leer, nicht null")
+    void equipmentCost_emptyWhenNothingWasBooked() {
+        Task task = newTask();
+        var report = taskService.getEquipmentCost(task.getId(), admin);
+
+        assertTrue(report.lines().isEmpty());
+        assertTrue(report.totals().isEmpty());
+        assertFalse(report.ratesMissing());
     }
 
     @Test

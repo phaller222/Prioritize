@@ -24,6 +24,7 @@ import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
+import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
@@ -36,6 +37,8 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -65,6 +68,9 @@ public class TaskService {
     /** Terminal statuses from which no further transition is allowed. */
     private static final Set<TaskStatus> TERMINAL =
             EnumSet.of(TaskStatus.CLOSED, TaskStatus.CANCELLED);
+
+    private static final BigDecimal SECONDS_PER_HOUR = BigDecimal.valueOf(3600);
+    private static final long SECONDS_PER_DAY = 86_400L;
 
     private final TaskRepository taskRepository;
     private final ProjectService projectService;
@@ -159,6 +165,44 @@ public class TaskService {
     public record EquipmentUsageSummary(Long taskId, Long resourceId, String resourceName,
                                         long totalSeconds, String totalText, boolean running,
                                         Instant runningSince) {
+    }
+
+    /**
+     * What one piece of equipment cost on a task: duration times rate, with every input it was
+     * computed from.
+     * <p>
+     * The parts are reported, not just the {@code amount}, because the rounding is a convention and
+     * conventions differ. A vertical that bills part days rather than started ones can recompute from
+     * {@code totalSeconds} instead of arguing with a number it cannot take apart — which is the same
+     * line {@link CostRateUnit} draws: the platform multiplies, it does not model tariffs.
+     * <p>
+     * {@code billedUnits} is the quantity actually charged in {@code unit}: fractional hours, whole
+     * started days, or the number of bookings for a per-use rate. {@code amount} is {@code null} when
+     * the resource keeps no rate — deliberately not {@code 0}, which would claim the device was free.
+     */
+    public record EquipmentCostLine(Long resourceId, String resourceName, long totalSeconds,
+                                    int bookings, BigDecimal billedUnits, CostRateUnit unit,
+                                    BigDecimal rate, String currency, BigDecimal amount,
+                                    boolean running) {
+    }
+
+    /** A per-currency sum. Amounts in different currencies are never added; see the report. */
+    public record CurrencyTotal(String currency, BigDecimal amount) {
+    }
+
+    /**
+     * The equipment cost of a task: one line per device, and totals <em>per currency</em>. Adding
+     * euros to francs would produce a number that is wrong in both, so a task whose devices are
+     * priced in two currencies gets two totals and no grand total.
+     * <p>
+     * {@code ratesMissing} says at least one device was booked without a rate, so the totals are a
+     * lower bound rather than the cost. Whoever shows this to somebody needs to be able to say so.
+     * <p>
+     * Equipment only. People have no rates yet, and when they get one it belongs to their role rather
+     * than to the person, so labour cost is a separate question from this one.
+     */
+    public record EquipmentCostReport(Long taskId, List<EquipmentCostLine> lines,
+                                      List<CurrencyTotal> totals, boolean ratesMissing) {
     }
 
     /**
@@ -897,6 +941,110 @@ public class TaskService {
                 resource == null ? null : resource.getName(),
                 span.getDateFrom(),
                 running ? null : span.getDateUntil(), seconds, running, correctionOf(span));
+    }
+
+    /**
+     * Returns what the equipment on this task has cost so far: duration times the rate kept on each
+     * resource, one line per device plus totals per currency. Running bookings count live up to now,
+     * so the figure for a device still on site is provisional by nature. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the cost report, with empty lines when no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public EquipmentCostReport getEquipmentCost(Long taskId, PUser user) {
+        List<EquipmentSession> sessions = getEquipmentSessions(taskId, user);
+
+        // Fold the bookings per device first: a rate applies to the total time a device was here,
+        // not to each visit - three trips of eight hours on a day rate is one day per calendar day
+        // occupied, not three days.
+        Map<Long, long[]> secondsAndCount = new LinkedHashMap<>();
+        Map<Long, String> names = new LinkedHashMap<>();
+        Map<Long, Boolean> running = new LinkedHashMap<>();
+        for (EquipmentSession session : sessions) {
+            if (session.resourceId() == null) {
+                continue;
+            }
+            long[] acc = secondsAndCount.computeIfAbsent(session.resourceId(), id -> new long[2]);
+            acc[0] += session.seconds();
+            acc[1]++;
+            names.putIfAbsent(session.resourceId(), session.resourceName());
+            running.merge(session.resourceId(), session.running(), (a, b) -> a || b);
+        }
+
+        List<EquipmentCostLine> lines = new ArrayList<>();
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        boolean ratesMissing = false;
+        for (Map.Entry<Long, long[]> entry : secondsAndCount.entrySet()) {
+            Resource resource = resourceRepository.findById(entry.getKey()).orElse(null);
+            long seconds = entry.getValue()[0];
+            int bookings = (int) entry.getValue()[1];
+            EquipmentCostLine line = costLine(entry.getKey(), names.get(entry.getKey()), resource,
+                    seconds, bookings, Boolean.TRUE.equals(running.get(entry.getKey())));
+            lines.add(line);
+            if (line.amount() == null) {
+                ratesMissing = true;
+            } else {
+                totals.merge(line.currency(), line.amount(), BigDecimal::add);
+            }
+        }
+        List<CurrencyTotal> currencyTotals = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new EquipmentCostReport(taskId, lines, currencyTotals, ratesMissing);
+    }
+
+    /**
+     * Applies one resource's rate to the time it was booked.
+     * <p>
+     * The three units round differently because they mean different things. An hourly rate measures
+     * use, so it is charged fractionally: 90 minutes on 12.00/h is 18.00, not 24.00. A daily rate is
+     * a rental convention, and rental is billed by <em>started</em> day — a lift kept for 30 hours
+     * costs two days, and pretending it costs 1.25 would produce an invoice no hire company would
+     * recognise. A per-use rate ignores duration altogether and counts visits.
+     * <p>
+     * A device that was here at all owes at least one started day, which is why a booking of a few
+     * minutes still rounds up to 1 rather than down to 0.
+     * <p>
+     * All money is {@link BigDecimal} at scale 2, {@code HALF_UP}, computed from the unrounded
+     * quantity so the result is not rounded twice.
+     */
+    private static EquipmentCostLine costLine(Long resourceId, String name, Resource resource,
+                                              long seconds, int bookings, boolean running) {
+        boolean rated = resource != null && resource.getCostRate() != null
+                && resource.getCostRateUnit() != null && resource.getCostCurrency() != null;
+        if (!rated) {
+            return new EquipmentCostLine(resourceId, name, seconds, bookings, null,
+                    resource == null ? null : resource.getCostRateUnit(),
+                    resource == null ? null : resource.getCostRate(),
+                    resource == null ? null : resource.getCostCurrency(),
+                    null, running);
+        }
+
+        CostRateUnit unit = resource.getCostRateUnit();
+        BigDecimal rate = resource.getCostRate();
+        BigDecimal units = switch (unit) {
+            case HOUR -> BigDecimal.valueOf(seconds).divide(SECONDS_PER_HOUR, 4, RoundingMode.HALF_UP);
+            case DAY -> BigDecimal.valueOf(startedDays(seconds, bookings));
+            case USAGE -> BigDecimal.valueOf(bookings);
+        };
+        BigDecimal amount = switch (unit) {
+            // From the unrounded quotient, so 59 minutes on an hourly rate is not first rounded to
+            // an hour count and then multiplied.
+            case HOUR -> BigDecimal.valueOf(seconds).multiply(rate)
+                    .divide(SECONDS_PER_HOUR, 2, RoundingMode.HALF_UP);
+            case DAY, USAGE -> units.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+        };
+        return new EquipmentCostLine(resourceId, name, seconds, bookings, units, unit, rate,
+                resource.getCostCurrency(), amount, running);
+    }
+
+    /** Whole started days; a device that was booked at all owes one, never zero. */
+    private static long startedDays(long seconds, int bookings) {
+        long full = seconds / SECONDS_PER_DAY;
+        long started = seconds % SECONDS_PER_DAY == 0 ? full : full + 1;
+        return bookings > 0 ? Math.max(started, 1) : started;
     }
 
     /**
