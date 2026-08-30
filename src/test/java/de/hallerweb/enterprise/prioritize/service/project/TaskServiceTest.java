@@ -16,13 +16,18 @@
 
 package de.hallerweb.enterprise.prioritize.service.project;
 
+import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.repository.company.DepartmentRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService.ProjectData;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService.TaskData;
+import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +56,10 @@ class TaskServiceTest {
     private TaskRepository taskRepository;
     @Autowired
     private UserService userService;
+    @Autowired
+    private ResourceService resourceService;
+    @Autowired
+    private DepartmentRepository departmentRepository;
 
     private PUser admin;
     private PUser member;
@@ -74,6 +83,17 @@ class TaskServiceTest {
     private Task newTask() {
         return taskService.createTask(project.getId(),
                 new TaskData("Design", "Design the thing", 2), admin);
+    }
+
+    /** A piece of equipment in the default department's own group, ready to be clocked onto a task. */
+    private Resource newResource(String name) {
+        Department department = departmentRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("Kein Department — InitializationService nicht gelaufen?"));
+        ResourceGroup group = resourceService.createResourceGroup(
+                "Geräte-" + System.nanoTime(), department, admin);
+        return resourceService.createResource(
+                Resource.builder().name(name).description(name).maxSlots(1).build(),
+                group.getId(), admin);
     }
 
     @Test
@@ -576,5 +596,225 @@ class TaskServiceTest {
         assertEquals(member.getUsername(), session.username());
         assertEquals(admin.getId(), session.correction().correctedById(), "gebucht hat der Meister");
         assertEquals(admin.getUsername(), session.correction().correctedBy());
+    }
+
+    // --- Equipment usage: Gerätezeit ---
+
+    @Test
+    @DisplayName("startEquipmentUsage: öffnet eine Gerätebuchung, ohne die Arbeitszeit zu berühren")
+    void startEquipmentUsage_opensBookingWithoutTouchingWorkTime() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+
+        Task booked = taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        assertTrue(booked.isEquipmentRunningFor(lift));
+        assertEquals(1, booked.getEquipmentRunningCount());
+        assertEquals(0, booked.getRunningCount(), "niemand steht am Task, nur das Gerät");
+        assertFalse(booked.isTracking());
+        assertTrue(booked.getTimeSpent().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Ein eingestochenes Gerät setzt den Task NICHT auf STARTED — Maschinen arbeiten nicht")
+    void startEquipmentUsage_leavesTaskStatusAlone() {
+        Task task = newTask();
+        Resource dryer = newResource("Bautrockner");
+
+        Task booked = taskService.startEquipmentUsage(task.getId(), dryer.getId(), admin);
+
+        assertEquals(TaskStatus.CREATED, booked.getTaskStatus());
+    }
+
+    @Test
+    @DisplayName("startEquipmentUsage: dasselbe Gerät zweimal am selben Task wirft IllegalStateException")
+    void startEquipmentUsage_twiceOnSameTask_throws() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        assertThrows(IllegalStateException.class,
+                () -> taskService.startEquipmentUsage(task.getId(), lift.getId(), admin));
+    }
+
+    /**
+     * Der Kern der Exklusivität: ein Gerät steht an einem Ort. Läuft die Uhr noch auf der letzten
+     * Baustelle, hat jemand das Ausstechen vergessen — das muss auffallen, nicht still umbuchen.
+     */
+    @Test
+    @DisplayName("Ein Gerät kann nicht auf zwei Tasks gleichzeitig laufen und die Meldung nennt den anderen Task")
+    void startEquipmentUsage_whileRunningElsewhere_throwsAndNamesOtherTask() {
+        Task kita = newTask();
+        Task pv = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(kita.getId(), lift.getId(), admin);
+
+        var boom = assertThrows(IllegalStateException.class,
+                () -> taskService.startEquipmentUsage(pv.getId(), lift.getId(), admin));
+
+        assertTrue(boom.getMessage().contains(kita.getId().toString()),
+                "die Meldung muss sagen, wo das Gerät noch eingestochen ist: " + boom.getMessage());
+        assertTrue(taskRepository.findById(kita.getId()).orElseThrow().isEquipmentRunningFor(lift),
+                "die erste Buchung bleibt unangetastet");
+    }
+
+    @Test
+    @DisplayName("stopEquipmentUsage: schließt die Buchung und schreibt sie in die Gerätehistorie")
+    void stopEquipmentUsage_closesAndArchives() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        Task stopped = taskService.stopEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        assertFalse(stopped.isEquipmentRunningFor(lift));
+        assertEquals(0, stopped.getEquipmentRunningCount());
+        assertEquals(1, stopped.getEquipmentUsage().size());
+        assertNotNull(stopped.getEquipmentUsage().get(0).getDateUntil());
+    }
+
+    @Test
+    @DisplayName("stopEquipmentUsage: ohne laufende Buchung wirft IllegalStateException")
+    void stopEquipmentUsage_whenNotRunning_throws() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+
+        assertThrows(IllegalStateException.class,
+                () -> taskService.stopEquipmentUsage(task.getId(), lift.getId(), admin));
+    }
+
+    @Test
+    @DisplayName("toggleEquipmentUsage: sticht abwechselnd ein und aus — der Scan am Aufkleber")
+    void toggleEquipmentUsage_alternates() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+
+        assertTrue(taskService.toggleEquipmentUsage(task.getId(), lift.getId(), admin)
+                .isEquipmentRunningFor(lift));
+        assertFalse(taskService.toggleEquipmentUsage(task.getId(), lift.getId(), admin)
+                .isEquipmentRunningFor(lift));
+        assertTrue(taskService.toggleEquipmentUsage(task.getId(), lift.getId(), admin)
+                .isEquipmentRunningFor(lift));
+    }
+
+    /**
+     * Der eigentliche Designpunkt dieses Slices: 4 h Arbeit und 120 h Trockner sind nicht 124 h
+     * Aufwand. Die Gerätezeit darf in keiner Arbeitszeit-Auswertung auftauchen.
+     */
+    @Test
+    @DisplayName("Gerätezeit zählt NICHT zur Arbeitszeit — weder in der Summe noch in den Sessions")
+    void equipmentTime_staysOutOfWorkTime() {
+        Task task = newTask();
+        Resource dryer = newResource("Bautrockner");
+        taskService.startTracking(task.getId(), admin);
+        taskService.startEquipmentUsage(task.getId(), dryer.getId(), admin);
+        // Das Gerät läuft seit gestern, gearbeitet wurde eben erst.
+        taskRepository.findById(task.getId()).orElseThrow()
+                .activeEquipmentSpanFor(dryer).setDateFrom(Instant.now().minus(Duration.ofHours(24)));
+
+        var work = taskService.getTrackingSummary(task.getId(), admin);
+        assertTrue(work.totalSeconds() < Duration.ofHours(1).getSeconds(),
+                "die 24 Gerätestunden dürfen nicht in der Arbeitszeit landen: " + work.totalSeconds());
+        assertEquals(1, work.runningCount(), "das Gerät ist keine Person");
+        assertEquals(1, taskService.getWorkSessions(task.getId(), admin).size(),
+                "die Gerätebuchung ist keine Arbeitssitzung");
+        assertEquals(1, taskService.getEquipmentSessions(task.getId(), admin).size());
+    }
+
+    /**
+     * Die Mannschaft geht heim, der Trockner läuft weiter: der Task ist fertig für heute, das Gerät
+     * hält ihn nicht offen.
+     */
+    @Test
+    @DisplayName("Der Task geht auf STOPPED, während das Gerät weiterläuft")
+    void taskStopsWhileEquipmentKeepsRunning() {
+        Task task = newTask();
+        Resource dryer = newResource("Bautrockner");
+        taskService.startTracking(task.getId(), admin);
+        taskService.startEquipmentUsage(task.getId(), dryer.getId(), admin);
+
+        Task afterKnockOff = taskService.stopTracking(task.getId(), admin);
+
+        assertEquals(TaskStatus.STOPPED, afterKnockOff.getTaskStatus());
+        assertTrue(afterKnockOff.isEquipmentRunningFor(dryer), "der Trockner läuft weiter");
+    }
+
+    @Test
+    @DisplayName("getEquipmentUsage: summiert je Gerät und wirft verschiedene Geräte nicht zusammen")
+    void getEquipmentUsage_sumsPerResource() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        Resource dryer = newResource("Bautrockner");
+        // Die Bühne war zweimal da, der Trockner läuft noch.
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+        taskService.stopEquipmentUsage(task.getId(), lift.getId(), admin);
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+        taskService.stopEquipmentUsage(task.getId(), lift.getId(), admin);
+        taskService.startEquipmentUsage(task.getId(), dryer.getId(), admin);
+
+        var usage = taskService.getEquipmentUsage(task.getId(), admin);
+
+        assertEquals(2, usage.size(), "zwei Geräte, zwei Zeilen — nicht drei Buchungen");
+        var liftUsage = usage.stream()
+                .filter(u -> u.resourceId().equals(lift.getId())).findFirst().orElseThrow();
+        var dryerUsage = usage.stream()
+                .filter(u -> u.resourceId().equals(dryer.getId())).findFirst().orElseThrow();
+        assertFalse(liftUsage.running(), "die Bühne ist weg");
+        assertNull(liftUsage.runningSince());
+        assertTrue(dryerUsage.running(), "der Trockner steht noch da");
+        assertNotNull(dryerUsage.runningSince());
+        assertEquals("Bautrockner", dryerUsage.resourceName());
+    }
+
+    @Test
+    @DisplayName("stopEquipmentUsageAt: sticht rückwirkend aus und vermerkt BACKDATED_STOP")
+    void stopEquipmentUsageAt_closesRetroactively() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+        // Abgeholt wurde die Bühne gestern, gescannt hat sie niemand mehr.
+        taskRepository.findById(task.getId()).orElseThrow()
+                .activeEquipmentSpanFor(lift).setDateFrom(Instant.now().minus(Duration.ofHours(30)));
+        Instant until = Instant.now().minus(Duration.ofHours(6));
+
+        Task stopped = taskService.stopEquipmentUsageAt(
+                task.getId(), lift.getId(), until, "Abholung nicht gescannt", admin);
+
+        assertFalse(stopped.isEquipmentRunningFor(lift));
+        var booking = taskService.getEquipmentSessions(task.getId(), admin).get(0);
+        assertEquals(until, booking.until());
+        assertEquals(TaskService.CorrectionKind.BACKDATED_STOP, booking.correction().kind());
+        assertEquals("Abholung nicht gescannt", booking.correction().reason());
+        assertEquals(admin.getId(), booking.correction().correctedById());
+    }
+
+    @Test
+    @DisplayName("stopEquipmentUsageAt: unplausibles Ende oder fehlender Grund wirft IllegalArgumentException")
+    void stopEquipmentUsageAt_rejectsImplausibleInput() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopEquipmentUsageAt(
+                task.getId(), lift.getId(), Instant.now().plus(Duration.ofHours(1)), "Zukunft", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopEquipmentUsageAt(
+                task.getId(), lift.getId(), Instant.now().minus(Duration.ofHours(1)), "vor dem Start", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.stopEquipmentUsageAt(
+                task.getId(), lift.getId(), Instant.now(), "  ", admin));
+    }
+
+    @Test
+    @DisplayName("getEquipmentSessions: jede Buchung nennt ihr Gerät")
+    void getEquipmentSessions_nameTheirDevice() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+
+        var booking = taskService.getEquipmentSessions(task.getId(), admin).get(0);
+
+        assertEquals(lift.getId(), booking.resourceId());
+        assertEquals("Hubarbeitsbühne", booking.resourceName());
+        assertTrue(booking.running());
+        assertNull(booking.until(), "die laufende Buchung hat noch kein Ende");
     }
 }

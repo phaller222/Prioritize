@@ -133,6 +133,36 @@ public class Task extends PObject {
     @JoinColumn(name = "active_task_id")
     private List<TimeSpan> activeTimeSpans = new ArrayList<>();
 
+    /**
+     * Completed equipment usage spans: closed {@link TimeSpan}s of type
+     * {@link TimeSpan.TimeSpanType#EQUIPMENT_USAGE}, each recording how long one piece of equipment
+     * was booked to this task. The mirror image of {@link #timeSpent}, in its own column.
+     * <p>
+     * Deliberately a separate collection rather than {@link TimeSpan.TimeSpanType} mixed into
+     * {@link #timeSpent}: machine hours and work hours must never end up in the same sum (four hours
+     * of work plus 120 hours of dryer are not 124 hours of effort), and every aggregation over
+     * {@link #timeSpent} would otherwise have to remember to filter. Here the wrong number cannot
+     * arise in the first place.
+     */
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "equipment_task_id")
+    private List<TimeSpan> equipmentUsage = new ArrayList<>();
+
+    /**
+     * The equipment currently clocked in on this task, one span per resource; empty while no
+     * equipment is booked. On stop a span is closed and moved into {@link #equipmentUsage}.
+     * <p>
+     * Without {@code orphanRemoval} for the same reason as {@link #activeTimeSpans}: stopping moves
+     * a span out of here, and orphan removal would read that as "delete it".
+     */
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(cascade = CascadeType.ALL)
+    @JoinColumn(name = "active_equipment_task_id")
+    private List<TimeSpan> activeEquipmentSpans = new ArrayList<>();
+
     /** Whether time tracking is currently running for this task, for anybody at all. */
     public boolean isTracking() {
         return !activeTimeSpans.isEmpty();
@@ -159,6 +189,32 @@ public class Task extends PObject {
         return activeTimeSpans.stream()
                 .filter(span -> span.getInvolvedUsers().stream()
                         .anyMatch(u -> user.getId().equals(u.getId())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** How many pieces of equipment are clocked in on this task right now. */
+    public int getEquipmentRunningCount() {
+        return activeEquipmentSpans.size();
+    }
+
+    /** Whether the given resource is currently clocked in on this task. */
+    public boolean isEquipmentRunningFor(Resource resource) {
+        return activeEquipmentSpanFor(resource) != null;
+    }
+
+    /**
+     * The given resource's open span on this task, or {@code null} when it is not clocked in. The
+     * subject of an equipment span is the resource recorded on it, so this matches on
+     * {@code involvedResources} - the counterpart to {@link #activeTimeSpanFor(PUser)}.
+     */
+    public TimeSpan activeEquipmentSpanFor(Resource resource) {
+        if (resource == null || resource.getId() == null) {
+            return null;
+        }
+        return activeEquipmentSpans.stream()
+                .filter(span -> span.getInvolvedResources().stream()
+                        .anyMatch(r -> resource.getId().equals(r.getId())))
                 .findFirst()
                 .orElse(null);
     }

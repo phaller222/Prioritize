@@ -164,14 +164,17 @@ public class NfcTagsPanel extends VerticalLayout {
     }
 
     /**
-     * A tracker tag without a task is the one broken state that matters here: its sticker renders a
-     * "no task bound" page instead of a clock, so it is called out rather than left blank.
+     * A tracker or equipment tag without a task is the one broken state that matters here: its
+     * sticker renders a "no task bound" page instead of a clock, so it is called out rather than
+     * left blank. For an equipment tag this column is also the one that changes most often — the
+     * binding follows the device from job to job.
      */
     private String taskText(TagOverview tag) {
         if (tag.taskName() != null) {
             return tag.taskName();
         }
-        return tag.type() == NfcUnitType.TIMETRACKER ? "— (no task bound)" : "—";
+        return tag.type() == NfcUnitType.TIMETRACKER || tag.type() == NfcUnitType.EQUIPMENT
+                ? "— (no task bound)" : "—";
     }
 
     private HorizontalLayout scanUrlCell(TagOverview tag) {
