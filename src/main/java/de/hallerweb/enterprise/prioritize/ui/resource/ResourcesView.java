@@ -48,6 +48,8 @@ import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
+import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
+import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
 import jakarta.annotation.security.PermitAll;
@@ -144,12 +146,13 @@ public class ResourcesView extends VerticalLayout {
 
     public ResourcesView(ResourceService resourceService, DepartmentService departmentService,
                          TelemetryRuleService telemetryRuleService, NfcUnitService nfcUnitService,
+                         ProjectService projectService, TaskService taskService,
                          CurrentUser currentUser) {
         this.resourceService = resourceService;
         this.departmentService = departmentService;
         this.currentUser = currentUser;
         this.rulesPanel = new TelemetryRulesPanel(telemetryRuleService, currentUser);
-        this.nfcTagsPanel = new NfcTagsPanel(nfcUnitService, currentUser);
+        this.nfcTagsPanel = new NfcTagsPanel(nfcUnitService, projectService, taskService, currentUser);
 
         setSizeFull();
         setPadding(false);

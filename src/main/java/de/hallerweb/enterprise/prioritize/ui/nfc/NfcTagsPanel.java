@@ -17,8 +17,10 @@
 package de.hallerweb.enterprise.prioritize.ui.nfc;
 
 import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
@@ -31,8 +33,13 @@ import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinServletRequest;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
+import de.hallerweb.enterprise.prioritize.model.project.Project;
+import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService.TagOverview;
+import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
+import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 import de.hallerweb.enterprise.prioritize.ui.common.ScanUrl;
 import de.hallerweb.enterprise.prioritize.ui.resource.ResourcesView;
@@ -40,6 +47,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -52,9 +60,11 @@ import java.util.List;
  * read out of a REST response and typed off by hand, one transcription error away from a sticker
  * that points at nothing. Here it is a ready-made URL and a copy button.
  * <p>
- * <b>Read-only on purpose.</b> Registering, binding and deleting tags stay with the REST API; this
- * panel exists for the one step that had no home. It shows what a tag is bound to so the admin can
- * tell which sticker is which before writing it.
+ * <b>Almost read-only.</b> Registering and deleting tags stay with the REST API; this panel exists
+ * for the steps that had no home. Besides the URL that is the <em>task binding</em>: an equipment
+ * sticker travels with its machine while the job changes, so re-pointing it is not a one-off setup
+ * step but the routine act of saying "this device works here now" — and sending someone to a REST
+ * client for that every time the lift moves site is not a workflow.
  *
  * @author peter haller
  */
@@ -94,6 +104,8 @@ public class NfcTagsPanel extends VerticalLayout {
             """;
 
     private final transient NfcUnitService nfcUnitService;
+    private final transient ProjectService projectService;
+    private final transient TaskService taskService;
     private final transient CurrentUser currentUser;
 
     private final H4 title = new H4("NFC tags");
@@ -103,11 +115,25 @@ public class NfcTagsPanel extends VerticalLayout {
 
     private Long resourceId;
 
+    /**
+     * The tasks offered for binding, loaded once per refresh rather than once per row: a resource
+     * carries a handful of tags and they all choose from the same list, so re-reading it for every
+     * cell would be the same query several times over.
+     */
+    private transient List<TaskOption> taskOptions = List.of();
+
+    /** A bindable task as the dropdown shows it: qualified by project, since task names repeat. */
+    private record TaskOption(Long id, String label) {
+    }
+
     /** The address the admin's browser is talking to; see {@link ScanUrl}. */
     private String origin = "";
 
-    public NfcTagsPanel(NfcUnitService nfcUnitService, CurrentUser currentUser) {
+    public NfcTagsPanel(NfcUnitService nfcUnitService, ProjectService projectService,
+                        TaskService taskService, CurrentUser currentUser) {
         this.nfcUnitService = nfcUnitService;
+        this.projectService = projectService;
+        this.taskService = taskService;
         this.currentUser = currentUser;
 
         setPadding(false);
@@ -115,7 +141,9 @@ public class NfcTagsPanel extends VerticalLayout {
         setWidthFull();
 
         hint.setText("Write the scan URL onto the sticker as an NDEF URL record (e.g. with the "
-                + "\"NFC Tools\" app). Tags themselves are registered over the REST API.");
+                + "\"NFC Tools\" app). Tags themselves are registered over the REST API. A tracker "
+                + "or equipment tag books onto the task picked in the Task column — re-point an "
+                + "equipment tag when its machine moves to another job.");
         hint.getStyle()
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("font-size", "var(--lumo-font-size-s)");
@@ -156,7 +184,7 @@ public class NfcTagsPanel extends VerticalLayout {
     private void configureGrid() {
         grid.addColumn(TagOverview::name).setHeader("Name").setAutoWidth(true);
         grid.addColumn(t -> t.type() != null ? t.type().name() : "").setHeader("Type").setAutoWidth(true);
-        grid.addColumn(this::taskText).setHeader("Task").setAutoWidth(true);
+        grid.addColumn(new ComponentRenderer<>(this::taskCell)).setHeader("Task").setAutoWidth(true);
         grid.addColumn(t -> t.lastScanTime() != null ? TS.format(t.lastScanTime()) : "never")
                 .setHeader("Last scan").setAutoWidth(true);
         grid.addColumn(new ComponentRenderer<>(this::scanUrlCell)).setHeader("Scan URL").setFlexGrow(1);
@@ -164,17 +192,88 @@ public class NfcTagsPanel extends VerticalLayout {
     }
 
     /**
-     * A tracker or equipment tag without a task is the one broken state that matters here: its
-     * sticker renders a "no task bound" page instead of a clock, so it is called out rather than
-     * left blank. For an equipment tag this column is also the one that changes most often — the
-     * binding follows the device from job to job.
+     * The task binding. Only a tracker or equipment tag has one to set; for every other type this
+     * stays a dash, because binding one is refused by the service anyway and offering the control
+     * would promise something that does not work.
+     * <p>
+     * Clearing the selection unbinds. That is a real state and not an accident — a sticker whose
+     * machine is back in the yard belongs to no job — so it is reachable rather than guarded.
      */
-    private String taskText(TagOverview tag) {
-        if (tag.taskName() != null) {
-            return tag.taskName();
+    private Component taskCell(TagOverview tag) {
+        if (tag.type() != NfcUnitType.TIMETRACKER && tag.type() != NfcUnitType.EQUIPMENT) {
+            return new Span("—");
         }
-        return tag.type() == NfcUnitType.TIMETRACKER || tag.type() == NfcUnitType.EQUIPMENT
-                ? "— (no task bound)" : "—";
+
+        ComboBox<TaskOption> picker = new ComboBox<>();
+        picker.setPlaceholder("— no task bound");
+        picker.setClearButtonVisible(true);
+        picker.setItemLabelGenerator(TaskOption::label);
+        picker.setWidth("22em");
+
+        List<TaskOption> options = optionsIncluding(tag);
+        picker.setItems(options);
+        options.stream()
+                .filter(o -> o.id().equals(tag.taskId()))
+                .findFirst()
+                .ifPresent(picker::setValue);
+
+        // Only react to what a person did: setValue above fires the same event, and re-binding a tag
+        // to the task it already carries would write a log line for every rendered row.
+        picker.addValueChangeListener(event -> {
+            if (event.isFromClient()) {
+                rebind(tag, event.getValue());
+            }
+        });
+        return picker;
+    }
+
+    /**
+     * The bindable tasks, with the tag's current task added if it is missing. It can be: the list
+     * covers the projects this admin belongs to, and a tag bound elsewhere would otherwise render as
+     * an empty box that looks unbound — the one reading that is worse than a longer list.
+     */
+    private List<TaskOption> optionsIncluding(TagOverview tag) {
+        if (tag.taskId() == null || taskOptions.stream().anyMatch(o -> o.id().equals(tag.taskId()))) {
+            return taskOptions;
+        }
+        List<TaskOption> withCurrent = new ArrayList<>(taskOptions);
+        withCurrent.add(new TaskOption(tag.taskId(),
+                tag.taskName() != null ? tag.taskName() : "task " + tag.taskId()));
+        return withCurrent;
+    }
+
+    /** Applies a binding change and reloads, so the row shows what the server actually stored. */
+    private void rebind(TagOverview tag, TaskOption chosen) {
+        try {
+            if (chosen == null) {
+                nfcUnitService.unbindTask(tag.id(), currentUser.require());
+                notifySuccess("'" + tag.name() + "' is no longer bound to a task");
+            } else {
+                nfcUnitService.bindTask(tag.id(), chosen.id(), currentUser.require());
+                notifySuccess("'" + tag.name() + "' now books onto " + chosen.label());
+            }
+        } catch (AccessDeniedException denied) {
+            notifyError("You may not change the tags on this resource.");
+        } catch (RuntimeException failed) {
+            notifyError("Binding failed: " + failed.getMessage());
+        }
+        load();
+    }
+
+    /**
+     * The tasks of every project this user takes part in, labelled "project / task". Loaded whole
+     * because the picker has to be searchable by task name, which a lazily paged list would only
+     * answer for the page it has.
+     */
+    private List<TaskOption> loadTaskOptions() {
+        PUser user = currentUser.require();
+        List<TaskOption> options = new ArrayList<>();
+        for (Project project : projectService.getMyProjects(user)) {
+            for (Task task : taskService.getTasksForProject(project.getId(), user)) {
+                options.add(new TaskOption(task.getId(), project.getName() + " / " + task.getName()));
+            }
+        }
+        return options;
     }
 
     private HorizontalLayout scanUrlCell(TagOverview tag) {
@@ -214,8 +313,10 @@ public class NfcTagsPanel extends VerticalLayout {
     private void load() {
         rememberOrigin();
         try {
+            taskOptions = loadTaskOptions();
             grid.setItems(nfcUnitService.getTagOverview(resourceId, currentUser.require()));
         } catch (AccessDeniedException denied) {
+            taskOptions = List.of();
             grid.setItems(List.of());
         }
         localHostWarning.setText("This GUI is open as " + origin + ", so the URLs below point at the "
