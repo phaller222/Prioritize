@@ -38,7 +38,7 @@ import java.util.Set;
 public class TimeSpan implements PAuthorizedObject {
 
     public enum TimeSpanType {
-        RESOURCE_RESERVATION, VACATION, ILLNESS, TIME_TRACKER, OTHER, ALL
+        RESOURCE_RESERVATION, VACATION, ILLNESS, TIME_TRACKER, EQUIPMENT_USAGE, OTHER, ALL
     }
 
     @Id

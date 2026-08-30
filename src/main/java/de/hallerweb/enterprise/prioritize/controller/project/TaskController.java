@@ -200,6 +200,72 @@ public class TaskController {
         return ResponseEntity.noContent().build();
     }
 
+    // --- Equipment usage ---
+    // Machine hours, kept on their own paths and in their own responses. They are never mixed into
+    // the work-time endpoints above: four hours of work and 120 hours of dryer are two different
+    // facts about a job, and a client that adds them up would be reporting nonsense.
+
+    @Operation(summary = "Clocks a piece of equipment onto the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/start")
+    public ResponseEntity<TaskDTO> startEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.startEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    @Operation(summary = "Clocks a piece of equipment off the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/stop")
+    public ResponseEntity<TaskDTO> stopEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.stopEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    @Operation(summary = "Toggles a piece of equipment on the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/toggle")
+    public ResponseEntity<TaskDTO> toggleEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.toggleEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    /**
+     * Clocks a piece of equipment off retroactively — the device equivalent of "forgot to clock out",
+     * which for machines is the normal case rather than the exception.
+     */
+    @Operation(summary = "Clocks a piece of equipment off at an earlier point in time")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/stop-at")
+    public ResponseEntity<TaskDTO> stopEquipmentUsageAt(
+        @PathVariable Long id, @PathVariable Long resourceId, @RequestBody EquipmentStopAtRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.stopEquipmentUsageAt(
+                id, resourceId, request.until(), request.reason(), currentUser), currentUser));
+    }
+
+    /** Returns the time booked per piece of equipment on the task, running bookings counted live. */
+    @Operation(summary = "Returns the time booked per piece of equipment on the task")
+    @GetMapping("/tasks/{id}/equipment")
+    public ResponseEntity<List<TaskService.EquipmentUsageSummary>> getEquipmentUsage(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentUsage(id, currentUser));
+    }
+
+    /** Returns the individual equipment bookings of the task (completed ones plus any open one). */
+    @Operation(summary = "Returns the individual equipment bookings of the task")
+    @GetMapping("/tasks/{id}/equipment/sessions")
+    public ResponseEntity<List<TaskService.EquipmentSession>> getEquipmentSessions(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentSessions(id, currentUser));
+    }
+
+    /**
+     * Request body for clocking a device off retroactively. Both {@code until} and {@code reason} are
+     * mandatory. No {@code userId} counterpart to {@link StopAtRequest}: a booking belongs to the
+     * device, not to a person, so there is nobody else's clock to close.
+     */
+    public record EquipmentStopAtRequest(Instant until, String reason) {
+    }
+
     /**
      * Request body for correcting or hand-booking a work session. All of {@code from}, {@code until}
      * and {@code reason} are mandatory. {@code userId} books the session for somebody else, which is

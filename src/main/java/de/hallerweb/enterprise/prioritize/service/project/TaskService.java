@@ -24,10 +24,12 @@ import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
 import de.hallerweb.enterprise.prioritize.repository.nfc.NfcUnitRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -38,7 +40,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -66,6 +70,7 @@ public class TaskService {
     private final ProjectService projectService;
     private final PActorRepository actorRepository;
     private final NfcUnitRepository nfcUnitRepository;
+    private final ResourceRepository resourceRepository;
     private final EntityManager entityManager;
 
     /**
@@ -130,6 +135,30 @@ public class TaskService {
     public record Correction(CorrectionKind kind, Long correctedById, String correctedBy,
                              Instant correctedAt, String reason,
                              Instant originalFrom, Instant originalUntil) {
+    }
+
+    /**
+     * One booking of a piece of equipment to a task: a single clocked-in-to-clocked-out interval.
+     * The machine counterpart of {@link WorkSession} — {@code resourceId}/{@code resourceName} take
+     * the place of the user, because nobody owns a dryer's clock.
+     */
+    public record EquipmentSession(Long id, Long resourceId, String resourceName, Instant from,
+                                   Instant until, long seconds, boolean running,
+                                   Correction correction) {
+    }
+
+    /**
+     * How long one piece of equipment has been booked to a task in total, running booking included
+     * and counted live up to now.
+     * <p>
+     * Reported per resource and deliberately never summed across resources: a lift-day plus a
+     * dryer-day is not two days of anything. Equipment totals are also kept apart from
+     * {@link TrackingSummary} entirely — machine hours are not work hours, and a single number
+     * covering both would be meaningless in every direction.
+     */
+    public record EquipmentUsageSummary(Long taskId, Long resourceId, String resourceName,
+                                        long totalSeconds, String totalText, boolean running,
+                                        Instant runningSince) {
     }
 
     /**
@@ -652,6 +681,263 @@ public class TaskService {
         log.info("Time tracking on task '{}' (id={}) stopped retroactively at {} by '{}': {}",
                 task.getName(), taskId, until, user.getUsername(), reason);
         return task;
+    }
+
+    // --- Equipment usage ---
+    // The same clock, for machines instead of people: a sticker on the lift books the lift onto the
+    // job it is working, so "how long was that device out" stops being a question for the memory of
+    // whoever fetched it. Deliberately kept in its own pair of collections on the task rather than
+    // as another TimeSpanType inside the work-time lists — machine hours and work hours must never
+    // land in one sum, and separate storage makes the wrong number impossible instead of merely
+    // discouraged. A task therefore also goes STOPPED while equipment keeps running: the crew went
+    // home, the dryer did not.
+    //
+    // Authorization is project membership, as for work time. Booking a device onto a job is a
+    // statement about the job, not a change to the device's master data, so it does not require
+    // rights on the resource itself — the same reason an NFC scan works for whoever holds the phone.
+
+    /**
+     * Clocks a piece of equipment onto a task, opening an
+     * {@link TimeSpan.TimeSpanType#EQUIPMENT_USAGE} span at the current server time.
+     * <p>
+     * Refuses if the device is already clocked in anywhere — including on another task. A device is
+     * in one place at a time, so a second start means someone forgot to clock it out at the last
+     * job; silently moving it would turn that mistake into plausible-looking data.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock in
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException if this device already has a clock running, here or elsewhere
+     */
+    public Task startEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        requireEquipmentFree(task, resource);
+
+        TimeSpan span = TimeSpan.builder()
+                .title(resource.getName())
+                .description(task.getName())
+                .dateFrom(Instant.now())
+                .type(TimeSpan.TimeSpanType.EQUIPMENT_USAGE)
+                .build();
+        span.getInvolvedResources().add(resource);
+        task.getActiveEquipmentSpans().add(span);
+        // Flush for the same reason as startTracking: the correction endpoints address a booking by
+        // id, and a caller reading the bookings in the same transaction must not see a null one.
+        entityManager.flush();
+        log.info("Equipment '{}' (id={}) clocked in on task '{}' (id={}) by '{}'.",
+                resource.getName(), resourceId, task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Clocks a piece of equipment off a task, closing its open booking at the current server time
+     * and moving it into the task's history.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock out
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException if this device is not clocked in on this task
+     */
+    public Task stopEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        TimeSpan span = requireRunningEquipment(task, resource);
+
+        span.setDateUntil(Instant.now());
+        task.getEquipmentUsage().add(span);
+        task.getActiveEquipmentSpans().remove(span);
+        entityManager.flush(); // see startEquipmentUsage: the closed booking needs its id
+        log.info("Equipment '{}' (id={}) clocked out on task '{}' (id={}) by '{}'.",
+                resource.getName(), resourceId, task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Toggles a piece of equipment on a task: clocks it out if it runs here, otherwise clocks it in.
+     * This is the entry point an NFC scan of an
+     * {@link de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType#EQUIPMENT} tag maps to
+     * — one sticker on the device, scanned when it arrives and again when it leaves.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to toggle
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     */
+    public Task toggleEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        Resource resource = findResourceOrThrow(resourceId);
+        return task.isEquipmentRunningFor(resource)
+                ? stopEquipmentUsage(taskId, resourceId, user)
+                : startEquipmentUsage(taskId, resourceId, user);
+    }
+
+    /**
+     * Clocks a piece of equipment off with an earlier timestamp than now, recording who shortened
+     * the booking and why. The device case of "forgot to clock out", which is the normal case rather
+     * than the exception: nobody walks back to the lift at knock-off time to scan it.
+     * <p>
+     * Unlike a work session, this needs no ownership check beyond project membership — a device has
+     * no session of its own to protect, and whoever notices the running clock is rarely the manager.
+     * The audit trail still records who did it.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock out
+     * @param until      when the device actually stopped; after the booking's start, not in the future
+     * @param reason     why the booking is being closed retroactively, required
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException    if this device is not clocked in on this task
+     * @throws IllegalArgumentException if the reason is missing or {@code until} is not plausible
+     */
+    public Task stopEquipmentUsageAt(Long taskId, Long resourceId, Instant until, String reason,
+                                     PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        TimeSpan span = requireRunningEquipment(task, resource);
+        requireReason(reason);
+        if (until == null) {
+            throw new IllegalArgumentException("until is required.");
+        }
+        if (until.isAfter(Instant.now())) {
+            throw new IllegalArgumentException("An equipment booking cannot end in the future.");
+        }
+        if (until.isBefore(span.getDateFrom())) {
+            throw new IllegalArgumentException("An equipment booking cannot end before it started.");
+        }
+
+        rememberOriginalBounds(span); // originalUntil stays null — the booking was still open
+        span.setDateUntil(until);
+        markCorrected(span, user, reason);
+        task.getEquipmentUsage().add(span);
+        task.getActiveEquipmentSpans().remove(span);
+        log.info("Equipment '{}' (id={}) on task '{}' (id={}) clocked out retroactively at {} by '{}': {}",
+                resource.getName(), resourceId, task.getName(), taskId, until, user.getUsername(), reason);
+        return task;
+    }
+
+    /**
+     * Returns how long each piece of equipment has been booked to this task, one entry per resource
+     * that was ever clocked in, running bookings counted live up to now. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return one summary per resource, empty if no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public List<EquipmentUsageSummary> getEquipmentUsage(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Instant now = Instant.now();
+        // LinkedHashMap: a device that was out three times appears once, and the order stays the
+        // order in which the devices first turn up in the history.
+        Map<Long, EquipmentUsageSummary> byResource = new LinkedHashMap<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            accumulate(byResource, task, span, secondsBetween(span.getDateFrom(), span.getDateUntil()),
+                    null);
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            accumulate(byResource, task, span, secondsBetween(span.getDateFrom(), now),
+                    span.getDateFrom());
+        }
+        return new ArrayList<>(byResource.values());
+    }
+
+    /** Folds one booking into its resource's running total. */
+    private static void accumulate(Map<Long, EquipmentUsageSummary> byResource, Task task,
+                                   TimeSpan span, long seconds, Instant runningSince) {
+        Resource resource = subjectOf(span);
+        if (resource == null) {
+            return; // a booking without a device says nothing; only broken data can produce one
+        }
+        EquipmentUsageSummary sofar = byResource.get(resource.getId());
+        long total = (sofar == null ? 0 : sofar.totalSeconds()) + seconds;
+        boolean running = runningSince != null || (sofar != null && sofar.running());
+        Instant since = runningSince != null ? runningSince : (sofar == null ? null : sofar.runningSince());
+        byResource.put(resource.getId(), new EquipmentUsageSummary(task.getId(), resource.getId(),
+                resource.getName(), total, Duration.ofSeconds(total).toString(), running, since));
+    }
+
+    /**
+     * Returns the individual equipment bookings on a task: each completed one, plus any open booking
+     * (with {@code until = null}, counted live up to now). Completed bookings come first. The
+     * per-device totals are {@link #getEquipmentUsage}. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the equipment bookings, empty if no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public List<EquipmentSession> getEquipmentSessions(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        List<EquipmentSession> sessions = new ArrayList<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            sessions.add(toEquipmentSession(span, false));
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            sessions.add(toEquipmentSession(span, true));
+        }
+        return sessions;
+    }
+
+    /** Maps a booking to its outward view; an open booking is counted live up to now. */
+    private static EquipmentSession toEquipmentSession(TimeSpan span, boolean running) {
+        long seconds = running
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+        Resource resource = subjectOf(span);
+        return new EquipmentSession(span.getId(),
+                resource == null ? null : resource.getId(),
+                resource == null ? null : resource.getName(),
+                span.getDateFrom(),
+                running ? null : span.getDateUntil(), seconds, running, correctionOf(span));
+    }
+
+    /**
+     * Which device a booking is about. An equipment span records exactly one resource — the
+     * counterpart to {@code ownerOf} for work sessions — so the first is the subject.
+     */
+    private static Resource subjectOf(TimeSpan span) {
+        return span.getInvolvedResources().stream().findFirst().orElse(null);
+    }
+
+    /**
+     * Refuses to start a device that is already running. Names the other task when the clock is
+     * elsewhere, because that is the actionable half of the message: someone has to go and close it.
+     */
+    private void requireEquipmentFree(Task task, Resource resource) {
+        if (task.isEquipmentRunningFor(resource)) {
+            throw new IllegalStateException(
+                    "'" + resource.getName() + "' is already clocked in on this task.");
+        }
+        List<Task> elsewhere = taskRepository.findByEquipmentRunning(resource.getId());
+        if (!elsewhere.isEmpty()) {
+            Task other = elsewhere.getFirst();
+            throw new IllegalStateException("'" + resource.getName() + "' is still clocked in on task '"
+                    + other.getName() + "' (id=" + other.getId()
+                    + "). Clock it out there first — a device cannot be in two places at once.");
+        }
+    }
+
+    /** The device's open booking on this task, or a clear failure saying it has none. */
+    private static TimeSpan requireRunningEquipment(Task task, Resource resource) {
+        TimeSpan span = task.activeEquipmentSpanFor(resource);
+        if (span == null) {
+            throw new IllegalStateException(
+                    "'" + resource.getName() + "' is not clocked in on this task.");
+        }
+        return span;
+    }
+
+    private Resource findResourceOrThrow(Long resourceId) {
+        return resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
     }
 
     /**

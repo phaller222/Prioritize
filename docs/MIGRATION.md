@@ -17,6 +17,51 @@ Reading the columns is one query:
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'puser';
 ```
 
+## 1.5.0
+
+### `time_span.type` and `nfc_unit.type` — widen the enum check constraint
+
+Equipment usage introduces two new enum values: `EQUIPMENT_USAGE` for a time span and `EQUIPMENT` for
+an NFC tag. On PostgreSQL, Hibernate wrote a `CHECK` constraint listing the values it knew when the
+table was created, and `ddl-auto: update` does **not** widen it. Without this statement every attempt
+to clock a device in fails with
+
+```
+ERROR: new row for relation "time_span" violates check constraint "time_span_type_check"
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE time_span DROP CONSTRAINT time_span_type_check;
+ALTER TABLE time_span ADD CONSTRAINT time_span_type_check
+    CHECK (type IN ('RESOURCE_RESERVATION','VACATION','ILLNESS','TIME_TRACKER','EQUIPMENT_USAGE','OTHER','ALL'));
+
+ALTER TABLE nfc_unit DROP CONSTRAINT nfc_unit_type_check;
+ALTER TABLE nfc_unit ADD CONSTRAINT nfc_unit_type_check
+    CHECK (type IN ('COUNTER','CHECKPOINT','TIMETRACKER','EQUIPMENT','INFOPOINT','OTHER'));
+```
+
+H2: nothing to do. Check the constraints before assuming that, as the note at the top of this file
+says — on the development H2 database these two tables carry no check constraint at all, so the
+statements above have nothing to drop there and would fail:
+
+```sql
+SELECT TC.TABLE_NAME, TC.CONSTRAINT_NAME, CC.CHECK_CLAUSE
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC, INFORMATION_SCHEMA.CHECK_CONSTRAINTS CC
+WHERE TC.CONSTRAINT_NAME = CC.CONSTRAINT_NAME AND TC.TABLE_NAME IN ('TIME_SPAN','NFC_UNIT');
+```
+
+The two engines have drifted here for the same reason as with `date_of_birth`: the constraint is
+emitted at table creation time, so what a database carries depends on which release first created the
+table, not on which release it runs now.
+
+### `time_span.equipment_task_id` / `time_span.active_equipment_task_id` — no work needed
+
+The bookkeeping for equipment bookings is two additional columns on `time_span` plus the existing
+`timespan_resources` join table, which has been mapped (and therefore created) since long before it
+was used. `ddl-auto: update` adds the columns by itself.
+
 ## 1.4.0
 
 ### `puser.last_login` — drop

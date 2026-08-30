@@ -47,7 +47,7 @@ public class NfcUnit implements PAuthorizedObject {
 
     /** Semantics of a tag; determines what a scan does. */
     public enum NfcUnitType {
-        COUNTER, CHECKPOINT, TIMETRACKER, INFOPOINT, OTHER
+        COUNTER, CHECKPOINT, TIMETRACKER, EQUIPMENT, INFOPOINT, OTHER
     }
 
     @Id
@@ -81,8 +81,12 @@ public class NfcUnit implements PAuthorizedObject {
     private Resource resource;
 
     /**
-     * For a {@link NfcUnitType#TIMETRACKER} tag: the single task whose time tracking a scan
-     * toggles. {@code null} for all other types (and for an unbound tracker).
+     * The single task a scan books against: for a {@link NfcUnitType#TIMETRACKER} tag the task
+     * whose time tracking it toggles, for a {@link NfcUnitType#EQUIPMENT} tag the task its
+     * {@link #resource} is clocked on/off. {@code null} for all other types (and while unbound).
+     * <p>
+     * An equipment tag travels with the device while the task changes, so its binding is re-pointed
+     * whenever the device moves to a new job - that act <em>is</em> "this device now works here".
      */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "task_id")

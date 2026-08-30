@@ -155,6 +155,48 @@ class NfcUnitServiceTest {
     }
 
     @Test
+    @DisplayName("bindTask: bindet auch einen EQUIPMENT-Tag an einen Task")
+    void bindTask_bindsEquipmentTag() {
+        NfcUnit unit = register(NfcUnitType.EQUIPMENT);
+        NfcUnit bound = nfcUnitService.bindTask(unit.getId(), task.getId(), admin);
+        assertEquals(task.getId(), bound.getBoundTaskId());
+    }
+
+    /**
+     * Der Unterschied zum TIMETRACKER: gebucht wird die Zeit des GERÄTS, auf dem der Tag klebt —
+     * die Uhr dessen, der das Handy hält, bleibt unberührt.
+     */
+    @Test
+    @DisplayName("scan: EQUIPMENT-Tag sticht das Gerät ein und aus, nicht den Scannenden")
+    void scan_equipment_togglesDeviceClockNotTheScanner() {
+        NfcUnit unit = register(NfcUnitType.EQUIPMENT);
+        nfcUnitService.bindTask(unit.getId(), task.getId(), admin);
+
+        ScanResult in = nfcUnitService.scan(unit.getUuid(), admin);
+        assertEquals("EQUIPMENT_CLOCKED_IN", in.action());
+        assertEquals(task.getId(), in.taskId());
+        assertNull(in.trackingForMe(), "eine Gerätebuchung sagt nichts über meine eigene Uhr");
+        Task afterIn = taskService.getTask(task.getId(), admin);
+        assertEquals(1, afterIn.getEquipmentRunningCount());
+        assertEquals(0, afterIn.getRunningCount(), "der Scannende stempelt sich nicht selbst ein");
+        assertNotEquals(TaskStatus.STARTED, afterIn.getTaskStatus(), "eine Maschine startet keinen Task");
+
+        ScanResult out = nfcUnitService.scan(unit.getUuid(), admin);
+        assertEquals("EQUIPMENT_CLOCKED_OUT", out.action());
+        Task afterOut = taskService.getTask(task.getId(), admin);
+        assertEquals(0, afterOut.getEquipmentRunningCount());
+        assertEquals(1, afterOut.getEquipmentUsage().size());
+        assertTrue(afterOut.getTimeSpent().isEmpty(), "in der Arbeitszeit steht davon nichts");
+    }
+
+    @Test
+    @DisplayName("scan: ungebundener EQUIPMENT-Tag wirft IllegalStateException")
+    void scan_unboundEquipmentTag_throws() {
+        NfcUnit unit = register(NfcUnitType.EQUIPMENT);
+        assertThrows(IllegalStateException.class, () -> nfcUnitService.scan(unit.getUuid(), admin));
+    }
+
+    @Test
     @DisplayName("scan: COUNTER-Tag erhöht die Sequenznummer")
     void scan_counter_incrementsSequence() {
         NfcUnit unit = register(NfcUnitType.COUNTER);
