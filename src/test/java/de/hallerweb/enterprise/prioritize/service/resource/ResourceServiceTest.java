@@ -191,6 +191,64 @@ class ResourceServiceTest {
     }
 
     // ==========================================
+    // ==========================================
+    // maxSlots guard
+    // ==========================================
+
+    @Test
+    @DisplayName("createResource: maxSlots 0 wird abgelehnt statt als belegte Ressource gespeichert")
+    void createResource_ZeroSlots_ShouldBeRejected() {
+        Resource resource = Resource.builder().name("Null-Slot").maxSlots(0).build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(resource, testGroup.getId(), adminUser));
+        assertTrue(ex.getMessage().contains("at least one slot"));
+    }
+
+    @Test
+    @DisplayName("createResource: negative maxSlots werden abgelehnt")
+    void createResource_NegativeSlots_ShouldBeRejected() {
+        Resource resource = Resource.builder().name("Negativ-Slot").maxSlots(-5).build();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.createResource(resource, testGroup.getId(), adminUser));
+    }
+
+    @Test
+    @DisplayName("createResource: weggelassene maxSlots bleiben auf 1 vorbelegt")
+    void createResource_OmittedSlots_ShouldDefaultToOne() {
+        ResourceRequest request = new ResourceRequest("Ohne-Slots", "x", null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+        Resource created = resourceService.createResource(request.toResource(), testGroup.getId(), adminUser);
+
+        assertEquals(1, created.getMaxSlots());
+    }
+
+    @Test
+    @DisplayName("partialUpdateResource: maxSlots duerfen nicht auf 0 gesetzt werden")
+    void partialUpdateResource_ZeroSlots_ShouldBeRejected() {
+        Resource patch = new Resource();
+        patch.setMaxSlots(0);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> resourceService.partialUpdateResource(testResource.getId(), patch, adminUser));
+    }
+
+    @Test
+    @DisplayName("reserveResource: frisch angelegte Ressource ist sofort reservierbar")
+    void reserveResource_FreshResource_ShouldSucceedOnSlotOne() {
+        ResourceRequest request = new ResourceRequest("Frisch", "x", null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
+        Resource fresh = resourceService.createResource(request.toResource(), testGroup.getId(), adminUser);
+
+        Instant from = Instant.now();
+        ResourceReservation reservation = resourceService.reserveResource(
+                fresh.getId(), adminUser, from, from.plus(1, ChronoUnit.HOURS));
+
+        assertEquals(1, reservation.getSlotNumber());
+    }
+
     // reserveResource
     // ==========================================
 

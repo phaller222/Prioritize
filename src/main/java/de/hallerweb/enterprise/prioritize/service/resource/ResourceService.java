@@ -160,6 +160,7 @@ public class ResourceService {
         if (resource.getPort() == null) {
             resource.setPort(80);
         }
+        requireUsableSlotCount(resource);
 
         return resourceRepository.save(resource);
     }
@@ -567,6 +568,7 @@ public class ResourceService {
         if (patch.getCostCurrency() != null) existing.setCostCurrency(patch.getCostCurrency());
         if (patch.getCostRateUnit() != null) existing.setCostRateUnit(patch.getCostRateUnit());
         requireConsistentCostRate(existing);
+        requireUsableSlotCount(existing);
 
         // Relationships (department, resourceGroup), reservations, skills are NOT modifiable via PATCH!
         // Dedicated endpoints exist for that (createResource, reserveResource, assignSkillToResource).
@@ -756,6 +758,25 @@ public class ResourceService {
             throw new IllegalArgumentException("A cost rate cannot be negative.");
         }
         resource.setCostCurrency(normalizedCurrency(resource.getCostCurrency()));
+    }
+
+    /**
+     * A resource has to offer at least one slot. A slot count below one is not a resource that happens
+     * to be full — nothing can ever be booked on it, and every reservation attempt is answered with
+     * "All slots (0) occupied.", which reads like a busy resource and sends the caller looking for a
+     * reservation that does not exist. Rejecting the value where it enters keeps that state out of the
+     * database instead of dressing it up as a conflict later.
+     * <p>
+     * Deliberately not defaulted to one: a caller that sends zero means something by it, and silently
+     * storing a different number would hide the mistake rather than report it. An omitted value is a
+     * different case and still defaults to one in {@link #createResource}.
+     */
+    private static void requireUsableSlotCount(Resource resource) {
+        Integer maxSlots = resource.getMaxSlots();
+        if (maxSlots != null && maxSlots < 1) {
+            throw new IllegalArgumentException(
+                    "A resource needs at least one slot — maxSlots was " + maxSlots + ".");
+        }
     }
 
     /** The ISO 4217 code in its canonical spelling, or an {@link IllegalArgumentException}. */

@@ -81,6 +81,30 @@ The bookkeeping for equipment bookings is two additional columns on `time_span` 
 `timespan_resources` join table, which has been mapped (and therefore created) since long before it
 was used. `ddl-auto: update` adds the columns by itself.
 
+### `resource.max_slots` — rows below one cannot be booked
+
+A resource created with `maxSlots` set to zero (or a negative number) was stored as given. Nothing
+can ever be reserved on such a row: the slot search runs from 1 to `maxSlots`, finds nothing, and
+the reservation is refused with `409 All slots (0) occupied.` — which reads like a busy resource
+even though the resource was just created and holds no reservation at all.
+
+From 1.5.0 the value is rejected where it enters, so no new row can reach that state. Rows already in
+the database are not touched by that guard and stay unbookable until corrected:
+
+```sql
+SELECT id, name, max_slots FROM resource WHERE max_slots IS NULL OR max_slots < 1;
+```
+
+Give each of them the slot count it should have had. If one is genuinely meant to be a single-slot
+resource, one is the value the application would have defaulted to:
+
+```sql
+UPDATE resource SET max_slots = 1 WHERE max_slots IS NULL OR max_slots < 1;
+```
+
+Same statement on both engines. If the query returns no rows — the normal case, since the value has
+to be sent explicitly to go wrong — there is nothing to do.
+
 ## 1.4.0
 
 ### `puser.last_login` — drop
