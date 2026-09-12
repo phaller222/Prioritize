@@ -16,12 +16,14 @@
 
 package de.hallerweb.enterprise.prioritize.model.calendar;
 
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
@@ -89,6 +91,44 @@ public class TimeSpan implements PAuthorizedObject {
     private Instant originalFrom;
     private Instant originalUntil;
     private String correctionReason;
+
+    // --- Cost rate as it stood when this span was closed ---
+    // Stamped once, when a booking stops: what the device cost per hour that day, or what the
+    // worker's qualification level was costed at. Null on every span that carries no cost meaning
+    // (a reservation, a holiday) and on a span that is still running — a running booking has no
+    // final cost yet and is priced live.
+    //
+    // The point of stamping is that a cost figure stays true. Reading the rate off the resource or
+    // the qualification level at report time means every rate change silently rewrites the past:
+    // raise the lift's day rate in November and the job you calculated in March reports a different
+    // number, with nothing in the data to show why. Stamped, the cost is a fact of the record.
+    // Changing a rate then applies to what happens next, which is what everybody assumes anyway.
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal costRate;
+
+    /** ISO-4217 code of {@link #costRate}. */
+    private String costCurrency;
+
+    /** Whether {@link #costRate} was charged per hour, per day or per use. */
+    @Enumerated(EnumType.STRING)
+    private CostRateUnit costRateUnit;
+
+    /**
+     * What the rate hung on when it was stamped — the qualification level's name for a work session,
+     * the device's name for an equipment booking.
+     * <p>
+     * A plain string, deliberately not a reference. It is the label a report groups by, and a report
+     * about last spring should keep saying "Geselle" even after that person was promoted, the level
+     * was renamed, or it was deleted altogether. A foreign key would either follow those changes or
+     * block them; a copy of the name does neither.
+     */
+    private String costRateLabel;
+
+    /** Whether this span carries a rate of its own — a complete one, as {@code CostRateRules} requires. */
+    public boolean hasCostRate() {
+        return costRate != null && costCurrency != null && costRateUnit != null;
+    }
 
     // --- Business Logik ---
 

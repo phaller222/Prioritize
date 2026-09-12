@@ -24,7 +24,8 @@ import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
-import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
@@ -77,6 +78,12 @@ public class TaskService {
     private final PActorRepository actorRepository;
     private final NfcUnitRepository nfcUnitRepository;
     private final ResourceRepository resourceRepository;
+
+    /**
+     * The label for hours whose worker is on no qualification level. Named rather than left blank so
+     * a report says out loud that those hours exist and could not be priced, instead of dropping them.
+     */
+    private static final String UNQUALIFIED = "(no qualification level)";
     private final EntityManager entityManager;
 
     /**
@@ -191,18 +198,62 @@ public class TaskService {
     }
 
     /**
-     * The equipment cost of a task: one line per device, and totals <em>per currency</em>. Adding
-     * euros to francs would produce a number that is wrong in both, so a task whose devices are
-     * priced in two currencies gets two totals and no grand total.
+     * The equipment cost of a task: one line per device and rate, and totals <em>per currency</em>.
+     * Adding euros to francs would produce a number that is wrong in both, so a task whose devices
+     * are priced in two currencies gets two totals and no grand total.
+     * <p>
+     * {@code lines} is not keyed by {@code resourceId}: a device whose rate changed between two
+     * bookings contributes one line per rate, because no single rate would describe both.
      * <p>
      * {@code ratesMissing} says at least one device was booked without a rate, so the totals are a
      * lower bound rather than the cost. Whoever shows this to somebody needs to be able to say so.
      * <p>
-     * Equipment only. People have no rates yet, and when they get one it belongs to their role rather
-     * than to the person, so labour cost is a separate question from this one.
+     * Equipment only — labour is reported separately, since machine hours and work hours must never
+     * land in one sum. What can be added is the money: see {@code getTaskCost}.
      */
     public record EquipmentCostReport(Long taskId, List<EquipmentCostLine> lines,
                                       List<CurrencyTotal> totals, boolean ratesMissing) {
+    }
+
+    /**
+     * What the work on a task cost at one qualification level: duration times the rate those hours
+     * were booked at.
+     * <p>
+     * <b>There is no person in this record, and that is the point.</b> The platform records who
+     * worked — a session names its owner — but a cost report deliberately cannot be used to compare
+     * people. A line says "Geselle, 12 h, 696.00 EUR"; it does not say whose twelve hours they were.
+     * A job calculation needs the qualification, not the name, so the name is not published here.
+     * <p>
+     * {@code qualificationLevel} is the label the hours were stamped with when they were booked, not
+     * a live lookup: hours worked as a journeyman stay journeyman hours after that person qualifies
+     * as a master. {@code amount} is {@code null} when those hours carry no rate — deliberately not
+     * {@code 0}, which would claim the work was free.
+     */
+    public record LabourCostLine(String qualificationLevel, long totalSeconds, int sessions,
+                                 BigDecimal billedUnits, CostRateUnit unit, BigDecimal rate,
+                                 String currency, BigDecimal amount, boolean running) {
+    }
+
+    /**
+     * The labour cost of a task: one line per qualification level and rate, totals per currency.
+     * <p>
+     * {@code ratesMissing} says somebody's hours could not be priced — an unassigned worker, or a
+     * level with no rate — so the totals are a lower bound rather than the cost.
+     */
+    public record LabourCostReport(Long taskId, List<LabourCostLine> lines,
+                                   List<CurrencyTotal> totals, boolean ratesMissing) {
+    }
+
+    /**
+     * What a task cost, equipment and labour together.
+     * <p>
+     * The two blocks stay separate and only the <em>money</em> is added up. Hours may never be:
+     * four hours of work plus a hundred and twenty hours of drying time is not a number, while
+     * 356.00 EUR plus 178.00 EUR is exactly the job calculation somebody wanted. Each block keeps
+     * its own totals so it stays visible where the money came from.
+     */
+    public record TaskCostReport(Long taskId, EquipmentCostReport equipment, LabourCostReport labour,
+                                 List<CurrencyTotal> totals, boolean ratesMissing) {
     }
 
     /**
@@ -435,6 +486,7 @@ public class TaskService {
             throw new IllegalStateException("No time tracking is running for you on this task.");
         }
         span.setDateUntil(Instant.now());
+        stampLabourRate(span, user);
         task.getTimeSpent().add(span);
         task.getActiveTimeSpans().remove(span);
         stopIfLastClock(task);
@@ -648,6 +700,7 @@ public class TaskService {
                 .type(TimeSpan.TimeSpanType.TIME_TRACKER)
                 .build();
         span.getInvolvedUsers().add(worker);
+        stampLabourRate(span, worker);
         markCorrected(span, user, reason); // originalFrom stays null — nothing was ever recorded
         task.getTimeSpent().add(span);
         entityManager.flush(); // so the new span has its id for the response
@@ -718,6 +771,7 @@ public class TaskService {
 
         rememberOriginalBounds(span); // originalUntil stays null — the session was still open
         span.setDateUntil(until);
+        stampLabourRate(span, owner);
         markCorrected(span, user, reason);
         task.getTimeSpent().add(span);
         task.getActiveTimeSpans().remove(span);
@@ -793,6 +847,7 @@ public class TaskService {
         TimeSpan span = requireRunningEquipment(task, resource);
 
         span.setDateUntil(Instant.now());
+        stampEquipmentRate(span, resource);
         task.getEquipmentUsage().add(span);
         task.getActiveEquipmentSpans().remove(span);
         entityManager.flush(); // see startEquipmentUsage: the closed booking needs its id
@@ -857,6 +912,7 @@ public class TaskService {
 
         rememberOriginalBounds(span); // originalUntil stays null — the booking was still open
         span.setDateUntil(until);
+        stampEquipmentRate(span, resource);
         markCorrected(span, user, reason);
         task.getEquipmentUsage().add(span);
         task.getActiveEquipmentSpans().remove(span);
@@ -944,9 +1000,12 @@ public class TaskService {
     }
 
     /**
-     * Returns what the equipment on this task has cost so far: duration times the rate kept on each
-     * resource, one line per device plus totals per currency. Running bookings count live up to now,
-     * so the figure for a device still on site is provisional by nature. Manager or member.
+     * Returns what the equipment on this task has cost so far: duration times the rate each booking
+     * was closed at, plus totals per currency. Running bookings count live up to now, so the figure
+     * for a device still on site is provisional by nature. Manager or member.
+     * <p>
+     * One line per device <em>and rate</em>: a device booked before and after a price change appears
+     * twice, once at each rate. See {@link #accumulate}.
      *
      * @param taskId the task id
      * @param user   the requesting user
@@ -954,34 +1013,36 @@ public class TaskService {
      */
     @Transactional(readOnly = true)
     public EquipmentCostReport getEquipmentCost(Long taskId, PUser user) {
-        List<EquipmentSession> sessions = getEquipmentSessions(taskId, user);
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
 
         // Fold the bookings per device first: a rate applies to the total time a device was here,
         // not to each visit - three trips of eight hours on a day rate is one day per calendar day
         // occupied, not three days.
-        Map<Long, long[]> secondsAndCount = new LinkedHashMap<>();
-        Map<Long, String> names = new LinkedHashMap<>();
-        Map<Long, Boolean> running = new LinkedHashMap<>();
-        for (EquipmentSession session : sessions) {
-            if (session.resourceId() == null) {
-                continue;
-            }
-            long[] acc = secondsAndCount.computeIfAbsent(session.resourceId(), id -> new long[2]);
-            acc[0] += session.seconds();
-            acc[1]++;
-            names.putIfAbsent(session.resourceId(), session.resourceName());
-            running.merge(session.resourceId(), session.running(), (a, b) -> a || b);
+        //
+        // The grouping key is the device AND the rate that applied, not the device alone. A device
+        // whose rate changed between two bookings therefore produces two lines. That is the honest
+        // answer: the alternative is to pick one of the two rates and report a number that was never
+        // charged. Lines are not unique per resourceId for that reason.
+        Map<RateGroup, long[]> groups = new LinkedHashMap<>();
+        Map<RateGroup, String> names = new LinkedHashMap<>();
+        Map<RateGroup, Boolean> running = new LinkedHashMap<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            accumulate(groups, names, running, span, false);
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            accumulate(groups, names, running, span, true);
         }
 
         List<EquipmentCostLine> lines = new ArrayList<>();
         Map<String, BigDecimal> totals = new LinkedHashMap<>();
         boolean ratesMissing = false;
-        for (Map.Entry<Long, long[]> entry : secondsAndCount.entrySet()) {
-            Resource resource = resourceRepository.findById(entry.getKey()).orElse(null);
+        for (Map.Entry<RateGroup, long[]> entry : groups.entrySet()) {
+            RateGroup group = entry.getKey();
             long seconds = entry.getValue()[0];
             int bookings = (int) entry.getValue()[1];
-            EquipmentCostLine line = costLine(entry.getKey(), names.get(entry.getKey()), resource,
-                    seconds, bookings, Boolean.TRUE.equals(running.get(entry.getKey())));
+            EquipmentCostLine line = costLine(group, names.get(group), seconds, bookings,
+                    Boolean.TRUE.equals(running.get(group)));
             lines.add(line);
             if (line.amount() == null) {
                 ratesMissing = true;
@@ -996,38 +1057,249 @@ public class TaskService {
     }
 
     /**
-     * Applies one resource's rate to the time it was booked.
+     * What the work booked on this task cost, grouped by qualification level and never by person.
+     * <p>
+     * <b>Project manager only.</b> Not member, not admin: these figures are the wage structure of a
+     * business seen from the side, and the person accountable for a job's calculation is the one
+     * running it. The same reasoning as everywhere else in the project authorization model — an
+     * administrator who needs this takes the project over first, which is a visible act.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be the project manager)
+     * @return the labour cost report, with empty lines when nothing was ever tracked
+     */
+    @Transactional(readOnly = true)
+    public LabourCostReport getLabourCost(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireManager(projectOf(task), user);
+
+        Map<RateGroup, long[]> groups = new LinkedHashMap<>();
+        Map<RateGroup, Boolean> running = new LinkedHashMap<>();
+        for (TimeSpan span : task.getTimeSpent()) {
+            accumulateLabour(groups, running, span, false);
+        }
+        for (TimeSpan span : task.getActiveTimeSpans()) {
+            accumulateLabour(groups, running, span, true);
+        }
+
+        List<LabourCostLine> lines = new ArrayList<>();
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        boolean ratesMissing = false;
+        for (Map.Entry<RateGroup, long[]> entry : groups.entrySet()) {
+            RateGroup group = entry.getKey();
+            long seconds = entry.getValue()[0];
+            int sessions = (int) entry.getValue()[1];
+            boolean isRunning = Boolean.TRUE.equals(running.get(group));
+            boolean rated = group.rate() != null && group.unit() != null && group.currency() != null;
+            if (!rated) {
+                lines.add(new LabourCostLine(group.label(), seconds, sessions, null, group.unit(),
+                        group.rate(), group.currency(), null, isRunning));
+                ratesMissing = true;
+                continue;
+            }
+            Billed billed = bill(group.unit(), group.rate(), seconds, sessions);
+            lines.add(new LabourCostLine(group.label(), seconds, sessions, billed.units(),
+                    group.unit(), group.rate(), group.currency(), billed.amount(), isRunning));
+            totals.merge(group.currency(), billed.amount(), BigDecimal::add);
+        }
+        List<CurrencyTotal> currencyTotals = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new LabourCostReport(taskId, lines, currencyTotals, ratesMissing);
+    }
+
+    /**
+     * What the task cost altogether: the equipment block, the labour block, and one total per
+     * currency across both. Project manager only, for the same reason as {@link #getLabourCost}.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be the project manager)
+     * @return both blocks and the combined totals
+     */
+    @Transactional(readOnly = true)
+    public TaskCostReport getTaskCost(Long taskId, PUser user) {
+        LabourCostReport labour = getLabourCost(taskId, user); // checks the permission
+        EquipmentCostReport equipment = getEquipmentCost(taskId, user);
+
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        for (CurrencyTotal total : equipment.totals()) {
+            totals.merge(total.currency(), total.amount(), BigDecimal::add);
+        }
+        for (CurrencyTotal total : labour.totals()) {
+            totals.merge(total.currency(), total.amount(), BigDecimal::add);
+        }
+        List<CurrencyTotal> combined = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new TaskCostReport(taskId, equipment, labour, combined,
+                equipment.ratesMissing() || labour.ratesMissing());
+    }
+
+    /**
+     * Adds one work session to its group, at the rate it was booked at.
+     * <p>
+     * Same fallback as {@link #accumulate} for equipment: a running session and a session from before
+     * 1.5.0 carry no stamp, so the worker's current level is used. A worker on no level at all yields
+     * a group with no rate, which the report reports as unpriced rather than as free.
+     */
+    private static void accumulateLabour(Map<RateGroup, long[]> groups, Map<RateGroup, Boolean> running,
+                                         TimeSpan span, boolean isRunning) {
+        RateGroup group;
+        if (span.hasCostRate()) {
+            group = new RateGroup(null, span.getCostRate(), span.getCostCurrency(),
+                    span.getCostRateUnit(), span.getCostRateLabel());
+        } else {
+            PUser owner = ownerOf(span);
+            QualificationLevel level = owner == null ? null : owner.getQualificationLevel();
+            group = level == null
+                    ? new RateGroup(null, null, null, null, UNQUALIFIED)
+                    : new RateGroup(null, level.getCostRate(), level.getCostCurrency(),
+                            level.getCostRateUnit(), level.getName());
+        }
+
+        long seconds = isRunning
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+
+        long[] acc = groups.computeIfAbsent(group, g -> new long[2]);
+        acc[0] += seconds;
+        acc[1]++;
+        running.merge(group, isRunning, (a, b) -> a || b);
+    }
+
+    /**
+     * One subject at one rate — the key a cost line is folded under. Serves both reports: for
+     * equipment the subject is the device, for labour it is the qualification level, which has no id
+     * of its own here because a stamped booking keeps only the label.
+     *
+     * @param resourceId the device, {@code null} for a labour group
+     * @param rate       the rate that applied, or {@code null} when it could not be priced
+     * @param label      what the rate hung on — the device's or the level's name at booking time
+     */
+    private record RateGroup(Long resourceId, BigDecimal rate, String currency, CostRateUnit unit,
+                             String label) {
+    }
+
+    /**
+     * Adds one booking to its group, at the rate that applied to it.
+     * <p>
+     * A closed booking uses the rate stamped on it when it was clocked out, which is what makes a
+     * past cost stay put when somebody changes a price list. Two cases fall back to the device's
+     * current rate instead: a booking that is still running (nothing final to stamp yet, so the
+     * figure is provisional by nature — it is flagged {@code running}), and a closed booking from
+     * before 1.5.0, which carries no stamp because the column did not exist. The fallback keeps
+     * historical reports reading as they did rather than turning every old booking unpriced
+     * overnight; see {@code docs/MIGRATION.md}.
+     */
+    private static void accumulate(Map<RateGroup, long[]> groups, Map<RateGroup, String> names,
+                                   Map<RateGroup, Boolean> running, TimeSpan span, boolean isRunning) {
+        Resource resource = subjectOf(span);
+        if (resource == null) {
+            return;
+        }
+        RateGroup group = span.hasCostRate()
+                ? new RateGroup(resource.getId(), span.getCostRate(), span.getCostCurrency(),
+                        span.getCostRateUnit(), span.getCostRateLabel())
+                : new RateGroup(resource.getId(), resource.getCostRate(), resource.getCostCurrency(),
+                        resource.getCostRateUnit(), resource.getName());
+
+        long seconds = isRunning
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+
+        long[] acc = groups.computeIfAbsent(group, g -> new long[2]);
+        acc[0] += seconds;
+        acc[1]++;
+        names.putIfAbsent(group, resource.getName());
+        running.merge(group, isRunning, (a, b) -> a || b);
+    }
+
+    /**
+    /**
+     * Applies one group's rate to the time its device was booked; see {@link #bill} for the rounding.
+     * A device that was here at all owes at least one started day, which is why a booking of a few
+     * minutes still rounds up to 1 rather than down to 0.
+     */
+    private static EquipmentCostLine costLine(RateGroup group, String name,
+                                              long seconds, int bookings, boolean running) {
+        Long resourceId = group.resourceId();
+        boolean rated = group.rate() != null && group.unit() != null && group.currency() != null;
+        if (!rated) {
+            return new EquipmentCostLine(resourceId, name, seconds, bookings, null,
+                    group.unit(), group.rate(), group.currency(), null, running);
+        }
+
+        Billed billed = bill(group.unit(), group.rate(), seconds, bookings);
+        return new EquipmentCostLine(resourceId, name, seconds, bookings, billed.units(),
+                group.unit(), group.rate(), group.currency(), billed.amount(), running);
+    }
+
+    /**
+     * Writes the worker's qualification rate onto a session that has just been closed.
+     * <p>
+     * Taken from the level rather than from the person on purpose — see {@code QualificationLevel}.
+     * A worker on no level leaves the span unstamped, and the cost report then says the hours could
+     * not be priced instead of counting them as free.
+     */
+    private static void stampLabourRate(TimeSpan span, PUser worker) {
+        QualificationLevel level = worker == null ? null : worker.getQualificationLevel();
+        if (level == null) {
+            return;
+        }
+        stampCostRate(span, level.getCostRate(), level.getCostCurrency(), level.getCostRateUnit(),
+                level.getName());
+    }
+
+    /** Writes the device's rate onto a booking that has just been closed. */
+    private static void stampEquipmentRate(TimeSpan span, Resource resource) {
+        if (resource == null) {
+            return;
+        }
+        stampCostRate(span, resource.getCostRate(), resource.getCostCurrency(), resource.getCostRateUnit(),
+                resource.getName());
+    }
+
+    /**
+     * Copies a complete rate onto the span, or leaves it unstamped. A partial rate is never written:
+     * the three fields only mean anything together, and half a rate on a closed booking would be a
+     * number nobody can interpret later.
+     */
+    private static void stampCostRate(TimeSpan span, BigDecimal rate, String currency, CostRateUnit unit,
+                                      String label) {
+        if (rate == null || currency == null || unit == null) {
+            return;
+        }
+        span.setCostRate(rate);
+        span.setCostCurrency(currency);
+        span.setCostRateUnit(unit);
+        span.setCostRateLabel(label);
+    }
+
+    /** The quantity charged in a rate's unit, and what it comes to. */
+    private record Billed(BigDecimal units, BigDecimal amount) {
+    }
+
+    /**
+     * Turns a duration into a charge. Shared by equipment and labour so both round the same way —
+     * two rounding conventions in one report would make its own total not add up.
      * <p>
      * The three units round differently because they mean different things. An hourly rate measures
      * use, so it is charged fractionally: 90 minutes on 12.00/h is 18.00, not 24.00. A daily rate is
      * a rental convention, and rental is billed by <em>started</em> day — a lift kept for 30 hours
      * costs two days, and pretending it costs 1.25 would produce an invoice no hire company would
-     * recognise. A per-use rate ignores duration altogether and counts visits.
-     * <p>
-     * A device that was here at all owes at least one started day, which is why a booking of a few
-     * minutes still rounds up to 1 rather than down to 0.
+     * recognise. A per-use rate ignores duration altogether and counts occasions.
      * <p>
      * All money is {@link BigDecimal} at scale 2, {@code HALF_UP}, computed from the unrounded
      * quantity so the result is not rounded twice.
+     *
+     * @param count bookings for equipment, sessions for labour — what a per-use rate counts, and
+     *              what keeps a started-day charge at a minimum of one
      */
-    private static EquipmentCostLine costLine(Long resourceId, String name, Resource resource,
-                                              long seconds, int bookings, boolean running) {
-        boolean rated = resource != null && resource.getCostRate() != null
-                && resource.getCostRateUnit() != null && resource.getCostCurrency() != null;
-        if (!rated) {
-            return new EquipmentCostLine(resourceId, name, seconds, bookings, null,
-                    resource == null ? null : resource.getCostRateUnit(),
-                    resource == null ? null : resource.getCostRate(),
-                    resource == null ? null : resource.getCostCurrency(),
-                    null, running);
-        }
-
-        CostRateUnit unit = resource.getCostRateUnit();
-        BigDecimal rate = resource.getCostRate();
+    private static Billed bill(CostRateUnit unit, BigDecimal rate, long seconds, int count) {
         BigDecimal units = switch (unit) {
             case HOUR -> BigDecimal.valueOf(seconds).divide(SECONDS_PER_HOUR, 4, RoundingMode.HALF_UP);
-            case DAY -> BigDecimal.valueOf(startedDays(seconds, bookings));
-            case USAGE -> BigDecimal.valueOf(bookings);
+            case DAY -> BigDecimal.valueOf(startedDays(seconds, count));
+            case USAGE -> BigDecimal.valueOf(count);
         };
         BigDecimal amount = switch (unit) {
             // From the unrounded quotient, so 59 minutes on an hourly rate is not first rounded to
@@ -1036,8 +1308,7 @@ public class TaskService {
                     .divide(SECONDS_PER_HOUR, 2, RoundingMode.HALF_UP);
             case DAY, USAGE -> units.multiply(rate).setScale(2, RoundingMode.HALF_UP);
         };
-        return new EquipmentCostLine(resourceId, name, seconds, bookings, units, unit, rate,
-                resource.getCostCurrency(), amount, running);
+        return new Billed(units, amount);
     }
 
     /** Whole started days; a device that was booked at all owes one, never zero. */

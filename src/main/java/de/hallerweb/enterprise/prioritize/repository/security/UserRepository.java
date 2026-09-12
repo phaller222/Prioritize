@@ -17,6 +17,7 @@
 package de.hallerweb.enterprise.prioritize.repository.security;
 
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -68,4 +69,10 @@ public interface UserRepository extends JpaRepository<PUser, Long> {
     @Modifying
     @Query("update PUser u set u.lastSeen = :seenAt where u.username = :username")
     int touchLastSeen(@Param("username") String username, @Param("seenAt") LocalDateTime seenAt);
+
+    /** How many people are on a qualification level — used to refuse deleting one that is still in use. */
+    long countByQualificationLevel(QualificationLevel level);
+
+    /** Everyone on a qualification level, in no particular order. */
+    List<PUser> findByQualificationLevel(QualificationLevel level);
 }

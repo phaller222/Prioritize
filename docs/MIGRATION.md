@@ -105,6 +105,66 @@ UPDATE resource SET max_slots = 1 WHERE max_slots IS NULL OR max_slots < 1;
 Same statement on both engines. If the query returns no rows — the normal case, since the value has
 to be sent explicitly to go wrong — there is nothing to do.
 
+### `qualification_level` and `puser.qualification_level_id` — no work needed
+
+Qualification levels are a new table, and the reference from a user is a new, nullable column.
+`ddl-auto: update` creates both. Nothing to migrate: every existing user starts without a level,
+which is the correct state — a level is master data somebody has to decide on.
+
+An existing installation will want to create its levels and assign people to them, which is ordinary
+application work rather than a migration:
+
+```
+POST /api/v1/qualification-levels      {"name": "Geselle", "costRate": 58.00, "costCurrency": "EUR", "costRateUnit": "HOUR"}
+PUT  /api/v1/users/{userId}/qualification-level?levelId={id}
+```
+
+Until that happens, labour is simply not costed — a report says so rather than counting those hours
+as free. The free-text `puser.occupation` is left alone and keeps meaning what it meant: a job
+title. It is not migrated into levels automatically, because "Elektrogeselle", "Geselle" and
+"Geselle (KNX)" are one level to a business and three strings to a database.
+
+### `time_span` cost columns — no work needed, but old bookings read differently
+
+Four new nullable columns (`cost_rate`, `cost_currency`, `cost_rate_unit`, `cost_rate_label`)
+record what a booking was costed at **at the moment it was closed**. `ddl-auto: update` adds them.
+Nothing to migrate, and nothing can be back-filled: what the lift cost last March is not in the
+database, only what it costs today.
+
+What changes for existing data is how it is reported. From 1.5.0 a closed booking is priced at its
+stamped rate, so changing a price list no longer rewrites past jobs. Bookings closed **before** 1.5.0
+carry no stamp and keep falling back to the device's current rate, exactly as they did — the
+alternative would have been to turn every historical booking unpriced overnight. The practical
+consequence is worth knowing before somebody asks:
+
+> For a while yet, one job can hold both kinds. Bookings from before the upgrade still move when a
+> rate is changed; bookings made after it do not.
+
+A booking that is still running is priced live at the current rate in both cases. That is not a
+transitional artefact but the intended behaviour: nothing is final until the device is clocked out,
+and such a line is flagged `running`.
+
+One visible change in the cost report: `lines` is no longer one entry per device. A device booked
+at one rate and later at another contributes one line per rate, because no single rate describes
+both. Anything reading `equipment/cost` and keying by `resourceId` needs to fold the lines itself.
+
+### `GET /tasks/{id}/cost` and `/tasks/{id}/labour/cost` — project manager only
+
+The two new cost endpoints are restricted to the project's manager. Not to members, and **not to
+administrators** — the same rule the rest of the project authorization model follows: an
+administrator who needs these figures takes the project over first, which is a visible, logged act.
+
+This will surprise installations whose projects were all created by an `admin` account and then
+handed to nobody: whoever is recorded as manager is the only person who can read a job's labour
+cost. Check before wondering why a 403 arrives:
+
+```sql
+SELECT p.id, p.name, u.username AS manager FROM project p LEFT JOIN puser u ON u.id = p.manager_id;
+```
+
+Hand a project over with `PUT /api/v1/projects/{id}/manager/{userId}` rather than granting
+anybody blanket rights.
+
 ## 1.4.0
 
 ### `puser.last_login` — drop
