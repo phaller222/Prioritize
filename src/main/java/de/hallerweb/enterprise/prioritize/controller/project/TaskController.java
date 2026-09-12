@@ -259,14 +259,39 @@ public class TaskController {
     }
 
     /**
-     * Returns what the equipment on this task has cost: duration times each device's rate, per
-     * device and summed per currency. Labour is not part of it — people carry no rates.
+     * Returns what the equipment on this task has cost: duration times the rate each booking was
+     * closed at, per device and summed per currency. Labour is reported by {@code /tasks/{id}/cost}.
      */
     @Operation(summary = "Returns the equipment cost of the task (duration times rate, per currency)")
     @GetMapping("/tasks/{id}/equipment/cost")
     public ResponseEntity<TaskService.EquipmentCostReport> getEquipmentCost(
         @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
         return ResponseEntity.ok(taskService.getEquipmentCost(id, currentUser));
+    }
+
+    /**
+     * Returns what the work on this task cost, grouped by qualification level and never by person.
+     * Project manager only.
+     */
+    @Operation(summary = "Returns the labour cost of the task, by qualification level",
+        description = "Project manager only. Reports qualification levels, never individual people.")
+    @GetMapping("/tasks/{id}/labour/cost")
+    public ResponseEntity<TaskService.LabourCostReport> getLabourCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getLabourCost(id, currentUser));
+    }
+
+    /**
+     * Returns what the task cost altogether: the equipment block, the labour block, and one total per
+     * currency across both. Only the money is added up — hours of work and hours of machine time are
+     * never summed. Project manager only.
+     */
+    @Operation(summary = "Returns the full cost of the task: equipment plus labour, totals per currency",
+        description = "Project manager only. Money is summed across both blocks; hours never are.")
+    @GetMapping("/tasks/{id}/cost")
+    public ResponseEntity<TaskService.TaskCostReport> getTaskCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getTaskCost(id, currentUser));
     }
 
     /**
