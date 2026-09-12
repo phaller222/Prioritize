@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.security.PAuthorizedObject;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;

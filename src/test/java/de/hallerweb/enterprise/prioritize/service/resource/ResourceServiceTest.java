@@ -16,7 +16,7 @@
 
 package de.hallerweb.enterprise.prioritize.service.resource;
 
-import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceRequest;
 import java.math.BigDecimal;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
