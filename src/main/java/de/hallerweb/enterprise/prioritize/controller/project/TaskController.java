@@ -259,6 +259,45 @@ public class TaskController {
     }
 
     /**
+     * Books an equipment usage that was never clocked, the device counterpart of
+     * {@link #addTrackingSession}. The resource is in the path because a booking without a device
+     * says nothing, exactly as for start and stop.
+     */
+    @Operation(summary = "Books an equipment usage by hand that was never clocked")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/sessions")
+    public ResponseEntity<TaskService.EquipmentSession> addEquipmentSession(
+        @PathVariable Long id, @PathVariable Long resourceId, @RequestBody EquipmentSessionRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        TaskService.EquipmentSession session = taskService.addEquipmentSession(
+                id, resourceId, request.from(), request.until(), request.reason(), currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(session);
+    }
+
+    /**
+     * Corrects the bounds of a completed equipment booking. Manager or member — a booking has no
+     * owner to restrict it to. The booking is addressed by its id alone; it already names its
+     * device, and moving one to another device is not a correction but a delete plus a new booking.
+     */
+    @Operation(summary = "Corrects the start and end of a completed equipment booking")
+    @PutMapping("/tasks/{id}/equipment/sessions/{sessionId}")
+    public ResponseEntity<TaskService.EquipmentSession> updateEquipmentSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @RequestBody EquipmentSessionRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.updateEquipmentSession(
+                id, sessionId, request.from(), request.until(), request.reason(), currentUser));
+    }
+
+    /** Removes a completed equipment booking, for instance a scan of the wrong device. */
+    @Operation(summary = "Removes a completed equipment booking",
+        description = "Project manager only: a deleted booking leaves no audit trail behind.")
+    @DeleteMapping("/tasks/{id}/equipment/sessions/{sessionId}")
+    public ResponseEntity<Void> deleteEquipmentSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @AuthenticatedUser PUser currentUser) {
+        taskService.deleteEquipmentSession(id, sessionId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Returns what the equipment on this task has cost: duration times the rate each booking was
      * closed at, per device and summed per currency. Labour is reported by {@code /tasks/{id}/cost}.
      */
@@ -300,6 +339,15 @@ public class TaskController {
      * device, not to a person, so there is nobody else's clock to close.
      */
     public record EquipmentStopAtRequest(Instant until, String reason) {
+    }
+
+    /**
+     * Request body for correcting or hand-booking an equipment usage. All of {@code from},
+     * {@code until} and {@code reason} are mandatory. No {@code userId} counterpart to
+     * {@link WorkSessionRequest}: a booking is about a device, and it is booked to the job, not to
+     * whoever fetched the device.
+     */
+    public record EquipmentSessionRequest(Instant from, Instant until, String reason) {
     }
 
     /**

@@ -921,6 +921,137 @@ public class TaskService {
         return task;
     }
 
+    // --- Correcting equipment bookings ---
+    // The counterpart to the work-session corrections above, needed for the same reason: a device's
+    // clock is started and stopped by hand too, so it gets forgotten, started on the wrong task, or
+    // never started at all. What differs is who may fix it. A work session belongs to the person who
+    // worked it, which is why a non-manager may touch their own and nobody else's; an equipment
+    // booking belongs to nobody - it is a statement about the job - so "their own" has no meaning
+    // here, and project membership is the gate, exactly as for stopEquipmentUsageAt.
+    //
+    // Deleting is the one exception: it is the only operation that makes a cost line disappear
+    // without leaving a trail (correcting leaves one on the span), so it is reserved for the project
+    // manager. For work time that worry is covered by "your own sessions only", which for a device
+    // would collapse to "anybody's".
+
+    /**
+     * Books an equipment usage that was never clocked at all - the lift stood on site all day and
+     * nobody scanned it. The booking is created closed and marked
+     * {@link CorrectionKind#MANUAL_ENTRY}, so it stays visible as hand-entered.
+     * <p>
+     * The device's current rate is stamped on it just as it is when a booking is clocked out
+     * normally: without the stamp the booking would appear in {@link #getEquipmentCost} as unpriced,
+     * and the job's total would quietly be too low.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment the booking is about
+     * @param from       when the device arrived, must lie before {@code until}
+     * @param until      when it left, must not lie in the future
+     * @param reason     why the booking is being added, required
+     * @param user       the requesting user (must be manager or member)
+     * @return the newly booked usage
+     * @throws NoSuchElementException   if the task or the resource does not exist
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public EquipmentSession addEquipmentSession(Long taskId, Long resourceId, Instant from, Instant until,
+                                                String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        requireReason(reason);
+        requireValidBounds(from, until, "An equipment booking");
+
+        TimeSpan span = TimeSpan.builder()
+                .title(resource.getName())
+                .description(task.getName())
+                .dateFrom(from)
+                .dateUntil(until)
+                .type(TimeSpan.TimeSpanType.EQUIPMENT_USAGE)
+                .build();
+        span.getInvolvedResources().add(resource);
+        stampEquipmentRate(span, resource);
+        markCorrected(span, user, reason); // originalFrom stays null - nothing was ever recorded
+        task.getEquipmentUsage().add(span);
+        entityManager.flush(); // so the new booking has its id for the response
+        log.info("Equipment '{}' (id={}) booked by hand {} - {} on task '{}' (id={}) by '{}': {}",
+                resource.getName(), resourceId, from, until, task.getName(), taskId,
+                user.getUsername(), reason);
+        return toEquipmentSession(span, false);
+    }
+
+    /**
+     * Corrects the bounds of a completed equipment booking, keeping the bounds as first recorded and
+     * noting who changed them and why.
+     * <p>
+     * The rate stamped on the booking is deliberately left untouched. It records what the device
+     * cost <em>while it was on the job</em>; re-stamping it during a correction in December would
+     * reprice work done in March at today's rate - precisely what the stamp was introduced to
+     * prevent. A booking that carries no stamp keeps none: a rate cannot be invented afterwards.
+     *
+     * @param taskId    the task id
+     * @param sessionId the booking's id (from {@link EquipmentSession#id()})
+     * @param from      the corrected start, must lie before {@code until}
+     * @param until     the corrected end, must not lie in the future
+     * @param reason    why the booking is being changed, required
+     * @param user      the requesting user (must be manager or member)
+     * @return the corrected booking
+     * @throws NoSuchElementException   if no such completed booking exists on the task
+     * @throws IllegalStateException    if the booking is still running
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public EquipmentSession updateEquipmentSession(Long taskId, Long sessionId, Instant from, Instant until,
+                                                   String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        TimeSpan span = findClosedEquipmentSession(task, sessionId);
+        requireReason(reason);
+        requireValidBounds(from, until, "An equipment booking");
+
+        rememberOriginalBounds(span);
+        span.setDateFrom(from);
+        span.setDateUntil(until);
+        markCorrected(span, user, reason); // the rate stamp stays as it was, see above
+        log.info("Equipment booking {} on task '{}' (id={}) corrected to {} - {} by '{}': {}",
+                sessionId, task.getName(), taskId, from, until, user.getUsername(), reason);
+        return toEquipmentSession(span, false);
+    }
+
+    /**
+     * Removes a completed equipment booking - the wrong device was scanned, or the booking belongs
+     * to another job entirely. Project manager only: deleting takes the booking's audit trail and
+     * its cost line with it, and the log line below is all that remains of it.
+     *
+     * @param taskId    the task id
+     * @param sessionId the booking's id
+     * @param user      the requesting user (must be the project manager)
+     * @throws NoSuchElementException if no such completed booking exists on the task
+     * @throws IllegalStateException  if the booking is still running
+     */
+    public void deleteEquipmentSession(Long taskId, Long sessionId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireManager(projectOf(task), user);
+        TimeSpan span = findClosedEquipmentSession(task, sessionId);
+        Resource resource = subjectOf(span);
+        log.warn("Equipment booking {} ('{}') on task '{}' (id={}) ({} - {}) deleted by '{}'.",
+                sessionId, resource == null ? "?" : resource.getName(), task.getName(), taskId,
+                span.getDateFrom(), span.getDateUntil(), user.getUsername());
+        task.getEquipmentUsage().remove(span); // orphanRemoval deletes the row
+    }
+
+    /** Looks up a completed booking on the task; a running one is not correctable in place. */
+    private static TimeSpan findClosedEquipmentSession(Task task, Long sessionId) {
+        boolean stillRunning = task.getActiveEquipmentSpans().stream()
+                .anyMatch(span -> span.getId() != null && span.getId().equals(sessionId));
+        if (stillRunning) {
+            throw new IllegalStateException("This equipment booking is still running - clock the device "
+                    + "out, retroactively if needed, before correcting it.");
+        }
+        return task.getEquipmentUsage().stream()
+                .filter(span -> span.getId() != null && span.getId().equals(sessionId))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Equipment booking not found on this task."));
+    }
+
     /**
      * Returns how long each piece of equipment has been booked to this task, one entry per resource
      * that was ever clocked in, running bookings counted live up to now. Manager or member.
@@ -1409,14 +1540,25 @@ public class TaskService {
     }
 
     private static void requireValidBounds(Instant from, Instant until) {
+        requireValidBounds(from, until, "A work session");
+    }
+
+    /**
+     * The same checks for an equipment booking, which needs to say so in the message: told "a work
+     * session cannot end in the future" while correcting a dryer, a caller starts looking for the
+     * wrong mistake.
+     *
+     * @param subject how the record names itself, as the subject of the sentence
+     */
+    private static void requireValidBounds(Instant from, Instant until, String subject) {
         if (from == null || until == null) {
             throw new IllegalArgumentException("from and until are required.");
         }
         if (!from.isBefore(until)) {
-            throw new IllegalArgumentException("A work session must start before it ends.");
+            throw new IllegalArgumentException(subject + " must start before it ends.");
         }
         if (until.isAfter(Instant.now())) {
-            throw new IllegalArgumentException("A work session cannot end in the future.");
+            throw new IllegalArgumentException(subject + " cannot end in the future.");
         }
     }
 
