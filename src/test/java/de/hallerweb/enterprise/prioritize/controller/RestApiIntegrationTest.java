@@ -54,6 +54,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.regex.Pattern;
+import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -333,7 +334,13 @@ class RestApiIntegrationTest {
         }
 
         JsonNode listed = json.readTree(send(authorized("/api/v1/resources", ADMIN, ADMIN_PASSWORD).GET()).body());
-        JsonNode ping = listed.get(0).path("mqttLastPing");
+        // By id, not by position: the list carries whatever else the suite created, so an index would
+        // assert against a different resource as soon as somebody adds a test.
+        JsonNode ping = StreamSupport.stream(listed.spliterator(), false)
+                .filter(node -> node.path("id").asLong() == resource.getId())
+                .findFirst()
+                .orElseGet(() -> fail("the resource under test is missing from /api/v1/resources"))
+                .path("mqttLastPing");
         assertTrue(ping.isTextual(), "the resource under test must actually carry a ping timestamp");
         assertEquals(resource.getMqttLastPing().atZone(ZoneId.systemDefault()).toInstant(),
                 OffsetDateTime.parse(ping.asText()).toInstant(),
@@ -568,6 +575,72 @@ class RestApiIntegrationTest {
         paths.fieldNames().forEachRemaining(path -> assertTrue(path.startsWith("/api/v1/"),
                 "the generated clients would get an API class for " + path
                         + " — annotate the handler with @Hidden"));
+    }
+
+    /**
+     * The constraint has to reach the <em>document</em>, not just the server. A guard that only lives in
+     * Java rejects the call after the client has already sent it; {@code minimum: 1} in the schema is
+     * what lets a generated client refuse it beforehand, and it is the half that silently goes missing
+     * if the annotation is ever dropped or the validation starter falls off the classpath.
+     */
+    @Test
+    @DisplayName("The OpenAPI document publishes minimum: 1 for ResourceRequest.maxSlots")
+    void openApiDocumentCarriesTheSlotMinimum() throws Exception {
+        HttpResponse<String> response = send(authorized("/v3/api-docs", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(200, response.statusCode(), response.body());
+
+        JsonNode maxSlots = json.readTree(response.body())
+                .path("components").path("schemas").path("ResourceRequest")
+                .path("properties").path("maxSlots");
+        assertTrue(maxSlots.isObject(), "ResourceRequest.maxSlots is not in the document at all");
+        assertEquals(1, maxSlots.path("minimum").asInt(),
+                "the generated clients only learn the rule if the schema states it: " + maxSlots);
+    }
+
+    // ==========================================
+    // Request validation
+    // ==========================================
+
+    /**
+     * A resource with no slots can never be booked, and the mistake used to surface much later as
+     * {@code 409 All slots (0) occupied.} on a brand-new resource — the reservation looked broken while
+     * the actual error was two steps earlier. It is refused at the door now, on create and on patch.
+     */
+    @Test
+    @DisplayName("A resource cannot be created or patched with maxSlots below one")
+    void slotCountBelowOneIsRefused() throws Exception {
+        long groupId = resourceGroupRepository.findAll().stream().findFirst().orElseThrow().getId();
+        String unbookable = json.writeValueAsString(json.createObjectNode()
+                .put("name", "it-slots-" + System.nanoTime())
+                .put("description", "created by RestApiIntegrationTest")
+                .put("maxSlots", 0));
+
+        HttpResponse<String> created = send(authorized(
+                "/api/v1/resourcegroups/" + groupId + "/resources", ADMIN, ADMIN_PASSWORD)
+                .POST(HttpRequest.BodyPublishers.ofString(unbookable)));
+
+        assertEquals(400, created.statusCode(), created.body());
+        JsonNode error = json.readTree(created.body());
+        assertEquals(400, error.path("status").asInt(),
+                "a validation failure must arrive in the same ApiError shape as every other 400: " + created.body());
+        assertTrue(error.path("message").asText().contains("maxSlots"),
+                "the caller has to learn which field to fix: " + created.body());
+
+        // The same rule on the way in through PATCH, where the field is otherwise optional.
+        String ok = json.writeValueAsString(json.createObjectNode()
+                .put("name", "it-slots-ok-" + System.nanoTime())
+                .put("description", "created by RestApiIntegrationTest")
+                .put("maxSlots", 1));
+        HttpResponse<String> valid = send(authorized(
+                "/api/v1/resourcegroups/" + groupId + "/resources", ADMIN, ADMIN_PASSWORD)
+                .POST(HttpRequest.BodyPublishers.ofString(ok)));
+        assertEquals(201, valid.statusCode(), valid.body());
+        long resourceId = json.readTree(valid.body()).path("id").asLong();
+
+        HttpResponse<String> patched = send(authorized("/api/v1/resources/" + resourceId, ADMIN, ADMIN_PASSWORD)
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(
+                        json.writeValueAsString(json.createObjectNode().put("maxSlots", 0)))));
+        assertEquals(400, patched.statusCode(), patched.body());
     }
 
     // ==========================================

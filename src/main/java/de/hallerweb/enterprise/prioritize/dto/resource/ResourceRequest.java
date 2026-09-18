@@ -19,6 +19,8 @@ package de.hallerweb.enterprise.prioritize.dto.resource;
 import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 
+import jakarta.validation.constraints.Min;
+
 import java.math.BigDecimal;
 
 /**
@@ -27,6 +29,13 @@ import java.math.BigDecimal;
  * buffers, reservations or skills. All fields are boxed/nullable so the same record serves a PATCH (only
  * non-null fields are applied by the service); {@code createResource} fills its own defaults for the ones
  * left null.
+ * <p>
+ * {@code maxSlots} is the only field carrying a constraint, and it is why this record is validated at all:
+ * a resource with no slots cannot be booked, and the mistake surfaced much later as a
+ * {@code 409 All slots (0) occupied.} on a brand-new resource — a message pointing at the wrong thing
+ * entirely. The service rejects it as well (the admin GUI and the demo data never pass through here); the
+ * annotation exists so the rule is part of the published contract, where a generated client sees
+ * {@code minimum: 1} instead of discovering it by getting it wrong.
  *
  * @author peter haller
  */
@@ -34,6 +43,9 @@ public record ResourceRequest(String name,
                               String description,
                               String ip,
                               Integer port,
+
+                              /** At least one slot; {@code null} on a PATCH still means "unchanged". */
+                              @Min(value = 1, message = "A resource needs at least one slot.")
                               Integer maxSlots,
                               Boolean stationary,
                               Boolean remote,

@@ -105,6 +105,15 @@ UPDATE resource SET max_slots = 1 WHERE max_slots IS NULL OR max_slots < 1;
 Same statement on both engines. If the query returns no rows — the normal case, since the value has
 to be sent explicitly to go wrong — there is nothing to do.
 
+The rule is now part of the published contract as well, not only of the server: `ResourceRequest.maxSlots`
+carries `minimum: 1`, so `POST /resourcegroups/{groupId}/resources` and `PATCH /resources/{id}` answer
+`400` instead of accepting the value, and a regenerated client refuses it before the call goes out. The
+service keeps its own check, because the admin GUI and the demo data do not come through the REST layer.
+
+Worth knowing for anything that parses errors: a validation failure now arrives in the same `ApiError`
+shape as every other `400` (`message`, `status`, `timestamp`), naming the offending field — Spring's own
+`ProblemDetail` body would otherwise have made one status code arrive in two different shapes.
+
 ### `qualification_level` and `puser.qualification_level_id` — no work needed
 
 Qualification levels are a new table, and the reference from a user is a new, nullable column.

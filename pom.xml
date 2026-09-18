@@ -84,6 +84,17 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!--
+            Bean Validation. Hibernate Validator was already on the classpath through other starters,
+            so @Valid happened to work; declared explicitly because the REST contract now relies on it
+            (see ResourceRequest.maxSlots) and a transitive dependency that carries a contract is one
+            upgrade away from disappearing silently.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Vaadin Flow (admin GUI) -->
         <dependency>
             <groupId>com.vaadin</groupId>
