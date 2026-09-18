@@ -35,6 +35,7 @@ import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -159,7 +160,7 @@ public class ResourceController {
     @PostMapping("/resourcegroups/{groupId}/resources")
     public ResponseEntity<ResourceDTO> createResource(
         @PathVariable Long groupId,
-        @RequestBody ResourceRequest request,
+        @Valid @RequestBody ResourceRequest request,
         @AuthenticatedUser PUser currentUser) {
 
         Resource created = resourceService.createResource(request.toResource(), groupId, currentUser);
@@ -221,7 +222,7 @@ public class ResourceController {
     @PatchMapping("/resources/{id}")
     public ResponseEntity<ResourceDTO> partialUpdateResource(
         @PathVariable Long id,
-        @RequestBody ResourceRequest patch,
+        @Valid @RequestBody ResourceRequest patch,
         @AuthenticatedUser PUser currentUser) {
 
         Resource updated = resourceService.partialUpdateResource(id, patch.toResource(), currentUser);
