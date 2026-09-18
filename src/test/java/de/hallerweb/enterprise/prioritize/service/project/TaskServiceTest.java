@@ -826,6 +826,108 @@ class TaskServiceTest {
                 task.getId(), lift.getId(), Instant.now(), "  ", admin));
     }
 
+    // --- Korrektur von Gerätebuchungen ---
+
+    @Test
+    @DisplayName("addEquipmentSession: trägt eine nie gestochene Buchung nach und bepreist sie")
+    void addEquipmentSession_bookedByHandIsPriced() {
+        Task task = newTask();
+        Resource lift = ratedResource("Hubarbeitsbühne", "89.00", CostRateUnit.DAY);
+        Instant from = Instant.now().minus(Duration.ofHours(24));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        var added = taskService.addEquipmentSession(
+                task.getId(), lift.getId(), from, until, "Bühne stand da, keiner hat gescannt", admin);
+
+        assertNotNull(added.id());
+        assertEquals(lift.getId(), added.resourceId());
+        assertFalse(added.running());
+        assertEquals(TaskService.CorrectionKind.MANUAL_ENTRY, added.correction().kind());
+        assertNull(added.correction().originalFrom(),
+                "Es gab keinen aufgezeichneten Zustand, der zu bewahren wäre");
+        // Der Satz-Stempel ist die eigentliche Falle: ohne ihn stünde die nachgetragene Buchung
+        // unbepreist im Kostenbericht und die Auftragssumme wäre still zu niedrig.
+        var report = taskService.getEquipmentCost(task.getId(), admin);
+        assertEquals(0, new BigDecimal("89.00").compareTo(report.lines().get(0).amount()));
+        assertFalse(report.ratesMissing(), "die nachgetragene Buchung trägt einen Satz");
+    }
+
+    /** Eine Zeitkorrektur im Dezember darf die Preise vom März nicht neu schreiben. */
+    @Test
+    @DisplayName("updateEquipmentSession: korrigiert die Zeiten, lässt den Satz-Stempel aber stehen")
+    void updateEquipmentSession_keepsTheStampedRate() {
+        Task task = newTask();
+        Resource drill = ratedResource("Kernbohrmaschine", "12.00", CostRateUnit.HOUR);
+        bookEquipment(task, drill, Duration.ofHours(1));
+        var booking = taskService.getEquipmentSessions(task.getId(), admin).get(0);
+        drill.setCostRate(new BigDecimal("20.00")); // Preiserhöhung nach dem Einsatz
+
+        Instant from = Instant.now().minus(Duration.ofHours(3));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+        var corrected = taskService.updateEquipmentSession(
+                task.getId(), booking.id(), from, until, "Rückgabe war später", admin);
+
+        assertEquals(from, corrected.from());
+        assertEquals(until, corrected.until());
+        assertEquals(TaskService.CorrectionKind.CORRECTED, corrected.correction().kind());
+        assertEquals("Rückgabe war später", corrected.correction().reason());
+        var line = taskService.getEquipmentCost(task.getId(), admin).lines().get(0);
+        assertEquals(0, new BigDecimal("12.00").compareTo(line.rate()), "der gestempelte Satz gilt weiter");
+        assertEquals(0, new BigDecimal("24.00").compareTo(line.amount()), "2 h zum gestempelten Satz");
+    }
+
+    @Test
+    @DisplayName("updateEquipmentSession: eine noch laufende Buchung wird nicht korrigiert")
+    void updateEquipmentSession_runningBookingRejected() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        taskService.startEquipmentUsage(task.getId(), lift.getId(), admin);
+        var running = taskService.getEquipmentSessions(task.getId(), admin).get(0);
+        Instant from = Instant.now().minus(Duration.ofHours(3));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        assertThrows(IllegalStateException.class, () -> taskService.updateEquipmentSession(
+                task.getId(), running.id(), from, until, "läuft noch", admin));
+    }
+
+    @Test
+    @DisplayName("addEquipmentSession: unplausible Zeiten oder fehlender Grund werfen IllegalArgumentException")
+    void addEquipmentSession_rejectsImplausibleInput() {
+        Task task = newTask();
+        Resource lift = newResource("Hubarbeitsbühne");
+        Instant from = Instant.now().minus(Duration.ofHours(3));
+        Instant until = Instant.now().minus(Duration.ofHours(1));
+
+        assertThrows(IllegalArgumentException.class, () -> taskService.addEquipmentSession(
+                task.getId(), lift.getId(), from, until, "  ", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.addEquipmentSession(
+                task.getId(), lift.getId(), until, from, "verdreht", admin));
+        assertThrows(IllegalArgumentException.class, () -> taskService.addEquipmentSession(
+                task.getId(), lift.getId(), from, Instant.now().plus(Duration.ofHours(1)), "Zukunft", admin));
+    }
+
+    @Test
+    @DisplayName("deleteEquipmentSession: entfernt die Fehlbuchung, aber nur für den Projektmanager")
+    void deleteEquipmentSession_removesBookingAndIsManagerOnly() {
+        Task task = newTask();
+        projectService.addMember(project.getId(), member.getId(), admin);
+        Resource lift = newResource("Hubarbeitsbühne");
+        bookEquipment(task, lift, Duration.ofHours(2));
+        var booking = taskService.getEquipmentSessions(task.getId(), admin).get(0);
+
+        // Korrigieren darf jedes Mitglied — eine Gerätebuchung hat keinen Eigentümer …
+        taskService.updateEquipmentSession(task.getId(), booking.id(),
+                Instant.now().minus(Duration.ofHours(3)), Instant.now().minus(Duration.ofHours(1)),
+                "Rückgabe war später", member);
+        // … löschen nicht: es ist die einzige Operation, die eine Kostenzeile spurlos entfernt.
+        assertThrows(AccessDeniedException.class,
+                () -> taskService.deleteEquipmentSession(task.getId(), booking.id(), member));
+
+        taskService.deleteEquipmentSession(task.getId(), booking.id(), admin);
+
+        assertTrue(taskService.getEquipmentSessions(task.getId(), admin).isEmpty());
+    }
+
     // --- Dauer × Satz ---
 
     /** Mietgeräte werden nach angefangenem Tag abgerechnet — 30 h sind zwei Tage, nicht 1,25. */

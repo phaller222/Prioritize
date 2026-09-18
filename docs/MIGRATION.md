@@ -165,6 +165,30 @@ SELECT p.id, p.name, u.username AS manager FROM project p LEFT JOIN puser u ON u
 Hand a project over with `PUT /api/v1/projects/{id}/manager/{userId}` rather than granting
 anybody blanket rights.
 
+### Equipment bookings can be corrected — three new endpoints, no work needed
+
+Work sessions have been correctable since 1.4.0; equipment bookings could only be clocked out
+retroactively. 1.5.0 completes the pair:
+
+| | work time | equipment |
+|---|---|---|
+| book by hand | `POST /tasks/{id}/tracking/sessions` | `POST /tasks/{id}/equipment/{resourceId}/sessions` |
+| correct | `PUT /tasks/{id}/tracking/sessions/{sessionId}` | `PUT /tasks/{id}/equipment/sessions/{sessionId}` |
+| delete | `DELETE /tasks/{id}/tracking/sessions/{sessionId}` | `DELETE /tasks/{id}/equipment/sessions/{sessionId}` |
+
+Additive: no database work, and nothing behaves differently until one of them is called. Two
+rules are worth knowing before they surprise somebody:
+
+- **Rights differ from work time, on purpose.** A work session belongs to whoever worked it, so a
+  non-manager may correct their own and nobody else's. An equipment booking has no owner — it is a
+  statement about the job — so any project member may book and correct one. **Deleting is project
+  manager only**: it is the only operation that removes a cost line without leaving an audit trail
+  on the booking, and "your own bookings only" would mean nothing for a device.
+- **A correction does not re-price.** A hand-booked usage is stamped with the device's rate at the
+  moment it is entered, exactly as a normal clock-out is. Correcting the times of an existing
+  booking leaves the stamp alone — otherwise a December correction would re-price a March job at
+  today's rate. A booking closed before 1.5.0 carries no stamp and does not get one retroactively.
+
 ## 1.4.0
 
 ### `puser.last_login` — drop
