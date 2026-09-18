@@ -29,6 +29,7 @@ de.hallerweb.enterprise.prioritize.model
 de.hallerweb.enterprise.prioritize.model.address
 de.hallerweb.enterprise.prioritize.model.calendar
 de.hallerweb.enterprise.prioritize.model.company
+de.hallerweb.enterprise.prioritize.model.cost
 de.hallerweb.enterprise.prioritize.model.document
 de.hallerweb.enterprise.prioritize.model.nfc
 de.hallerweb.enterprise.prioritize.model.process

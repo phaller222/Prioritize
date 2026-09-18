@@ -56,6 +56,12 @@ The two engines have drifted here for the same reason as with `date_of_birth`: t
 emitted at table creation time, so what a database carries depends on which release first created the
 table, not on which release it runs now.
 
+The same widening reaches the API, which matters for anything still running a 1.4.x client:
+`NfcUnitDTO.type`, `NfcUnitRequest.type` and `ScanResult.type` now include `EQUIPMENT`. A generated
+client from 1.4.x has that enum without the new constant, and a strict deserializer will fail on a tag
+it has never heard of — not on every call, only once an equipment tag is actually read. Clients
+regenerated from this release are fine, and so is anything that treats the field as a string.
+
 ### `nfc_unit.task_id` — the unique constraint has to go
 
 A tag points at one task, but a task carries as many tags as the job needs: the tracker sticker on the

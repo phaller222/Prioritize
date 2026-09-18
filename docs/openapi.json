@@ -12,7 +12,7 @@
       "name": "Apache License 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "1.4.1"
+    "version": "1.5.0"
   },
   "servers": [
     {
@@ -60,6 +60,10 @@
       "description": "Manage projects, their manager, team members, resources and documents."
     },
     {
+      "name": "Qualification levels",
+      "description": "What an hour of work is costed at, by qualification rather than by person."
+    },
+    {
       "name": "Resources",
       "description": "Manage resources and groups, reservations, control commands and telemetry ingest."
     },
@@ -89,6 +93,48 @@
     }
   ],
   "paths": {
+    "/api/v1/users/{userId}/qualification-level": {
+      "put": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Assign a user to a qualification level",
+        "description": "Omit levelId to take the user off their qualification level.",
+        "operationId": "qualificationLevel_assignQualificationLevel",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "levelId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/{id}": {
       "get": {
         "tags": [
@@ -390,6 +436,90 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/equipment/sessions/{sessionId}": {
+      "put": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Corrects the start and end of a completed equipment booking",
+        "operationId": "task_updateEquipmentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquipmentSession"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Removes a completed equipment booking",
+        "description": "Project manager only: a deleted booking leaves no audit trail behind.",
+        "operationId": "task_deleteEquipmentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}/assignee/{actorId}": {
       "put": {
         "tags": [
@@ -669,6 +799,103 @@
         "parameters": [
           {
             "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/qualification-levels/{levelId}": {
+      "get": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Get qualification level by id",
+        "operationId": "qualificationLevel_getQualificationLevelById",
+        "parameters": [
+          {
+            "name": "levelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualificationLevelDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Update qualification level",
+        "description": "Replaces the level. Omitting the three cost fields clears its cost rate.",
+        "operationId": "qualificationLevel_updateQualificationLevel",
+        "parameters": [
+          {
+            "name": "levelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualificationLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualificationLevelDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Delete qualification level",
+        "description": "Refused while people are still assigned to the level.",
+        "operationId": "qualificationLevel_deleteQualificationLevel",
+        "parameters": [
+          {
+            "name": "levelId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1333,6 +1560,231 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/equipment/{resourceId}/toggle": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Toggles a piece of equipment on the task",
+        "operationId": "task_toggleEquipmentUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/{resourceId}/stop": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Clocks a piece of equipment off the task",
+        "operationId": "task_stopEquipmentUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/{resourceId}/stop-at": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Clocks a piece of equipment off at an earlier point in time",
+        "operationId": "task_stopEquipmentUsageAt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentStopAtRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/{resourceId}/start": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Clocks a piece of equipment onto the task",
+        "operationId": "task_startEquipmentUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/{resourceId}/sessions": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Books an equipment usage by hand that was never clocked",
+        "operationId": "task_addEquipmentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquipmentSession"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/skills": {
       "get": {
         "tags": [
@@ -1850,6 +2302,59 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/qualification-levels": {
+      "get": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Get all qualification levels",
+        "operationId": "qualificationLevel_getAllQualificationLevels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QualificationLevelDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Qualification levels"
+        ],
+        "summary": "Create qualification level",
+        "operationId": "qualificationLevel_createQualificationLevel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualificationLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualificationLevelDTO"
                 }
               }
             }
@@ -3723,6 +4228,174 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/labour/cost": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the labour cost of the task, by qualification level",
+        "description": "Project manager only. Reports qualification levels, never individual people.",
+        "operationId": "task_getLabourCost",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabourCostReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the time booked per piece of equipment on the task",
+        "operationId": "task_getEquipmentUsage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquipmentUsageSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/sessions": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the individual equipment bookings of the task",
+        "operationId": "task_getEquipmentSessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EquipmentSession"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/equipment/cost": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the equipment cost of the task (duration times rate, per currency)",
+        "operationId": "task_getEquipmentCost",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquipmentCostReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/cost": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Returns the full cost of the task: equipment plus labour, totals per currency",
+        "description": "Project manager only. Money is summed across both blocks; hours never are.",
+        "operationId": "task_getTaskCost",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCostReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/resources": {
       "get": {
         "tags": [
@@ -4599,80 +5272,6 @@
   },
   "components": {
     "schemas": {
-      "AddressRequest": {
-        "type": "object",
-        "properties": {
-          "street": {
-            "type": "string"
-          },
-          "housenumber": {
-            "type": "string"
-          },
-          "floor": {
-            "type": "string"
-          },
-          "zipCode": {
-            "type": "string"
-          },
-          "city": {
-            "type": "string"
-          },
-          "country": {
-            "type": "string"
-          },
-          "phone": {
-            "type": "string"
-          },
-          "fax": {
-            "type": "string"
-          },
-          "mobile": {
-            "type": "string"
-          }
-        }
-      },
-      "UserRequest": {
-        "type": "object",
-        "properties": {
-          "username": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "firstname": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "occupation": {
-            "type": "string"
-          },
-          "dateOfBirth": {
-            "type": "string",
-            "format": "date"
-          },
-          "gender": {
-            "type": "string",
-            "enum": [
-              "MALE",
-              "FEMALE",
-              "OTHER",
-              "TECHNICAL_USER"
-            ]
-          },
-          "address": {
-            "$ref": "#/components/schemas/AddressRequest"
-          },
-          "admin": {
-            "type": "boolean"
-          },
-          "active": {
-            "type": "boolean"
-          }
-        }
-      },
       "AddressDTO": {
         "type": "object",
         "properties": {
@@ -4754,6 +5353,87 @@
           "departmentId": {
             "type": "integer",
             "format": "int64"
+          },
+          "qualificationLevelId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "qualificationLevelName": {
+            "type": "string"
+          },
+          "admin": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AddressRequest": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "housenumber": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "string"
+          },
+          "zipCode": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "fax": {
+            "type": "string"
+          },
+          "mobile": {
+            "type": "string"
+          }
+        }
+      },
+      "UserRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "firstname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "occupation": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "MALE",
+              "FEMALE",
+              "OTHER",
+              "TECHNICAL_USER"
+            ]
+          },
+          "address": {
+            "$ref": "#/components/schemas/AddressRequest"
           },
           "admin": {
             "type": "boolean"
@@ -4919,6 +5599,60 @@
           "runningCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "equipmentRunningCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EquipmentSessionRequest": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "EquipmentSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "correction": {
+            "$ref": "#/components/schemas/Correction"
           }
         }
       },
@@ -5018,6 +5752,68 @@
           }
         }
       },
+      "QualificationLevelRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the level is called, e.g. Geselle",
+            "example": "Geselle"
+          },
+          "description": {
+            "type": "string",
+            "description": "What the level means in this business"
+          },
+          "costRate": {
+            "type": "number",
+            "description": "What an hour, day or use of this qualification costs. Set with currency and unit, or omit all three.",
+            "example": 48
+          },
+          "costCurrency": {
+            "type": "string",
+            "description": "ISO 4217 code of the cost rate",
+            "example": "EUR"
+          },
+          "costRateUnit": {
+            "type": "string",
+            "description": "What the cost rate is charged per",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
+          }
+        }
+      },
+      "QualificationLevelDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "costRate": {
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "costRateUnit": {
+            "type": "string",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
+          }
+        }
+      },
       "ProjectDTO": {
         "type": "object",
         "properties": {
@@ -5086,6 +5882,7 @@
               "COUNTER",
               "CHECKPOINT",
               "TIMETRACKER",
+              "EQUIPMENT",
               "INFOPOINT",
               "OTHER"
             ]
@@ -5270,6 +6067,18 @@
           }
         }
       },
+      "EquipmentStopAtRequest": {
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "TelemetryRuleRequest": {
         "type": "object",
         "properties": {
@@ -5385,6 +6194,7 @@
               "COUNTER",
               "CHECKPOINT",
               "TIMETRACKER",
+              "EQUIPMENT",
               "INFOPOINT",
               "OTHER"
             ]
@@ -5457,6 +6267,7 @@
             "format": "int32"
           },
           "maxSlots": {
+            "minimum": 1,
             "type": "integer",
             "format": "int32"
           },
@@ -5868,6 +6679,7 @@
               "COUNTER",
               "CHECKPOINT",
               "TIMETRACKER",
+              "EQUIPMENT",
               "INFOPOINT",
               "OTHER"
             ]
@@ -5989,6 +6801,201 @@
           "runningSince": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CurrencyTotal": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      },
+      "LabourCostLine": {
+        "type": "object",
+        "properties": {
+          "qualificationLevel": {
+            "type": "string"
+          },
+          "totalSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "billedUnits": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
+          },
+          "rate": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
+      "LabourCostReport": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LabourCostLine"
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
+          },
+          "ratesMissing": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EquipmentUsageSummary": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "totalSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalText": {
+            "type": "string"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "runningSince": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EquipmentCostLine": {
+        "type": "object",
+        "properties": {
+          "resourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "totalSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bookings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "billedUnits": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "HOUR",
+              "DAY",
+              "USAGE"
+            ]
+          },
+          "rate": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EquipmentCostReport": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentCostLine"
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
+          },
+          "ratesMissing": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TaskCostReport": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "equipment": {
+            "$ref": "#/components/schemas/EquipmentCostReport"
+          },
+          "labour": {
+            "$ref": "#/components/schemas/LabourCostReport"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyTotal"
+            }
+          },
+          "ratesMissing": {
+            "type": "boolean"
           }
         }
       },
