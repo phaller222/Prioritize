@@ -44,7 +44,9 @@ import java.util.NoSuchElementException;
  * A tag is registered on a resource by whoever may {@link Action#UPDATE update} that resource.
  * Scanning, by contrast, is a physical event available to any authenticated user; what it does
  * depends on the tag's {@link NfcUnitType type}. A {@link NfcUnitType#TIMETRACKER} tag toggles the
- * time tracking of its bound {@link Task} &mdash; the actual authorization for that (project
+ * time tracking of its bound {@link Task} for the scanning user; an {@link NfcUnitType#EQUIPMENT}
+ * tag instead clocks the resource it is mounted on on and off that task &mdash; the same gesture,
+ * but booking a machine's hours rather than a person's. The actual authorization for both (project
  * membership) and the tracking state live in {@link TaskService}/{@link Task}.
  *
  * @author peter haller
@@ -158,29 +160,34 @@ public class NfcUnitService {
     }
 
     /**
-     * Binds a {@link NfcUnitType#TIMETRACKER} tag to the task whose tracking it should toggle
-     * (Variant 2: one tracker tag &harr; exactly one task). Requires {@link Action#UPDATE} on the
-     * tag's resource.
+     * Binds a tag to the task a scan books against (Variant 2: one tag &harr; exactly one task):
+     * for a {@link NfcUnitType#TIMETRACKER} the task whose tracking it toggles, for a
+     * {@link NfcUnitType#EQUIPMENT} the task its resource is clocked on and off. Requires
+     * {@link Action#UPDATE} on the tag's resource.
+     * <p>
+     * An equipment tag is re-bound whenever the device moves to another job. That is not overhead
+     * but the booking act itself: a sticker on a lift travels with the lift while the site changes,
+     * unlike the tracker sticker on a site container, which stays where its task is.
      *
      * @param nfcUnitId the tag id
      * @param taskId    the task to bind
      * @param user      the requesting user
      * @return the updated tag
-     * @throws IllegalStateException if the tag is not a TIMETRACKER
+     * @throws IllegalStateException if the tag type has no task to bind
      */
     public NfcUnit bindTask(Long nfcUnitId, Long taskId, PUser user) {
         NfcUnit unit = requireManageableUnit(nfcUnitId, user);
-        if (unit.getType() != NfcUnitType.TIMETRACKER) {
-            throw new IllegalStateException("Only a TIMETRACKER tag can be bound to a task.");
+        if (unit.getType() != NfcUnitType.TIMETRACKER && unit.getType() != NfcUnitType.EQUIPMENT) {
+            throw new IllegalStateException("Only a TIMETRACKER or EQUIPMENT tag can be bound to a task.");
         }
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NoSuchElementException("Task not found"));
         unit.setTask(task);
-        log.info("NFC tracker '{}' bound to task {} by '{}'.", unit.getUuid(), taskId, user.getUsername());
+        log.info("NFC tag '{}' bound to task {} by '{}'.", unit.getUuid(), taskId, user.getUsername());
         return unit;
     }
 
-    /** Clears the task binding of a TIMETRACKER tag. Requires UPDATE on the tag's resource. */
+    /** Clears the task binding of a TIMETRACKER or EQUIPMENT tag. Requires UPDATE on the tag's resource. */
     public NfcUnit unbindTask(Long nfcUnitId, PUser user) {
         NfcUnit unit = requireManageableUnit(nfcUnitId, user);
         unit.setTask(null);
@@ -248,6 +255,24 @@ public class NfcUnitService {
                 String action = mine ? "TRACKING_STARTED" : "TRACKING_STOPPED";
                 yield new ScanResult(uuid, unit.getType(), action,
                         task.getId(), mine, unit.getSequenceNumber());
+            }
+            case EQUIPMENT -> {
+                Task bound = unit.getTask();
+                if (bound == null) {
+                    throw new IllegalStateException("NFC equipment tag '" + uuid + "' is not bound to a task.");
+                }
+                Resource device = unit.getResource();
+                if (device == null) {
+                    throw new IllegalStateException("NFC equipment tag '" + uuid + "' is not mounted on a resource.");
+                }
+                Task task = taskService.toggleEquipmentUsage(bound.getId(), device.getId(), user);
+                // The device's clock decides, not the scanner's: whoever holds the phone is booking
+                // the machine's time, not their own. trackingForMe stays null for that reason — a
+                // person's clock is untouched by scanning a lift.
+                String action = task.isEquipmentRunningFor(device)
+                        ? "EQUIPMENT_CLOCKED_IN" : "EQUIPMENT_CLOCKED_OUT";
+                yield new ScanResult(uuid, unit.getType(), action,
+                        task.getId(), null, unit.getSequenceNumber());
             }
             case COUNTER -> {
                 unit.setSequenceNumber(unit.getSequenceNumber() + 1);

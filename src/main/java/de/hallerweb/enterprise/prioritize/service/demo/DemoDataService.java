@@ -24,11 +24,12 @@ import de.hallerweb.enterprise.prioritize.model.document.DocumentInfo;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
-import de.hallerweb.enterprise.prioritize.model.resource.CostRateUnit;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceReservation;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
 import de.hallerweb.enterprise.prioritize.model.security.PermissionRecord;
 import de.hallerweb.enterprise.prioritize.model.skill.Skill;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillCategory;
@@ -47,6 +48,7 @@ import de.hallerweb.enterprise.prioritize.service.project.TaskService.TaskData;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.scheduling.TaskScheduleService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
+import de.hallerweb.enterprise.prioritize.service.skill.QualificationLevelService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -118,6 +120,7 @@ public class DemoDataService {
     private final ProjectService projectService;
     private final TaskService taskService;
     private final SkillService skillService;
+    private final QualificationLevelService qualificationLevelService;
     private final TaskScheduleService taskScheduleService;
     private final DocumentService documentService;
     private final PermissionRecordRepository permissionRepository;
@@ -138,6 +141,7 @@ public class DemoDataService {
         createDepartment(company, "Büro", "Angebote, Abrechnung, Disposition", admin);
 
         Crew crew = createCrew(werkstatt, montage);
+        createQualificationLevels(crew, admin);
         createSkills(crew);
 
         Equipment equipment = createEquipment(werkstatt, admin);
@@ -149,6 +153,7 @@ public class DemoDataService {
         createWorkSessions(sites, crew, admin);
         createInspectionSchedules(sites, admin);
         createInspectionRecords(werkstatt, admin);
+        handOverProjects(sites, crew, admin);
 
         log.info("Demo data seeded: '{}' with {} crew members. Log in as 'meister' / '{}'.",
                 COMPANY_NAME, 4, DEMO_PASSWORD);
@@ -242,6 +247,66 @@ public class DemoDataService {
         permissionRepository.save(reservations);
         user.addPersonalPermission(resources);
         user.addPersonalPermission(reservations);
+        userService.updateUser(user);
+    }
+
+    // ==========================================
+    // Qualification levels — "what does an hour of this cost?"
+    // ==========================================
+
+    /**
+     * The three levels this trade works with, and what an hour of each is costed at. These are
+     * charge-out rates for a job calculation, not wages: the rate hangs on the level, so the demo can
+     * show what a site cost without showing what anybody earns.
+     * <p>
+     * The same three names are already in each person's {@code occupation} as free text. The level is
+     * what a calculation can actually use — the free text stays as the job title it is.
+     */
+    private void createQualificationLevels(Crew crew, PUser admin) {
+        QualificationLevel meister = createQualificationLevel("Elektromeister",
+                "Meisterbrief, verantwortliche Elektrofachkraft", new BigDecimal("72.00"), admin);
+        QualificationLevel geselle = createQualificationLevel("Geselle",
+                "Abgeschlossene Ausbildung, arbeitet selbstständig auf der Baustelle",
+                new BigDecimal("58.00"), admin);
+        QualificationLevel azubi = createQualificationLevel("Auszubildender",
+                "In Ausbildung, arbeitet unter Aufsicht", new BigDecimal("28.00"), admin);
+
+        qualificationLevelService.assignQualificationLevel(crew.meister().getId(), meister.getId(), admin);
+        qualificationLevelService.assignQualificationLevel(crew.geselleKnx().getId(), geselle.getId(), admin);
+        qualificationLevelService.assignQualificationLevel(crew.gesellePv().getId(), geselle.getId(), admin);
+        qualificationLevelService.assignQualificationLevel(crew.azubi().getId(), azubi.getId(), admin);
+
+        grantQualificationAccess(crew.meister());
+    }
+
+    private QualificationLevel createQualificationLevel(String name, String description,
+                                                       BigDecimal hourlyRate, PUser admin) {
+        QualificationLevel level = QualificationLevel.builder()
+                .name(name)
+                .description(description)
+                .costRate(hourlyRate)
+                .costCurrency("EUR")
+                .costRateUnit(CostRateUnit.HOUR)
+                .build();
+        return qualificationLevelService.createQualificationLevel(level, admin);
+    }
+
+    /**
+     * Lets the master craftsman read and maintain the levels — and therefore see a job's labour cost.
+     * Nobody else in the crew gets it: a rate per level is still the wage structure of a four-person
+     * business, and the demo should show the boundary rather than hand it to everyone.
+     */
+    private void grantQualificationAccess(PUser user) {
+        PermissionRecord levels = PermissionRecord.builder()
+                .absoluteObjectType(QualificationLevel.class.getCanonicalName())
+                .objectId(0L)
+                .createPermission(false)
+                .readPermission(true)
+                .updatePermission(true)
+                .deletePermission(false)
+                .build();
+        permissionRepository.save(levels);
+        user.addPersonalPermission(levels);
         userService.updateUser(user);
     }
 
@@ -411,6 +476,21 @@ public class DemoDataService {
                 new ProjectData(name, description, 3, begin, due, maxManDays), admin);
         crew.all().forEach(member -> projectService.addMember(project.getId(), member.getId(), admin));
         return project;
+    }
+
+    /**
+     * Hands the projects to the master craftsman, once everything else is seeded.
+     * <p>
+     * Deliberately the last step. A job's cost report is for the project manager alone, and in a
+     * four-person trade business that is the boss, not an administrator account nobody logs in as —
+     * left with 'admin' in charge, the cost figures would be unreachable from the demo login. It
+     * cannot happen any earlier, though: seeding books work sessions on other people's behalf, and
+     * that is a manager's job, so 'admin' has to stay in charge until the data is in.
+     */
+    private void handOverProjects(Sites sites, Crew crew, PUser admin) {
+        for (Project project : List.of(sites.kita(), sites.pv(), sites.workshop())) {
+            projectService.transferManager(project.getId(), crew.meister().getId(), admin);
+        }
     }
 
     private Task createTask(Project project, String name, String description, PUser admin) {

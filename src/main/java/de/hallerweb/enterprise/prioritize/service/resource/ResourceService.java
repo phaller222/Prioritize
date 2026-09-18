@@ -22,6 +22,7 @@ import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
 import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetryRuleDTO;
 import de.hallerweb.enterprise.prioritize.model.calendar.TimeSpan;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateRules;
 import de.hallerweb.enterprise.prioritize.model.resource.NameValueEntry;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
@@ -160,6 +161,7 @@ public class ResourceService {
         if (resource.getPort() == null) {
             resource.setPort(80);
         }
+        requireUsableSlotCount(resource);
 
         return resourceRepository.save(resource);
     }
@@ -567,6 +569,7 @@ public class ResourceService {
         if (patch.getCostCurrency() != null) existing.setCostCurrency(patch.getCostCurrency());
         if (patch.getCostRateUnit() != null) existing.setCostRateUnit(patch.getCostRateUnit());
         requireConsistentCostRate(existing);
+        requireUsableSlotCount(existing);
 
         // Relationships (department, resourceGroup), reservations, skills are NOT modifiable via PATCH!
         // Dedicated endpoints exist for that (createResource, reserveResource, assignSkillToResource).
@@ -732,40 +735,34 @@ public class ResourceService {
 
 
     /**
-     * A cost rate is only meaningful complete: an amount without a unit cannot be interpreted, and
-     * without a currency it cannot be added up across resources. Either all three are set or none.
-     * A negative rate is rejected outright; a rate of zero is allowed and means "free of charge",
-     * which is a real answer and different from "not recorded".
-     * <p>
-     * The currency must be an ISO 4217 code, checked against the JDK's table and stored upper case.
-     * A free-form string looks harmless until the data exists: {@code EUR}, {@code eur} and
-     * {@code Euro} are three currencies as far as any sum is concerned, and tightening the rule
-     * afterwards would reject rows that are already in the database.
+     * Applies {@link CostRateRules#requireConsistent} to the resource and stores the currency back in
+     * its canonical spelling. The rule itself is shared with the qualification levels, so a rate means
+     * the same thing whether it hangs on a machine or on a person's qualification.
      */
     private static void requireConsistentCostRate(Resource resource) {
-        java.math.BigDecimal rate = resource.getCostRate();
-        boolean any = rate != null || resource.getCostCurrency() != null || resource.getCostRateUnit() != null;
-        if (!any) {
-            return;
+        String currency = CostRateRules.requireConsistent(
+                resource.getCostRate(), resource.getCostCurrency(), resource.getCostRateUnit());
+        if (currency != null) {
+            resource.setCostCurrency(currency);
         }
-        if (rate == null || resource.getCostCurrency() == null || resource.getCostRateUnit() == null) {
-            throw new IllegalArgumentException(
-                    "A cost rate needs an amount, a currency and a unit — set all three or none.");
-        }
-        if (rate.signum() < 0) {
-            throw new IllegalArgumentException("A cost rate cannot be negative.");
-        }
-        resource.setCostCurrency(normalizedCurrency(resource.getCostCurrency()));
     }
 
-    /** The ISO 4217 code in its canonical spelling, or an {@link IllegalArgumentException}. */
-    private static String normalizedCurrency(String currency) {
-        String code = currency.trim().toUpperCase(java.util.Locale.ROOT);
-        try {
-            return java.util.Currency.getInstance(code).getCurrencyCode();
-        } catch (IllegalArgumentException | NullPointerException ex) {
+    /**
+     * A resource has to offer at least one slot. A slot count below one is not a resource that happens
+     * to be full — nothing can ever be booked on it, and every reservation attempt is answered with
+     * "All slots (0) occupied.", which reads like a busy resource and sends the caller looking for a
+     * reservation that does not exist. Rejecting the value where it enters keeps that state out of the
+     * database instead of dressing it up as a conflict later.
+     * <p>
+     * Deliberately not defaulted to one: a caller that sends zero means something by it, and silently
+     * storing a different number would hide the mistake rather than report it. An omitted value is a
+     * different case and still defaults to one in {@link #createResource}.
+     */
+    private static void requireUsableSlotCount(Resource resource) {
+        Integer maxSlots = resource.getMaxSlots();
+        if (maxSlots != null && maxSlots < 1) {
             throw new IllegalArgumentException(
-                    "'" + currency + "' is not an ISO 4217 currency code — use three letters, for instance EUR.");
+                    "A resource needs at least one slot — maxSlots was " + maxSlots + ".");
         }
     }
 }

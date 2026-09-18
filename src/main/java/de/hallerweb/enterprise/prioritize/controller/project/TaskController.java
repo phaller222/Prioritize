@@ -200,6 +200,156 @@ public class TaskController {
         return ResponseEntity.noContent().build();
     }
 
+    // --- Equipment usage ---
+    // Machine hours, kept on their own paths and in their own responses. They are never mixed into
+    // the work-time endpoints above: four hours of work and 120 hours of dryer are two different
+    // facts about a job, and a client that adds them up would be reporting nonsense.
+
+    @Operation(summary = "Clocks a piece of equipment onto the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/start")
+    public ResponseEntity<TaskDTO> startEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.startEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    @Operation(summary = "Clocks a piece of equipment off the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/stop")
+    public ResponseEntity<TaskDTO> stopEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.stopEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    @Operation(summary = "Toggles a piece of equipment on the task")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/toggle")
+    public ResponseEntity<TaskDTO> toggleEquipmentUsage(
+        @PathVariable Long id, @PathVariable Long resourceId, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(
+                taskService.toggleEquipmentUsage(id, resourceId, currentUser), currentUser));
+    }
+
+    /**
+     * Clocks a piece of equipment off retroactively — the device equivalent of "forgot to clock out",
+     * which for machines is the normal case rather than the exception.
+     */
+    @Operation(summary = "Clocks a piece of equipment off at an earlier point in time")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/stop-at")
+    public ResponseEntity<TaskDTO> stopEquipmentUsageAt(
+        @PathVariable Long id, @PathVariable Long resourceId, @RequestBody EquipmentStopAtRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(TaskDTO.from(taskService.stopEquipmentUsageAt(
+                id, resourceId, request.until(), request.reason(), currentUser), currentUser));
+    }
+
+    /** Returns the time booked per piece of equipment on the task, running bookings counted live. */
+    @Operation(summary = "Returns the time booked per piece of equipment on the task")
+    @GetMapping("/tasks/{id}/equipment")
+    public ResponseEntity<List<TaskService.EquipmentUsageSummary>> getEquipmentUsage(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentUsage(id, currentUser));
+    }
+
+    /** Returns the individual equipment bookings of the task (completed ones plus any open one). */
+    @Operation(summary = "Returns the individual equipment bookings of the task")
+    @GetMapping("/tasks/{id}/equipment/sessions")
+    public ResponseEntity<List<TaskService.EquipmentSession>> getEquipmentSessions(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentSessions(id, currentUser));
+    }
+
+    /**
+     * Books an equipment usage that was never clocked, the device counterpart of
+     * {@link #addTrackingSession}. The resource is in the path because a booking without a device
+     * says nothing, exactly as for start and stop.
+     */
+    @Operation(summary = "Books an equipment usage by hand that was never clocked")
+    @PostMapping("/tasks/{id}/equipment/{resourceId}/sessions")
+    public ResponseEntity<TaskService.EquipmentSession> addEquipmentSession(
+        @PathVariable Long id, @PathVariable Long resourceId, @RequestBody EquipmentSessionRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        TaskService.EquipmentSession session = taskService.addEquipmentSession(
+                id, resourceId, request.from(), request.until(), request.reason(), currentUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(session);
+    }
+
+    /**
+     * Corrects the bounds of a completed equipment booking. Manager or member — a booking has no
+     * owner to restrict it to. The booking is addressed by its id alone; it already names its
+     * device, and moving one to another device is not a correction but a delete plus a new booking.
+     */
+    @Operation(summary = "Corrects the start and end of a completed equipment booking")
+    @PutMapping("/tasks/{id}/equipment/sessions/{sessionId}")
+    public ResponseEntity<TaskService.EquipmentSession> updateEquipmentSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @RequestBody EquipmentSessionRequest request,
+        @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.updateEquipmentSession(
+                id, sessionId, request.from(), request.until(), request.reason(), currentUser));
+    }
+
+    /** Removes a completed equipment booking, for instance a scan of the wrong device. */
+    @Operation(summary = "Removes a completed equipment booking",
+        description = "Project manager only: a deleted booking leaves no audit trail behind.")
+    @DeleteMapping("/tasks/{id}/equipment/sessions/{sessionId}")
+    public ResponseEntity<Void> deleteEquipmentSession(
+        @PathVariable Long id, @PathVariable Long sessionId, @AuthenticatedUser PUser currentUser) {
+        taskService.deleteEquipmentSession(id, sessionId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Returns what the equipment on this task has cost: duration times the rate each booking was
+     * closed at, per device and summed per currency. Labour is reported by {@code /tasks/{id}/cost}.
+     */
+    @Operation(summary = "Returns the equipment cost of the task (duration times rate, per currency)")
+    @GetMapping("/tasks/{id}/equipment/cost")
+    public ResponseEntity<TaskService.EquipmentCostReport> getEquipmentCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getEquipmentCost(id, currentUser));
+    }
+
+    /**
+     * Returns what the work on this task cost, grouped by qualification level and never by person.
+     * Project manager only.
+     */
+    @Operation(summary = "Returns the labour cost of the task, by qualification level",
+        description = "Project manager only. Reports qualification levels, never individual people.")
+    @GetMapping("/tasks/{id}/labour/cost")
+    public ResponseEntity<TaskService.LabourCostReport> getLabourCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getLabourCost(id, currentUser));
+    }
+
+    /**
+     * Returns what the task cost altogether: the equipment block, the labour block, and one total per
+     * currency across both. Only the money is added up — hours of work and hours of machine time are
+     * never summed. Project manager only.
+     */
+    @Operation(summary = "Returns the full cost of the task: equipment plus labour, totals per currency",
+        description = "Project manager only. Money is summed across both blocks; hours never are.")
+    @GetMapping("/tasks/{id}/cost")
+    public ResponseEntity<TaskService.TaskCostReport> getTaskCost(
+        @PathVariable Long id, @AuthenticatedUser PUser currentUser) {
+        return ResponseEntity.ok(taskService.getTaskCost(id, currentUser));
+    }
+
+    /**
+     * Request body for clocking a device off retroactively. Both {@code until} and {@code reason} are
+     * mandatory. No {@code userId} counterpart to {@link StopAtRequest}: a booking belongs to the
+     * device, not to a person, so there is nobody else's clock to close.
+     */
+    public record EquipmentStopAtRequest(Instant until, String reason) {
+    }
+
+    /**
+     * Request body for correcting or hand-booking an equipment usage. All of {@code from},
+     * {@code until} and {@code reason} are mandatory. No {@code userId} counterpart to
+     * {@link WorkSessionRequest}: a booking is about a device, and it is booked to the job, not to
+     * whoever fetched the device.
+     */
+    public record EquipmentSessionRequest(Instant from, Instant until, String reason) {
+    }
+
     /**
      * Request body for correcting or hand-booking a work session. All of {@code from}, {@code until}
      * and {@code reason} are mandatory. {@code userId} books the session for somebody else, which is

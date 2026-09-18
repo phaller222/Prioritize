@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import de.hallerweb.enterprise.prioritize.model.PActor;
 import de.hallerweb.enterprise.prioritize.model.address.Address;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
 import de.hallerweb.enterprise.prioritize.model.skill.SkillRecord;
 import jakarta.persistence.*;
 import lombok.*;
@@ -129,6 +130,21 @@ public class PUser extends PActor implements PAuthorizedObject {
     private Set<PermissionRecord> personalPermissions = new HashSet<>();
 
     // --- Skills ---
+
+    /**
+     * The qualification this person is costed at, or {@code null} when none is recorded. Exactly one,
+     * unlike {@link #roles} and {@link #skills}: a cost report has to be able to answer "what does an
+     * hour of this person's work cost" with a single number, and several levels could not.
+     * <p>
+     * Lazy and {@code @JsonIgnore}d for the same reason as the department — the level carries a cost
+     * rate, and a user payload is the wrong place for one. {@code UserDTO} emits the id and the name
+     * so the rate stays behind the qualification-level endpoints, which are permission-checked.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "qualification_level_id")
+    @JsonIgnore
+    private QualificationLevel qualificationLevel;
+
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

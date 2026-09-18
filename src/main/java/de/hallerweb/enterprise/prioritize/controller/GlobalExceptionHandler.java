@@ -30,10 +30,13 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
@@ -60,6 +63,31 @@ public class GlobalExceptionHandler {
         log.warn("Bad request: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ApiError.of(ex.getMessage(), HttpStatus.BAD_REQUEST.value()));
+    }
+
+    /**
+     * A request body that failed Bean Validation. Without this handler Spring answers 400 with its own
+     * {@code ProblemDetail} body, so the very same status would arrive in two different shapes depending
+     * on which check rejected the request — the caller could not parse the answer without knowing which.
+     * The field names are named because a rejected write is only actionable if the client learns what to
+     * change.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiError> handleValidationFailure(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+            .map(error -> error.getField() + ": " + error.getDefaultMessage())
+            .distinct()
+            .collect(Collectors.joining("; "));
+        if (message.isBlank()) {
+            message = ex.getBindingResult().getAllErrors().stream()
+                .map(error -> error instanceof FieldError field
+                        ? field.getField() + ": " + field.getDefaultMessage()
+                        : error.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        }
+        log.warn("Bad request: {}", message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiError.of(message, HttpStatus.BAD_REQUEST.value()));
     }
 
     @ExceptionHandler(IllegalStateException.class)

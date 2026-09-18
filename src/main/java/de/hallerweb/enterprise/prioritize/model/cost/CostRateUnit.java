@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package de.hallerweb.enterprise.prioritize.model.resource;
+package de.hallerweb.enterprise.prioritize.model.cost;
 
 /**
- * What a resource's cost rate is charged per. Three units cover the cases a neutral platform should
- * know about: an hourly rate, a daily rate as rental equipment is billed, and a flat charge per use.
+ * What a cost rate is charged per. Three units cover the cases a neutral platform should know about:
+ * an hourly rate, a daily rate as rental equipment is billed, and a flat charge per use. The same three
+ * serve equipment and people — a machine costs per hour or per day, and so does a qualification level.
  * <p>
  * Deliberately not a tariff model. The platform stores <em>a</em> rate per unit and can multiply it by
  * a duration; how that rate came about — surcharges, VAT, time-of-day pricing, framework agreements —
@@ -30,12 +31,12 @@ package de.hallerweb.enterprise.prioritize.model.resource;
  */
 public enum CostRateUnit {
 
-    /** Charged per hour of use — the usual case for machines and workshop equipment. */
+    /** Charged per hour — the usual case for machines, workshop equipment and labour. */
     HOUR,
 
     /** Charged per calendar day, the way rental equipment is normally billed. */
     DAY,
 
-    /** A flat charge each time the resource is used, regardless of how long. */
+    /** A flat charge each time it is used, regardless of how long. */
     USAGE
 }

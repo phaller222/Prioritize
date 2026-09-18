@@ -17,6 +17,193 @@ Reading the columns is one query:
 SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'puser';
 ```
 
+## 1.5.0
+
+### `time_span.type` and `nfc_unit.type` — widen the enum check constraint
+
+Equipment usage introduces two new enum values: `EQUIPMENT_USAGE` for a time span and `EQUIPMENT` for
+an NFC tag. On PostgreSQL, Hibernate wrote a `CHECK` constraint listing the values it knew when the
+table was created, and `ddl-auto: update` does **not** widen it. Without this statement every attempt
+to clock a device in fails with
+
+```
+ERROR: new row for relation "time_span" violates check constraint "time_span_type_check"
+```
+
+PostgreSQL:
+
+```sql
+ALTER TABLE time_span DROP CONSTRAINT time_span_type_check;
+ALTER TABLE time_span ADD CONSTRAINT time_span_type_check
+    CHECK (type IN ('RESOURCE_RESERVATION','VACATION','ILLNESS','TIME_TRACKER','EQUIPMENT_USAGE','OTHER','ALL'));
+
+ALTER TABLE nfc_unit DROP CONSTRAINT nfc_unit_type_check;
+ALTER TABLE nfc_unit ADD CONSTRAINT nfc_unit_type_check
+    CHECK (type IN ('COUNTER','CHECKPOINT','TIMETRACKER','EQUIPMENT','INFOPOINT','OTHER'));
+```
+
+H2: nothing to do. Check the constraints before assuming that, as the note at the top of this file
+says — on the development H2 database these two tables carry no check constraint at all, so the
+statements above have nothing to drop there and would fail:
+
+```sql
+SELECT TC.TABLE_NAME, TC.CONSTRAINT_NAME, CC.CHECK_CLAUSE
+FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC, INFORMATION_SCHEMA.CHECK_CONSTRAINTS CC
+WHERE TC.CONSTRAINT_NAME = CC.CONSTRAINT_NAME AND TC.TABLE_NAME IN ('TIME_SPAN','NFC_UNIT');
+```
+
+The two engines have drifted here for the same reason as with `date_of_birth`: the constraint is
+emitted at table creation time, so what a database carries depends on which release first created the
+table, not on which release it runs now.
+
+The same widening reaches the API, which matters for anything still running a 1.4.x client:
+`NfcUnitDTO.type`, `NfcUnitRequest.type` and `ScanResult.type` now include `EQUIPMENT`. A generated
+client from 1.4.x has that enum without the new constant, and a strict deserializer will fail on a tag
+it has never heard of — not on every call, only once an equipment tag is actually read. Clients
+regenerated from this release are fine, and so is anything that treats the field as a string.
+
+### `nfc_unit.task_id` — the unique constraint has to go
+
+A tag points at one task, but a task carries as many tags as the job needs: the tracker sticker on the
+site container plus one equipment sticker per machine working there. The relation was mapped
+`@OneToOne`, which put a `UNIQUE` constraint on `task_id` and made the second sticker impossible — the
+binding failed with a plain "conflicts with existing data". The mapping is now `@ManyToOne`, so an
+older schema keeps a constraint that no longer belongs there; `ddl-auto: update` never removes one.
+
+The constraint carries a generated name, so read it before touching anything. Keep the one on `uuid`,
+which is intended, and remove only the one reported as `UNIQUE (task_id)`:
+
+```sql
+SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+WHERE conrelid = 'nfc_unit'::regclass AND contype = 'u';
+```
+
+H2 names it differently again; the same lookup against `INFORMATION_SCHEMA.TABLE_CONSTRAINTS` with
+`CONSTRAINT_TYPE = 'UNIQUE'` finds it there.
+
+### `time_span.equipment_task_id` / `time_span.active_equipment_task_id` — no work needed
+
+The bookkeeping for equipment bookings is two additional columns on `time_span` plus the existing
+`timespan_resources` join table, which has been mapped (and therefore created) since long before it
+was used. `ddl-auto: update` adds the columns by itself.
+
+### `resource.max_slots` — rows below one cannot be booked
+
+A resource created with `maxSlots` set to zero (or a negative number) was stored as given. Nothing
+can ever be reserved on such a row: the slot search runs from 1 to `maxSlots`, finds nothing, and
+the reservation is refused with `409 All slots (0) occupied.` — which reads like a busy resource
+even though the resource was just created and holds no reservation at all.
+
+From 1.5.0 the value is rejected where it enters, so no new row can reach that state. Rows already in
+the database are not touched by that guard and stay unbookable until corrected:
+
+```sql
+SELECT id, name, max_slots FROM resource WHERE max_slots IS NULL OR max_slots < 1;
+```
+
+Give each of them the slot count it should have had. If one is genuinely meant to be a single-slot
+resource, one is the value the application would have defaulted to:
+
+```sql
+UPDATE resource SET max_slots = 1 WHERE max_slots IS NULL OR max_slots < 1;
+```
+
+Same statement on both engines. If the query returns no rows — the normal case, since the value has
+to be sent explicitly to go wrong — there is nothing to do.
+
+The rule is now part of the published contract as well, not only of the server: `ResourceRequest.maxSlots`
+carries `minimum: 1`, so `POST /resourcegroups/{groupId}/resources` and `PATCH /resources/{id}` answer
+`400` instead of accepting the value, and a regenerated client refuses it before the call goes out. The
+service keeps its own check, because the admin GUI and the demo data do not come through the REST layer.
+
+Worth knowing for anything that parses errors: a validation failure now arrives in the same `ApiError`
+shape as every other `400` (`message`, `status`, `timestamp`), naming the offending field — Spring's own
+`ProblemDetail` body would otherwise have made one status code arrive in two different shapes.
+
+### `qualification_level` and `puser.qualification_level_id` — no work needed
+
+Qualification levels are a new table, and the reference from a user is a new, nullable column.
+`ddl-auto: update` creates both. Nothing to migrate: every existing user starts without a level,
+which is the correct state — a level is master data somebody has to decide on.
+
+An existing installation will want to create its levels and assign people to them, which is ordinary
+application work rather than a migration:
+
+```
+POST /api/v1/qualification-levels      {"name": "Geselle", "costRate": 58.00, "costCurrency": "EUR", "costRateUnit": "HOUR"}
+PUT  /api/v1/users/{userId}/qualification-level?levelId={id}
+```
+
+Until that happens, labour is simply not costed — a report says so rather than counting those hours
+as free. The free-text `puser.occupation` is left alone and keeps meaning what it meant: a job
+title. It is not migrated into levels automatically, because "Elektrogeselle", "Geselle" and
+"Geselle (KNX)" are one level to a business and three strings to a database.
+
+### `time_span` cost columns — no work needed, but old bookings read differently
+
+Four new nullable columns (`cost_rate`, `cost_currency`, `cost_rate_unit`, `cost_rate_label`)
+record what a booking was costed at **at the moment it was closed**. `ddl-auto: update` adds them.
+Nothing to migrate, and nothing can be back-filled: what the lift cost last March is not in the
+database, only what it costs today.
+
+What changes for existing data is how it is reported. From 1.5.0 a closed booking is priced at its
+stamped rate, so changing a price list no longer rewrites past jobs. Bookings closed **before** 1.5.0
+carry no stamp and keep falling back to the device's current rate, exactly as they did — the
+alternative would have been to turn every historical booking unpriced overnight. The practical
+consequence is worth knowing before somebody asks:
+
+> For a while yet, one job can hold both kinds. Bookings from before the upgrade still move when a
+> rate is changed; bookings made after it do not.
+
+A booking that is still running is priced live at the current rate in both cases. That is not a
+transitional artefact but the intended behaviour: nothing is final until the device is clocked out,
+and such a line is flagged `running`.
+
+One visible change in the cost report: `lines` is no longer one entry per device. A device booked
+at one rate and later at another contributes one line per rate, because no single rate describes
+both. Anything reading `equipment/cost` and keying by `resourceId` needs to fold the lines itself.
+
+### `GET /tasks/{id}/cost` and `/tasks/{id}/labour/cost` — project manager only
+
+The two new cost endpoints are restricted to the project's manager. Not to members, and **not to
+administrators** — the same rule the rest of the project authorization model follows: an
+administrator who needs these figures takes the project over first, which is a visible, logged act.
+
+This will surprise installations whose projects were all created by an `admin` account and then
+handed to nobody: whoever is recorded as manager is the only person who can read a job's labour
+cost. Check before wondering why a 403 arrives:
+
+```sql
+SELECT p.id, p.name, u.username AS manager FROM project p LEFT JOIN puser u ON u.id = p.manager_id;
+```
+
+Hand a project over with `PUT /api/v1/projects/{id}/manager/{userId}` rather than granting
+anybody blanket rights.
+
+### Equipment bookings can be corrected — three new endpoints, no work needed
+
+Work sessions have been correctable since 1.4.0; equipment bookings could only be clocked out
+retroactively. 1.5.0 completes the pair:
+
+| | work time | equipment |
+|---|---|---|
+| book by hand | `POST /tasks/{id}/tracking/sessions` | `POST /tasks/{id}/equipment/{resourceId}/sessions` |
+| correct | `PUT /tasks/{id}/tracking/sessions/{sessionId}` | `PUT /tasks/{id}/equipment/sessions/{sessionId}` |
+| delete | `DELETE /tasks/{id}/tracking/sessions/{sessionId}` | `DELETE /tasks/{id}/equipment/sessions/{sessionId}` |
+
+Additive: no database work, and nothing behaves differently until one of them is called. Two
+rules are worth knowing before they surprise somebody:
+
+- **Rights differ from work time, on purpose.** A work session belongs to whoever worked it, so a
+  non-manager may correct their own and nobody else's. An equipment booking has no owner — it is a
+  statement about the job — so any project member may book and correct one. **Deleting is project
+  manager only**: it is the only operation that removes a cost line without leaving an audit trail
+  on the booking, and "your own bookings only" would mean nothing for a device.
+- **A correction does not re-price.** A hand-booked usage is stamped with the device's rate at the
+  moment it is entered, exactly as a normal clock-out is. Correcting the times of an existing
+  booking leaves the stamp alone — otherwise a December correction would re-price a March job at
+  today's rate. A booking closed before 1.5.0 carries no stamp and does not get one retroactively.
+
 ## 1.4.0
 
 ### `puser.last_login` — drop

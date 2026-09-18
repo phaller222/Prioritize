@@ -29,6 +29,10 @@ import java.time.LocalDate;
  * apiKey (already {@code @JsonIgnore} on the entity), roles, personal permissions and skills — so a user
  * never leaks credentials or drags its authorization graph onto the wire. Roles/permissions are managed
  * through their own endpoints; a user's skills via {@code GET /users/{id}/skills}.
+ * <p>
+ * The qualification level is carried as id and name only — never its cost rate. What a level costs is
+ * master data of the installation and is read through the qualification-level endpoints, which check
+ * permission for it; a rate travelling on every user payload would be a wage figure next to a name.
  *
  * @author peter haller
  */
@@ -43,6 +47,8 @@ public record UserDTO(Long id,
                       PUser.Gender gender,
                       AddressDTO address,
                       Long departmentId,
+                      Long qualificationLevelId,
+                      String qualificationLevelName,
                       boolean admin,
                       boolean active) {
 
@@ -60,6 +66,8 @@ public record UserDTO(Long id,
                 user.getGender(),
                 AddressDTO.from(user.getAddress()),
                 user.getDepartment() != null ? user.getDepartment().getId() : null,
+                user.getQualificationLevel() != null ? user.getQualificationLevel().getId() : null,
+                user.getQualificationLevel() != null ? user.getQualificationLevel().getName() : null,
                 user.isAdmin(),
                 user.isActive());
     }

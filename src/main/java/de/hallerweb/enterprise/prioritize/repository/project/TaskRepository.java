@@ -18,6 +18,8 @@ package de.hallerweb.enterprise.prioritize.repository.project;
 
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -39,4 +41,15 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * lookup).
      */
     List<Task> findByProcessInstanceId(String processInstanceId);
+
+    /**
+     * The tasks that currently have the given resource clocked in. A piece of equipment can only be
+     * in one place, so this is expected to hold at most one task — it answers "where is this device
+     * booked right now?" before it can be clocked in somewhere else. Returned as a list so a stale
+     * duplicate can be reported rather than thrown at, same reasoning as
+     * {@link #findByProcessInstanceId}.
+     */
+    @Query("SELECT t FROM Task t JOIN t.activeEquipmentSpans s JOIN s.involvedResources r "
+            + "WHERE r.id = :resourceId")
+    List<Task> findByEquipmentRunning(@Param("resourceId") Long resourceId);
 }

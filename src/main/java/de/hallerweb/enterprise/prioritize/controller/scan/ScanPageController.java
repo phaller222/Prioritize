@@ -19,6 +19,7 @@ package de.hallerweb.enterprise.prioritize.controller.scan;
 import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
@@ -108,6 +109,7 @@ public class ScanPageController {
             NfcUnit unit = nfcUnitService.getByUuid(uuid);
             return switch (unit.getType()) {
                 case TIMETRACKER -> renderTracker(unit, uuid, done, currentUser, request);
+                case EQUIPMENT -> renderEquipment(unit, uuid, done, currentUser, request);
                 default -> page(escape(label(unit)),
                         "<p class=\"state\">Tag vom Typ " + escape(unit.getType().name()) + ".</p>",
                         button(uuid, "Scan registrieren", request));
@@ -146,9 +148,7 @@ public class ScanPageController {
             return html(problem("Unbekannter Aufkleber",
                     "Zu diesem Tag ist in Prioritize nichts hinterlegt."));
         } catch (IllegalStateException e) {
-            return html(problem("Aufkleber ohne Aufgabe",
-                    "Dieser Zeit-Aufkleber ist mit keiner Aufgabe verbunden, es gibt also nichts zu "
-                            + "starten. Im Admin-Bereich eine Aufgabe zuordnen."));
+            return html(scanRefused(uuid));
         } catch (AccessDeniedException e) {
             return html(problem("Kein Zugriff",
                     "Du gehörst nicht zu dem Projekt, auf das dieser Aufkleber zeigt."));
@@ -157,6 +157,33 @@ public class ScanPageController {
 
     private ResponseEntity<String> html(String body) {
         return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(body);
+    }
+
+    /**
+     * Why a scan bounced. Two different situations reach this point with the same exception — the tag
+     * has no task, or an equipment tag's device is still clocked in on another job — and they need
+     * different instructions, so the tag is read again to tell them apart. Whoever is standing at the
+     * sticker needs to know what to do next, not which exception was thrown.
+     */
+    private String scanRefused(String uuid) {
+        NfcUnit unit;
+        try {
+            unit = nfcUnitService.getByUuid(uuid);
+        } catch (RuntimeException lookupFailed) {
+            return problem("Scan nicht möglich", "Der Aufkleber lässt sich gerade nicht verwenden.");
+        }
+        if (unit.getTask() == null) {
+            return unit.getType() == NfcUnit.NfcUnitType.EQUIPMENT
+                    ? problem("Aufkleber ohne Aufgabe",
+                        "Dieser Geräte-Aufkleber ist mit keiner Aufgabe verbunden. Im Admin-Bereich die "
+                                + "Aufgabe zuordnen, an der das Gerät gerade arbeitet.")
+                    : problem("Aufkleber ohne Aufgabe",
+                        "Dieser Zeit-Aufkleber ist mit keiner Aufgabe verbunden, es gibt also nichts zu "
+                                + "starten. Im Admin-Bereich eine Aufgabe zuordnen.");
+        }
+        return problem("Gerät ist noch woanders eingestochen",
+                "Dieses Gerät läuft noch auf einer anderen Aufgabe — ein Gerät kann nicht an zwei "
+                        + "Stellen gleichzeitig sein. Dort zuerst ausstechen, dann hier erneut scannen.");
     }
 
     // ==========================================
@@ -195,6 +222,52 @@ public class ScanPageController {
 
         return page(escape(task.getName()), state.toString(),
                 button(uuid, running ? "Ausstechen" : "Einstechen", request));
+    }
+
+    /**
+     * The equipment counterpart of {@link #renderTracker}: the sticker sits on the device, so the
+     * page talks about the device's clock, never the reader's. Someone scanning a lift is recording
+     * where the machine is, and telling them "deine Uhr läuft" would be answering a question they
+     * did not ask.
+     */
+    private String renderEquipment(NfcUnit unit, String uuid, String done, PUser user, HttpServletRequest request) {
+        Task task = unit.getTask();
+        if (task == null) {
+            return problem("Aufkleber ohne Aufgabe",
+                    "Dieser Geräte-Aufkleber ist mit keiner Aufgabe verbunden. Im Admin-Bereich die "
+                            + "Aufgabe zuordnen, an der das Gerät gerade arbeitet.");
+        }
+        Resource device = unit.getResource();
+        if (device == null) {
+            return problem("Aufkleber ohne Gerät",
+                    "Dieser Aufkleber hängt an keinem Betriebsmittel — ohne Gerät gibt es keine "
+                            + "Gerätezeit zu buchen.");
+        }
+
+        TaskService.EquipmentUsageSummary usage = taskService.getEquipmentUsage(task.getId(), user).stream()
+                .filter(u -> device.getId().equals(u.resourceId()))
+                .findFirst()
+                .orElse(null);
+        boolean running = usage != null && usage.running();
+
+        StringBuilder state = new StringBuilder();
+        if (done != null) {
+            state.append("<p class=\"done\">")
+                    .append("EQUIPMENT_CLOCKED_IN".equals(done) ? "Gerät eingestochen." : "Gerät ausgestochen.")
+                    .append("</p>");
+        }
+        state.append("<p class=\"state\">")
+                .append(running
+                        ? escape(device.getName()) + " läuft auf dieser Aufgabe"
+                            + since(usage.runningSince()) + "."
+                        : escape(device.getName()) + " ist hier nicht eingestochen.")
+                .append("</p>")
+                .append("<p class=\"total\">Bisher gebucht: ")
+                .append(escape(humanDuration(usage == null ? 0 : usage.totalSeconds())))
+                .append("</p>");
+
+        return page(escape(task.getName()), state.toString(),
+                button(uuid, running ? "Gerät ausstechen" : "Gerät einstechen", request));
     }
 
     /**

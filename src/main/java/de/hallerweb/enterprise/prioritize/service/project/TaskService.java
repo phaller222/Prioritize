@@ -24,21 +24,29 @@ import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.project.TaskStatus;
 import de.hallerweb.enterprise.prioritize.model.project.goal.ProjectGoal;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.PActorRepository;
 import de.hallerweb.enterprise.prioritize.repository.nfc.NfcUnitRepository;
 import de.hallerweb.enterprise.prioritize.repository.project.TaskRepository;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -62,10 +70,20 @@ public class TaskService {
     private static final Set<TaskStatus> TERMINAL =
             EnumSet.of(TaskStatus.CLOSED, TaskStatus.CANCELLED);
 
+    private static final BigDecimal SECONDS_PER_HOUR = BigDecimal.valueOf(3600);
+    private static final long SECONDS_PER_DAY = 86_400L;
+
     private final TaskRepository taskRepository;
     private final ProjectService projectService;
     private final PActorRepository actorRepository;
     private final NfcUnitRepository nfcUnitRepository;
+    private final ResourceRepository resourceRepository;
+
+    /**
+     * The label for hours whose worker is on no qualification level. Named rather than left blank so
+     * a report says out loud that those hours exist and could not be priced, instead of dropping them.
+     */
+    private static final String UNQUALIFIED = "(no qualification level)";
     private final EntityManager entityManager;
 
     /**
@@ -130,6 +148,112 @@ public class TaskService {
     public record Correction(CorrectionKind kind, Long correctedById, String correctedBy,
                              Instant correctedAt, String reason,
                              Instant originalFrom, Instant originalUntil) {
+    }
+
+    /**
+     * One booking of a piece of equipment to a task: a single clocked-in-to-clocked-out interval.
+     * The machine counterpart of {@link WorkSession} — {@code resourceId}/{@code resourceName} take
+     * the place of the user, because nobody owns a dryer's clock.
+     */
+    public record EquipmentSession(Long id, Long resourceId, String resourceName, Instant from,
+                                   Instant until, long seconds, boolean running,
+                                   Correction correction) {
+    }
+
+    /**
+     * How long one piece of equipment has been booked to a task in total, running booking included
+     * and counted live up to now.
+     * <p>
+     * Reported per resource and deliberately never summed across resources: a lift-day plus a
+     * dryer-day is not two days of anything. Equipment totals are also kept apart from
+     * {@link TrackingSummary} entirely — machine hours are not work hours, and a single number
+     * covering both would be meaningless in every direction.
+     */
+    public record EquipmentUsageSummary(Long taskId, Long resourceId, String resourceName,
+                                        long totalSeconds, String totalText, boolean running,
+                                        Instant runningSince) {
+    }
+
+    /**
+     * What one piece of equipment cost on a task: duration times rate, with every input it was
+     * computed from.
+     * <p>
+     * The parts are reported, not just the {@code amount}, because the rounding is a convention and
+     * conventions differ. A vertical that bills part days rather than started ones can recompute from
+     * {@code totalSeconds} instead of arguing with a number it cannot take apart — which is the same
+     * line {@link CostRateUnit} draws: the platform multiplies, it does not model tariffs.
+     * <p>
+     * {@code billedUnits} is the quantity actually charged in {@code unit}: fractional hours, whole
+     * started days, or the number of bookings for a per-use rate. {@code amount} is {@code null} when
+     * the resource keeps no rate — deliberately not {@code 0}, which would claim the device was free.
+     */
+    public record EquipmentCostLine(Long resourceId, String resourceName, long totalSeconds,
+                                    int bookings, BigDecimal billedUnits, CostRateUnit unit,
+                                    BigDecimal rate, String currency, BigDecimal amount,
+                                    boolean running) {
+    }
+
+    /** A per-currency sum. Amounts in different currencies are never added; see the report. */
+    public record CurrencyTotal(String currency, BigDecimal amount) {
+    }
+
+    /**
+     * The equipment cost of a task: one line per device and rate, and totals <em>per currency</em>.
+     * Adding euros to francs would produce a number that is wrong in both, so a task whose devices
+     * are priced in two currencies gets two totals and no grand total.
+     * <p>
+     * {@code lines} is not keyed by {@code resourceId}: a device whose rate changed between two
+     * bookings contributes one line per rate, because no single rate would describe both.
+     * <p>
+     * {@code ratesMissing} says at least one device was booked without a rate, so the totals are a
+     * lower bound rather than the cost. Whoever shows this to somebody needs to be able to say so.
+     * <p>
+     * Equipment only — labour is reported separately, since machine hours and work hours must never
+     * land in one sum. What can be added is the money: see {@code getTaskCost}.
+     */
+    public record EquipmentCostReport(Long taskId, List<EquipmentCostLine> lines,
+                                      List<CurrencyTotal> totals, boolean ratesMissing) {
+    }
+
+    /**
+     * What the work on a task cost at one qualification level: duration times the rate those hours
+     * were booked at.
+     * <p>
+     * <b>There is no person in this record, and that is the point.</b> The platform records who
+     * worked — a session names its owner — but a cost report deliberately cannot be used to compare
+     * people. A line says "Geselle, 12 h, 696.00 EUR"; it does not say whose twelve hours they were.
+     * A job calculation needs the qualification, not the name, so the name is not published here.
+     * <p>
+     * {@code qualificationLevel} is the label the hours were stamped with when they were booked, not
+     * a live lookup: hours worked as a journeyman stay journeyman hours after that person qualifies
+     * as a master. {@code amount} is {@code null} when those hours carry no rate — deliberately not
+     * {@code 0}, which would claim the work was free.
+     */
+    public record LabourCostLine(String qualificationLevel, long totalSeconds, int sessions,
+                                 BigDecimal billedUnits, CostRateUnit unit, BigDecimal rate,
+                                 String currency, BigDecimal amount, boolean running) {
+    }
+
+    /**
+     * The labour cost of a task: one line per qualification level and rate, totals per currency.
+     * <p>
+     * {@code ratesMissing} says somebody's hours could not be priced — an unassigned worker, or a
+     * level with no rate — so the totals are a lower bound rather than the cost.
+     */
+    public record LabourCostReport(Long taskId, List<LabourCostLine> lines,
+                                   List<CurrencyTotal> totals, boolean ratesMissing) {
+    }
+
+    /**
+     * What a task cost, equipment and labour together.
+     * <p>
+     * The two blocks stay separate and only the <em>money</em> is added up. Hours may never be:
+     * four hours of work plus a hundred and twenty hours of drying time is not a number, while
+     * 356.00 EUR plus 178.00 EUR is exactly the job calculation somebody wanted. Each block keeps
+     * its own totals so it stays visible where the money came from.
+     */
+    public record TaskCostReport(Long taskId, EquipmentCostReport equipment, LabourCostReport labour,
+                                 List<CurrencyTotal> totals, boolean ratesMissing) {
     }
 
     /**
@@ -362,6 +486,7 @@ public class TaskService {
             throw new IllegalStateException("No time tracking is running for you on this task.");
         }
         span.setDateUntil(Instant.now());
+        stampLabourRate(span, user);
         task.getTimeSpent().add(span);
         task.getActiveTimeSpans().remove(span);
         stopIfLastClock(task);
@@ -575,6 +700,7 @@ public class TaskService {
                 .type(TimeSpan.TimeSpanType.TIME_TRACKER)
                 .build();
         span.getInvolvedUsers().add(worker);
+        stampLabourRate(span, worker);
         markCorrected(span, user, reason); // originalFrom stays null — nothing was ever recorded
         task.getTimeSpent().add(span);
         entityManager.flush(); // so the new span has its id for the response
@@ -645,6 +771,7 @@ public class TaskService {
 
         rememberOriginalBounds(span); // originalUntil stays null — the session was still open
         span.setDateUntil(until);
+        stampLabourRate(span, owner);
         markCorrected(span, user, reason);
         task.getTimeSpent().add(span);
         task.getActiveTimeSpans().remove(span);
@@ -652,6 +779,715 @@ public class TaskService {
         log.info("Time tracking on task '{}' (id={}) stopped retroactively at {} by '{}': {}",
                 task.getName(), taskId, until, user.getUsername(), reason);
         return task;
+    }
+
+    // --- Equipment usage ---
+    // The same clock, for machines instead of people: a sticker on the lift books the lift onto the
+    // job it is working, so "how long was that device out" stops being a question for the memory of
+    // whoever fetched it. Deliberately kept in its own pair of collections on the task rather than
+    // as another TimeSpanType inside the work-time lists — machine hours and work hours must never
+    // land in one sum, and separate storage makes the wrong number impossible instead of merely
+    // discouraged. A task therefore also goes STOPPED while equipment keeps running: the crew went
+    // home, the dryer did not.
+    //
+    // Authorization is project membership, as for work time. Booking a device onto a job is a
+    // statement about the job, not a change to the device's master data, so it does not require
+    // rights on the resource itself — the same reason an NFC scan works for whoever holds the phone.
+
+    /**
+     * Clocks a piece of equipment onto a task, opening an
+     * {@link TimeSpan.TimeSpanType#EQUIPMENT_USAGE} span at the current server time.
+     * <p>
+     * Refuses if the device is already clocked in anywhere — including on another task. A device is
+     * in one place at a time, so a second start means someone forgot to clock it out at the last
+     * job; silently moving it would turn that mistake into plausible-looking data.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock in
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException if this device already has a clock running, here or elsewhere
+     */
+    public Task startEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        requireEquipmentFree(task, resource);
+
+        TimeSpan span = TimeSpan.builder()
+                .title(resource.getName())
+                .description(task.getName())
+                .dateFrom(Instant.now())
+                .type(TimeSpan.TimeSpanType.EQUIPMENT_USAGE)
+                .build();
+        span.getInvolvedResources().add(resource);
+        task.getActiveEquipmentSpans().add(span);
+        // Flush for the same reason as startTracking: the correction endpoints address a booking by
+        // id, and a caller reading the bookings in the same transaction must not see a null one.
+        entityManager.flush();
+        log.info("Equipment '{}' (id={}) clocked in on task '{}' (id={}) by '{}'.",
+                resource.getName(), resourceId, task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Clocks a piece of equipment off a task, closing its open booking at the current server time
+     * and moving it into the task's history.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock out
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException if this device is not clocked in on this task
+     */
+    public Task stopEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        TimeSpan span = requireRunningEquipment(task, resource);
+
+        span.setDateUntil(Instant.now());
+        stampEquipmentRate(span, resource);
+        task.getEquipmentUsage().add(span);
+        task.getActiveEquipmentSpans().remove(span);
+        entityManager.flush(); // see startEquipmentUsage: the closed booking needs its id
+        log.info("Equipment '{}' (id={}) clocked out on task '{}' (id={}) by '{}'.",
+                resource.getName(), resourceId, task.getName(), taskId, user.getUsername());
+        return task;
+    }
+
+    /**
+     * Toggles a piece of equipment on a task: clocks it out if it runs here, otherwise clocks it in.
+     * This is the entry point an NFC scan of an
+     * {@link de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit.NfcUnitType#EQUIPMENT} tag maps to
+     * — one sticker on the device, scanned when it arrives and again when it leaves.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to toggle
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     */
+    public Task toggleEquipmentUsage(Long taskId, Long resourceId, PUser user) {
+        Task task = findOrThrow(taskId);
+        Resource resource = findResourceOrThrow(resourceId);
+        return task.isEquipmentRunningFor(resource)
+                ? stopEquipmentUsage(taskId, resourceId, user)
+                : startEquipmentUsage(taskId, resourceId, user);
+    }
+
+    /**
+     * Clocks a piece of equipment off with an earlier timestamp than now, recording who shortened
+     * the booking and why. The device case of "forgot to clock out", which is the normal case rather
+     * than the exception: nobody walks back to the lift at knock-off time to scan it.
+     * <p>
+     * Unlike a work session, this needs no ownership check beyond project membership — a device has
+     * no session of its own to protect, and whoever notices the running clock is rarely the manager.
+     * The audit trail still records who did it.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment to clock out
+     * @param until      when the device actually stopped; after the booking's start, not in the future
+     * @param reason     why the booking is being closed retroactively, required
+     * @param user       the requesting user (must be manager or member)
+     * @return the updated task
+     * @throws IllegalStateException    if this device is not clocked in on this task
+     * @throws IllegalArgumentException if the reason is missing or {@code until} is not plausible
+     */
+    public Task stopEquipmentUsageAt(Long taskId, Long resourceId, Instant until, String reason,
+                                     PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        TimeSpan span = requireRunningEquipment(task, resource);
+        requireReason(reason);
+        if (until == null) {
+            throw new IllegalArgumentException("until is required.");
+        }
+        if (until.isAfter(Instant.now())) {
+            throw new IllegalArgumentException("An equipment booking cannot end in the future.");
+        }
+        if (until.isBefore(span.getDateFrom())) {
+            throw new IllegalArgumentException("An equipment booking cannot end before it started.");
+        }
+
+        rememberOriginalBounds(span); // originalUntil stays null — the booking was still open
+        span.setDateUntil(until);
+        stampEquipmentRate(span, resource);
+        markCorrected(span, user, reason);
+        task.getEquipmentUsage().add(span);
+        task.getActiveEquipmentSpans().remove(span);
+        log.info("Equipment '{}' (id={}) on task '{}' (id={}) clocked out retroactively at {} by '{}': {}",
+                resource.getName(), resourceId, task.getName(), taskId, until, user.getUsername(), reason);
+        return task;
+    }
+
+    // --- Correcting equipment bookings ---
+    // The counterpart to the work-session corrections above, needed for the same reason: a device's
+    // clock is started and stopped by hand too, so it gets forgotten, started on the wrong task, or
+    // never started at all. What differs is who may fix it. A work session belongs to the person who
+    // worked it, which is why a non-manager may touch their own and nobody else's; an equipment
+    // booking belongs to nobody - it is a statement about the job - so "their own" has no meaning
+    // here, and project membership is the gate, exactly as for stopEquipmentUsageAt.
+    //
+    // Deleting is the one exception: it is the only operation that makes a cost line disappear
+    // without leaving a trail (correcting leaves one on the span), so it is reserved for the project
+    // manager. For work time that worry is covered by "your own sessions only", which for a device
+    // would collapse to "anybody's".
+
+    /**
+     * Books an equipment usage that was never clocked at all - the lift stood on site all day and
+     * nobody scanned it. The booking is created closed and marked
+     * {@link CorrectionKind#MANUAL_ENTRY}, so it stays visible as hand-entered.
+     * <p>
+     * The device's current rate is stamped on it just as it is when a booking is clocked out
+     * normally: without the stamp the booking would appear in {@link #getEquipmentCost} as unpriced,
+     * and the job's total would quietly be too low.
+     *
+     * @param taskId     the task id
+     * @param resourceId the equipment the booking is about
+     * @param from       when the device arrived, must lie before {@code until}
+     * @param until      when it left, must not lie in the future
+     * @param reason     why the booking is being added, required
+     * @param user       the requesting user (must be manager or member)
+     * @return the newly booked usage
+     * @throws NoSuchElementException   if the task or the resource does not exist
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public EquipmentSession addEquipmentSession(Long taskId, Long resourceId, Instant from, Instant until,
+                                                String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Resource resource = findResourceOrThrow(resourceId);
+        requireReason(reason);
+        requireValidBounds(from, until, "An equipment booking");
+
+        TimeSpan span = TimeSpan.builder()
+                .title(resource.getName())
+                .description(task.getName())
+                .dateFrom(from)
+                .dateUntil(until)
+                .type(TimeSpan.TimeSpanType.EQUIPMENT_USAGE)
+                .build();
+        span.getInvolvedResources().add(resource);
+        stampEquipmentRate(span, resource);
+        markCorrected(span, user, reason); // originalFrom stays null - nothing was ever recorded
+        task.getEquipmentUsage().add(span);
+        entityManager.flush(); // so the new booking has its id for the response
+        log.info("Equipment '{}' (id={}) booked by hand {} - {} on task '{}' (id={}) by '{}': {}",
+                resource.getName(), resourceId, from, until, task.getName(), taskId,
+                user.getUsername(), reason);
+        return toEquipmentSession(span, false);
+    }
+
+    /**
+     * Corrects the bounds of a completed equipment booking, keeping the bounds as first recorded and
+     * noting who changed them and why.
+     * <p>
+     * The rate stamped on the booking is deliberately left untouched. It records what the device
+     * cost <em>while it was on the job</em>; re-stamping it during a correction in December would
+     * reprice work done in March at today's rate - precisely what the stamp was introduced to
+     * prevent. A booking that carries no stamp keeps none: a rate cannot be invented afterwards.
+     *
+     * @param taskId    the task id
+     * @param sessionId the booking's id (from {@link EquipmentSession#id()})
+     * @param from      the corrected start, must lie before {@code until}
+     * @param until     the corrected end, must not lie in the future
+     * @param reason    why the booking is being changed, required
+     * @param user      the requesting user (must be manager or member)
+     * @return the corrected booking
+     * @throws NoSuchElementException   if no such completed booking exists on the task
+     * @throws IllegalStateException    if the booking is still running
+     * @throws IllegalArgumentException if the reason is missing or the bounds are not plausible
+     */
+    public EquipmentSession updateEquipmentSession(Long taskId, Long sessionId, Instant from, Instant until,
+                                                   String reason, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        TimeSpan span = findClosedEquipmentSession(task, sessionId);
+        requireReason(reason);
+        requireValidBounds(from, until, "An equipment booking");
+
+        rememberOriginalBounds(span);
+        span.setDateFrom(from);
+        span.setDateUntil(until);
+        markCorrected(span, user, reason); // the rate stamp stays as it was, see above
+        log.info("Equipment booking {} on task '{}' (id={}) corrected to {} - {} by '{}': {}",
+                sessionId, task.getName(), taskId, from, until, user.getUsername(), reason);
+        return toEquipmentSession(span, false);
+    }
+
+    /**
+     * Removes a completed equipment booking - the wrong device was scanned, or the booking belongs
+     * to another job entirely. Project manager only: deleting takes the booking's audit trail and
+     * its cost line with it, and the log line below is all that remains of it.
+     *
+     * @param taskId    the task id
+     * @param sessionId the booking's id
+     * @param user      the requesting user (must be the project manager)
+     * @throws NoSuchElementException if no such completed booking exists on the task
+     * @throws IllegalStateException  if the booking is still running
+     */
+    public void deleteEquipmentSession(Long taskId, Long sessionId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireManager(projectOf(task), user);
+        TimeSpan span = findClosedEquipmentSession(task, sessionId);
+        Resource resource = subjectOf(span);
+        log.warn("Equipment booking {} ('{}') on task '{}' (id={}) ({} - {}) deleted by '{}'.",
+                sessionId, resource == null ? "?" : resource.getName(), task.getName(), taskId,
+                span.getDateFrom(), span.getDateUntil(), user.getUsername());
+        task.getEquipmentUsage().remove(span); // orphanRemoval deletes the row
+    }
+
+    /** Looks up a completed booking on the task; a running one is not correctable in place. */
+    private static TimeSpan findClosedEquipmentSession(Task task, Long sessionId) {
+        boolean stillRunning = task.getActiveEquipmentSpans().stream()
+                .anyMatch(span -> span.getId() != null && span.getId().equals(sessionId));
+        if (stillRunning) {
+            throw new IllegalStateException("This equipment booking is still running - clock the device "
+                    + "out, retroactively if needed, before correcting it.");
+        }
+        return task.getEquipmentUsage().stream()
+                .filter(span -> span.getId() != null && span.getId().equals(sessionId))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Equipment booking not found on this task."));
+    }
+
+    /**
+     * Returns how long each piece of equipment has been booked to this task, one entry per resource
+     * that was ever clocked in, running bookings counted live up to now. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return one summary per resource, empty if no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public List<EquipmentUsageSummary> getEquipmentUsage(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        Instant now = Instant.now();
+        // LinkedHashMap: a device that was out three times appears once, and the order stays the
+        // order in which the devices first turn up in the history.
+        Map<Long, EquipmentUsageSummary> byResource = new LinkedHashMap<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            accumulate(byResource, task, span, secondsBetween(span.getDateFrom(), span.getDateUntil()),
+                    null);
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            accumulate(byResource, task, span, secondsBetween(span.getDateFrom(), now),
+                    span.getDateFrom());
+        }
+        return new ArrayList<>(byResource.values());
+    }
+
+    /** Folds one booking into its resource's running total. */
+    private static void accumulate(Map<Long, EquipmentUsageSummary> byResource, Task task,
+                                   TimeSpan span, long seconds, Instant runningSince) {
+        Resource resource = subjectOf(span);
+        if (resource == null) {
+            return; // a booking without a device says nothing; only broken data can produce one
+        }
+        EquipmentUsageSummary sofar = byResource.get(resource.getId());
+        long total = (sofar == null ? 0 : sofar.totalSeconds()) + seconds;
+        boolean running = runningSince != null || (sofar != null && sofar.running());
+        Instant since = runningSince != null ? runningSince : (sofar == null ? null : sofar.runningSince());
+        byResource.put(resource.getId(), new EquipmentUsageSummary(task.getId(), resource.getId(),
+                resource.getName(), total, Duration.ofSeconds(total).toString(), running, since));
+    }
+
+    /**
+     * Returns the individual equipment bookings on a task: each completed one, plus any open booking
+     * (with {@code until = null}, counted live up to now). Completed bookings come first. The
+     * per-device totals are {@link #getEquipmentUsage}. Manager or member.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the equipment bookings, empty if no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public List<EquipmentSession> getEquipmentSessions(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+        List<EquipmentSession> sessions = new ArrayList<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            sessions.add(toEquipmentSession(span, false));
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            sessions.add(toEquipmentSession(span, true));
+        }
+        return sessions;
+    }
+
+    /** Maps a booking to its outward view; an open booking is counted live up to now. */
+    private static EquipmentSession toEquipmentSession(TimeSpan span, boolean running) {
+        long seconds = running
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+        Resource resource = subjectOf(span);
+        return new EquipmentSession(span.getId(),
+                resource == null ? null : resource.getId(),
+                resource == null ? null : resource.getName(),
+                span.getDateFrom(),
+                running ? null : span.getDateUntil(), seconds, running, correctionOf(span));
+    }
+
+    /**
+     * Returns what the equipment on this task has cost so far: duration times the rate each booking
+     * was closed at, plus totals per currency. Running bookings count live up to now, so the figure
+     * for a device still on site is provisional by nature. Manager or member.
+     * <p>
+     * One line per device <em>and rate</em>: a device booked before and after a price change appears
+     * twice, once at each rate. See {@link #accumulate}.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user
+     * @return the cost report, with empty lines when no equipment was ever booked
+     */
+    @Transactional(readOnly = true)
+    public EquipmentCostReport getEquipmentCost(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireMemberOrManager(projectOf(task), user);
+
+        // Fold the bookings per device first: a rate applies to the total time a device was here,
+        // not to each visit - three trips of eight hours on a day rate is one day per calendar day
+        // occupied, not three days.
+        //
+        // The grouping key is the device AND the rate that applied, not the device alone. A device
+        // whose rate changed between two bookings therefore produces two lines. That is the honest
+        // answer: the alternative is to pick one of the two rates and report a number that was never
+        // charged. Lines are not unique per resourceId for that reason.
+        Map<RateGroup, long[]> groups = new LinkedHashMap<>();
+        Map<RateGroup, String> names = new LinkedHashMap<>();
+        Map<RateGroup, Boolean> running = new LinkedHashMap<>();
+        for (TimeSpan span : task.getEquipmentUsage()) {
+            accumulate(groups, names, running, span, false);
+        }
+        for (TimeSpan span : task.getActiveEquipmentSpans()) {
+            accumulate(groups, names, running, span, true);
+        }
+
+        List<EquipmentCostLine> lines = new ArrayList<>();
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        boolean ratesMissing = false;
+        for (Map.Entry<RateGroup, long[]> entry : groups.entrySet()) {
+            RateGroup group = entry.getKey();
+            long seconds = entry.getValue()[0];
+            int bookings = (int) entry.getValue()[1];
+            EquipmentCostLine line = costLine(group, names.get(group), seconds, bookings,
+                    Boolean.TRUE.equals(running.get(group)));
+            lines.add(line);
+            if (line.amount() == null) {
+                ratesMissing = true;
+            } else {
+                totals.merge(line.currency(), line.amount(), BigDecimal::add);
+            }
+        }
+        List<CurrencyTotal> currencyTotals = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new EquipmentCostReport(taskId, lines, currencyTotals, ratesMissing);
+    }
+
+    /**
+     * What the work booked on this task cost, grouped by qualification level and never by person.
+     * <p>
+     * <b>Project manager only.</b> Not member, not admin: these figures are the wage structure of a
+     * business seen from the side, and the person accountable for a job's calculation is the one
+     * running it. The same reasoning as everywhere else in the project authorization model — an
+     * administrator who needs this takes the project over first, which is a visible act.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be the project manager)
+     * @return the labour cost report, with empty lines when nothing was ever tracked
+     */
+    @Transactional(readOnly = true)
+    public LabourCostReport getLabourCost(Long taskId, PUser user) {
+        Task task = findOrThrow(taskId);
+        projectService.requireManager(projectOf(task), user);
+
+        Map<RateGroup, long[]> groups = new LinkedHashMap<>();
+        Map<RateGroup, Boolean> running = new LinkedHashMap<>();
+        for (TimeSpan span : task.getTimeSpent()) {
+            accumulateLabour(groups, running, span, false);
+        }
+        for (TimeSpan span : task.getActiveTimeSpans()) {
+            accumulateLabour(groups, running, span, true);
+        }
+
+        List<LabourCostLine> lines = new ArrayList<>();
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        boolean ratesMissing = false;
+        for (Map.Entry<RateGroup, long[]> entry : groups.entrySet()) {
+            RateGroup group = entry.getKey();
+            long seconds = entry.getValue()[0];
+            int sessions = (int) entry.getValue()[1];
+            boolean isRunning = Boolean.TRUE.equals(running.get(group));
+            boolean rated = group.rate() != null && group.unit() != null && group.currency() != null;
+            if (!rated) {
+                lines.add(new LabourCostLine(group.label(), seconds, sessions, null, group.unit(),
+                        group.rate(), group.currency(), null, isRunning));
+                ratesMissing = true;
+                continue;
+            }
+            Billed billed = bill(group.unit(), group.rate(), seconds, sessions);
+            lines.add(new LabourCostLine(group.label(), seconds, sessions, billed.units(),
+                    group.unit(), group.rate(), group.currency(), billed.amount(), isRunning));
+            totals.merge(group.currency(), billed.amount(), BigDecimal::add);
+        }
+        List<CurrencyTotal> currencyTotals = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new LabourCostReport(taskId, lines, currencyTotals, ratesMissing);
+    }
+
+    /**
+     * What the task cost altogether: the equipment block, the labour block, and one total per
+     * currency across both. Project manager only, for the same reason as {@link #getLabourCost}.
+     *
+     * @param taskId the task id
+     * @param user   the requesting user (must be the project manager)
+     * @return both blocks and the combined totals
+     */
+    @Transactional(readOnly = true)
+    public TaskCostReport getTaskCost(Long taskId, PUser user) {
+        LabourCostReport labour = getLabourCost(taskId, user); // checks the permission
+        EquipmentCostReport equipment = getEquipmentCost(taskId, user);
+
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        for (CurrencyTotal total : equipment.totals()) {
+            totals.merge(total.currency(), total.amount(), BigDecimal::add);
+        }
+        for (CurrencyTotal total : labour.totals()) {
+            totals.merge(total.currency(), total.amount(), BigDecimal::add);
+        }
+        List<CurrencyTotal> combined = totals.entrySet().stream()
+                .map(e -> new CurrencyTotal(e.getKey(), e.getValue()))
+                .toList();
+        return new TaskCostReport(taskId, equipment, labour, combined,
+                equipment.ratesMissing() || labour.ratesMissing());
+    }
+
+    /**
+     * Adds one work session to its group, at the rate it was booked at.
+     * <p>
+     * Same fallback as {@link #accumulate} for equipment: a running session and a session from before
+     * 1.5.0 carry no stamp, so the worker's current level is used. A worker on no level at all yields
+     * a group with no rate, which the report reports as unpriced rather than as free.
+     */
+    private static void accumulateLabour(Map<RateGroup, long[]> groups, Map<RateGroup, Boolean> running,
+                                         TimeSpan span, boolean isRunning) {
+        RateGroup group;
+        if (span.hasCostRate()) {
+            group = new RateGroup(null, span.getCostRate(), span.getCostCurrency(),
+                    span.getCostRateUnit(), span.getCostRateLabel());
+        } else {
+            PUser owner = ownerOf(span);
+            QualificationLevel level = owner == null ? null : owner.getQualificationLevel();
+            group = level == null
+                    ? new RateGroup(null, null, null, null, UNQUALIFIED)
+                    : new RateGroup(null, level.getCostRate(), level.getCostCurrency(),
+                            level.getCostRateUnit(), level.getName());
+        }
+
+        long seconds = isRunning
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+
+        long[] acc = groups.computeIfAbsent(group, g -> new long[2]);
+        acc[0] += seconds;
+        acc[1]++;
+        running.merge(group, isRunning, (a, b) -> a || b);
+    }
+
+    /**
+     * One subject at one rate — the key a cost line is folded under. Serves both reports: for
+     * equipment the subject is the device, for labour it is the qualification level, which has no id
+     * of its own here because a stamped booking keeps only the label.
+     *
+     * @param resourceId the device, {@code null} for a labour group
+     * @param rate       the rate that applied, or {@code null} when it could not be priced
+     * @param label      what the rate hung on — the device's or the level's name at booking time
+     */
+    private record RateGroup(Long resourceId, BigDecimal rate, String currency, CostRateUnit unit,
+                             String label) {
+    }
+
+    /**
+     * Adds one booking to its group, at the rate that applied to it.
+     * <p>
+     * A closed booking uses the rate stamped on it when it was clocked out, which is what makes a
+     * past cost stay put when somebody changes a price list. Two cases fall back to the device's
+     * current rate instead: a booking that is still running (nothing final to stamp yet, so the
+     * figure is provisional by nature — it is flagged {@code running}), and a closed booking from
+     * before 1.5.0, which carries no stamp because the column did not exist. The fallback keeps
+     * historical reports reading as they did rather than turning every old booking unpriced
+     * overnight; see {@code docs/MIGRATION.md}.
+     */
+    private static void accumulate(Map<RateGroup, long[]> groups, Map<RateGroup, String> names,
+                                   Map<RateGroup, Boolean> running, TimeSpan span, boolean isRunning) {
+        Resource resource = subjectOf(span);
+        if (resource == null) {
+            return;
+        }
+        RateGroup group = span.hasCostRate()
+                ? new RateGroup(resource.getId(), span.getCostRate(), span.getCostCurrency(),
+                        span.getCostRateUnit(), span.getCostRateLabel())
+                : new RateGroup(resource.getId(), resource.getCostRate(), resource.getCostCurrency(),
+                        resource.getCostRateUnit(), resource.getName());
+
+        long seconds = isRunning
+                ? secondsBetween(span.getDateFrom(), Instant.now())
+                : secondsBetween(span.getDateFrom(), span.getDateUntil());
+
+        long[] acc = groups.computeIfAbsent(group, g -> new long[2]);
+        acc[0] += seconds;
+        acc[1]++;
+        names.putIfAbsent(group, resource.getName());
+        running.merge(group, isRunning, (a, b) -> a || b);
+    }
+
+    /**
+    /**
+     * Applies one group's rate to the time its device was booked; see {@link #bill} for the rounding.
+     * A device that was here at all owes at least one started day, which is why a booking of a few
+     * minutes still rounds up to 1 rather than down to 0.
+     */
+    private static EquipmentCostLine costLine(RateGroup group, String name,
+                                              long seconds, int bookings, boolean running) {
+        Long resourceId = group.resourceId();
+        boolean rated = group.rate() != null && group.unit() != null && group.currency() != null;
+        if (!rated) {
+            return new EquipmentCostLine(resourceId, name, seconds, bookings, null,
+                    group.unit(), group.rate(), group.currency(), null, running);
+        }
+
+        Billed billed = bill(group.unit(), group.rate(), seconds, bookings);
+        return new EquipmentCostLine(resourceId, name, seconds, bookings, billed.units(),
+                group.unit(), group.rate(), group.currency(), billed.amount(), running);
+    }
+
+    /**
+     * Writes the worker's qualification rate onto a session that has just been closed.
+     * <p>
+     * Taken from the level rather than from the person on purpose — see {@code QualificationLevel}.
+     * A worker on no level leaves the span unstamped, and the cost report then says the hours could
+     * not be priced instead of counting them as free.
+     */
+    private static void stampLabourRate(TimeSpan span, PUser worker) {
+        QualificationLevel level = worker == null ? null : worker.getQualificationLevel();
+        if (level == null) {
+            return;
+        }
+        stampCostRate(span, level.getCostRate(), level.getCostCurrency(), level.getCostRateUnit(),
+                level.getName());
+    }
+
+    /** Writes the device's rate onto a booking that has just been closed. */
+    private static void stampEquipmentRate(TimeSpan span, Resource resource) {
+        if (resource == null) {
+            return;
+        }
+        stampCostRate(span, resource.getCostRate(), resource.getCostCurrency(), resource.getCostRateUnit(),
+                resource.getName());
+    }
+
+    /**
+     * Copies a complete rate onto the span, or leaves it unstamped. A partial rate is never written:
+     * the three fields only mean anything together, and half a rate on a closed booking would be a
+     * number nobody can interpret later.
+     */
+    private static void stampCostRate(TimeSpan span, BigDecimal rate, String currency, CostRateUnit unit,
+                                      String label) {
+        if (rate == null || currency == null || unit == null) {
+            return;
+        }
+        span.setCostRate(rate);
+        span.setCostCurrency(currency);
+        span.setCostRateUnit(unit);
+        span.setCostRateLabel(label);
+    }
+
+    /** The quantity charged in a rate's unit, and what it comes to. */
+    private record Billed(BigDecimal units, BigDecimal amount) {
+    }
+
+    /**
+     * Turns a duration into a charge. Shared by equipment and labour so both round the same way —
+     * two rounding conventions in one report would make its own total not add up.
+     * <p>
+     * The three units round differently because they mean different things. An hourly rate measures
+     * use, so it is charged fractionally: 90 minutes on 12.00/h is 18.00, not 24.00. A daily rate is
+     * a rental convention, and rental is billed by <em>started</em> day — a lift kept for 30 hours
+     * costs two days, and pretending it costs 1.25 would produce an invoice no hire company would
+     * recognise. A per-use rate ignores duration altogether and counts occasions.
+     * <p>
+     * All money is {@link BigDecimal} at scale 2, {@code HALF_UP}, computed from the unrounded
+     * quantity so the result is not rounded twice.
+     *
+     * @param count bookings for equipment, sessions for labour — what a per-use rate counts, and
+     *              what keeps a started-day charge at a minimum of one
+     */
+    private static Billed bill(CostRateUnit unit, BigDecimal rate, long seconds, int count) {
+        BigDecimal units = switch (unit) {
+            case HOUR -> BigDecimal.valueOf(seconds).divide(SECONDS_PER_HOUR, 4, RoundingMode.HALF_UP);
+            case DAY -> BigDecimal.valueOf(startedDays(seconds, count));
+            case USAGE -> BigDecimal.valueOf(count);
+        };
+        BigDecimal amount = switch (unit) {
+            // From the unrounded quotient, so 59 minutes on an hourly rate is not first rounded to
+            // an hour count and then multiplied.
+            case HOUR -> BigDecimal.valueOf(seconds).multiply(rate)
+                    .divide(SECONDS_PER_HOUR, 2, RoundingMode.HALF_UP);
+            case DAY, USAGE -> units.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+        };
+        return new Billed(units, amount);
+    }
+
+    /** Whole started days; a device that was booked at all owes one, never zero. */
+    private static long startedDays(long seconds, int bookings) {
+        long full = seconds / SECONDS_PER_DAY;
+        long started = seconds % SECONDS_PER_DAY == 0 ? full : full + 1;
+        return bookings > 0 ? Math.max(started, 1) : started;
+    }
+
+    /**
+     * Which device a booking is about. An equipment span records exactly one resource — the
+     * counterpart to {@code ownerOf} for work sessions — so the first is the subject.
+     */
+    private static Resource subjectOf(TimeSpan span) {
+        return span.getInvolvedResources().stream().findFirst().orElse(null);
+    }
+
+    /**
+     * Refuses to start a device that is already running. Names the other task when the clock is
+     * elsewhere, because that is the actionable half of the message: someone has to go and close it.
+     */
+    private void requireEquipmentFree(Task task, Resource resource) {
+        if (task.isEquipmentRunningFor(resource)) {
+            throw new IllegalStateException(
+                    "'" + resource.getName() + "' is already clocked in on this task.");
+        }
+        List<Task> elsewhere = taskRepository.findByEquipmentRunning(resource.getId());
+        if (!elsewhere.isEmpty()) {
+            Task other = elsewhere.getFirst();
+            throw new IllegalStateException("'" + resource.getName() + "' is still clocked in on task '"
+                    + other.getName() + "' (id=" + other.getId()
+                    + "). Clock it out there first — a device cannot be in two places at once.");
+        }
+    }
+
+    /** The device's open booking on this task, or a clear failure saying it has none. */
+    private static TimeSpan requireRunningEquipment(Task task, Resource resource) {
+        TimeSpan span = task.activeEquipmentSpanFor(resource);
+        if (span == null) {
+            throw new IllegalStateException(
+                    "'" + resource.getName() + "' is not clocked in on this task.");
+        }
+        return span;
+    }
+
+    private Resource findResourceOrThrow(Long resourceId) {
+        return resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new NoSuchElementException("Resource not found"));
     }
 
     /**
@@ -704,14 +1540,25 @@ public class TaskService {
     }
 
     private static void requireValidBounds(Instant from, Instant until) {
+        requireValidBounds(from, until, "A work session");
+    }
+
+    /**
+     * The same checks for an equipment booking, which needs to say so in the message: told "a work
+     * session cannot end in the future" while correcting a dryer, a caller starts looking for the
+     * wrong mistake.
+     *
+     * @param subject how the record names itself, as the subject of the sentence
+     */
+    private static void requireValidBounds(Instant from, Instant until, String subject) {
         if (from == null || until == null) {
             throw new IllegalArgumentException("from and until are required.");
         }
         if (!from.isBefore(until)) {
-            throw new IllegalArgumentException("A work session must start before it ends.");
+            throw new IllegalArgumentException(subject + " must start before it ends.");
         }
         if (until.isAfter(Instant.now())) {
-            throw new IllegalArgumentException("A work session cannot end in the future.");
+            throw new IllegalArgumentException(subject + " cannot end in the future.");
         }
     }
 
