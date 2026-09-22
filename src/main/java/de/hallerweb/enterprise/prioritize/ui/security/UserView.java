@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.ui.security;
 import de.hallerweb.enterprise.prioritize.ui.company.DepartmentView;
 import de.hallerweb.enterprise.prioritize.ui.company.CompanyView;
 import de.hallerweb.enterprise.prioritize.ui.common.AddressForm;
+import de.hallerweb.enterprise.prioritize.ui.common.CurrentUser;
 
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -39,11 +40,15 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.model.security.Role;
+import de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel;
 import de.hallerweb.enterprise.prioritize.service.security.RoleService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
+import de.hallerweb.enterprise.prioritize.service.skill.QualificationLevelService;
 import jakarta.annotation.security.PermitAll;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -65,6 +70,11 @@ import java.util.stream.Collectors;
  *   {@link UserService#setRoles(Long, java.util.Set)} (a full replace) — {@code partialUpdateUser}/{@code createUser}
  *   deliberately never touch roles. The lazy {@code roles} collection is never read off the detached grid entity;
  *   the currently assigned ids come from {@link UserService#getRoleIds(Long)} and pre-select the selector items.</li>
+ *   <li><b>Qualification level</b> — what a person's hour is costed at, held by level rather than by person (see
+ *   {@link de.hallerweb.enterprise.prioritize.model.skill.QualificationLevel}) — is a single-select {@link ComboBox},
+ *   assigned through {@link de.hallerweb.enterprise.prioritize.service.skill.QualificationLevelService#assignQualificationLevel}
+ *   only when the combo's value actually changed, so an admin who never touches the field is never gated on the
+ *   separate permission that call requires.</li>
  *   <li><b>Create</b> builds a fresh user via the Lombok builder with {@code active(true)} — a plain
  *   {@code new PUser()} would leave the {@code @Builder.Default} fields at their raw defaults
  *   ({@code active=false}, null collections), which would immediately hide the new user from the active list.</li>
@@ -80,6 +90,8 @@ public class UserView extends SplitLayout {
 
     private final transient UserService userService;
     private final transient RoleService roleService;
+    private final transient QualificationLevelService qualificationLevelService;
+    private final transient CurrentUser currentUser;
 
     private final Grid<PUser> grid = new Grid<>(PUser.class, false);
     private final Binder<PUser> binder = new Binder<>(PUser.class);
@@ -91,12 +103,22 @@ public class UserView extends SplitLayout {
     private final TextField occupation = new TextField("Occupation");
     private final ComboBox<PUser.Gender> gender = new ComboBox<>("Gender");
     private final MultiSelectComboBox<Role> roles = new MultiSelectComboBox<>("Roles");
+    private final ComboBox<QualificationLevel> qualificationLevel = new ComboBox<>("Qualification level");
     private final PasswordField password = new PasswordField("Password");
     private final AddressForm addressForm = new AddressForm();
 
     // All roles offered in the selector, loaded once; role picks are pre-selected from these exact
     // instances (by identity), so equality semantics of Role don't matter for the selection.
     private final List<Role> allRoles;
+
+    // All qualification levels offered in the selector, loaded once; empty when the current admin has no
+    // READ permission on qualification levels (the combo then just stays empty, the rest of the view works).
+    private final List<QualificationLevel> allLevels;
+
+    // The level id the selected user held when the editor was opened; assignQualificationLevel is only
+    // called when the combo's value actually differs from this, so an admin who never touches the field
+    // is never gated on the separate UPDATE-on-qualification-level permission that call requires.
+    private Long originalQualificationLevelId;
 
     private final Button save = new Button("Save");
     private final Button deactivate = new Button("Deactivate");
@@ -111,10 +133,14 @@ public class UserView extends SplitLayout {
     private Long editingId;
     private boolean creating;
 
-    public UserView(UserService userService, RoleService roleService) {
+    public UserView(UserService userService, RoleService roleService,
+                     QualificationLevelService qualificationLevelService, CurrentUser currentUser) {
         this.userService = userService;
         this.roleService = roleService;
+        this.qualificationLevelService = qualificationLevelService;
+        this.currentUser = currentUser;
         this.allRoles = roleService.getAllRoles();
+        this.allLevels = loadAllLevels();
 
         setSizeFull();
         addToPrimary(buildGridSide());
@@ -168,10 +194,14 @@ public class UserView extends SplitLayout {
         roles.setItems(allRoles);
         roles.setItemLabelGenerator(Role::getName);
         roles.setWidthFull();
+        qualificationLevel.setItems(allLevels);
+        qualificationLevel.setItemLabelGenerator(QualificationLevel::getName);
+        qualificationLevel.setClearButtonVisible(true);
+        qualificationLevel.setWidthFull();
         password.setWidthFull();
 
         HorizontalLayout actions = new HorizontalLayout(save, deactivate, cancel);
-        formFields.add(username, firstname, name, email, occupation, gender, roles, password,
+        formFields.add(username, firstname, name, email, occupation, gender, roles, qualificationLevel, password,
                 new H4("Address"), addressForm, actions);
         formFields.setPadding(false);
 
@@ -223,11 +253,17 @@ public class UserView extends SplitLayout {
         // selector items (by identity), never touching the detached user's lazy roles collection.
         if (creating) {
             roles.clear();
+            qualificationLevel.clear();
+            originalQualificationLevelId = null;
         } else {
             Set<Long> assigned = userService.getRoleIds(source.getId());
             roles.setValue(allRoles.stream()
                     .filter(r -> assigned.contains(r.getId()))
                     .collect(Collectors.toSet()));
+            originalQualificationLevelId = qualificationLevelService.getAssignedLevelId(source.getId()).orElse(null);
+            qualificationLevel.setValue(allLevels.stream()
+                    .filter(l -> l.getId().equals(originalQualificationLevelId))
+                    .findFirst().orElse(null));
         }
         password.clear();
         // Username is the identity and cannot be changed on an existing user (partialUpdate ignores it).
@@ -264,6 +300,7 @@ public class UserView extends SplitLayout {
                 PUser created = userService.createUser(toCreate);
                 // Role assignment goes through the dedicated setRoles (partialUpdate/create never touch roles).
                 userService.setRoles(created.getId(), selectedRoleIds());
+                applyQualificationLevelChange(created.getId());
                 notifySuccess("User created");
             } else {
                 // partialUpdateUser copies only non-null fields; a blank password leaves it unchanged.
@@ -280,11 +317,32 @@ public class UserView extends SplitLayout {
                 userService.partialUpdateUser(editingId, patch);
                 // Roles are a full replace via the dedicated setRoles (see UserService).
                 userService.setRoles(editingId, selectedRoleIds());
+                applyQualificationLevelChange(editingId);
                 notifySuccess("User updated");
             }
             reset();
         } catch (RuntimeException ex) {
             notifyError("Could not save user: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Calls {@link QualificationLevelService#assignQualificationLevel} only when the combo's value actually
+     * differs from what the user held when the editor was opened — see the field javadoc on
+     * {@link #originalQualificationLevelId} for why that guard matters.
+     */
+    private void applyQualificationLevelChange(Long userId) {
+        Long selected = qualificationLevel.getValue() != null ? qualificationLevel.getValue().getId() : null;
+        if (!Objects.equals(selected, originalQualificationLevelId)) {
+            qualificationLevelService.assignQualificationLevel(userId, selected, currentUser.require());
+        }
+    }
+
+    private List<QualificationLevel> loadAllLevels() {
+        try {
+            return qualificationLevelService.getAllQualificationLevels(currentUser.require());
+        } catch (AccessDeniedException denied) {
+            return List.of();
         }
     }
 

@@ -116,12 +116,27 @@ public class UserService implements UserDetailsService {
     }
 
 
+    /**
+     * Resolves a username to its {@link PUser}, with roles and personal permissions already initialized.
+     * <p>
+     * This is the entry point {@code CurrentUserResolver} uses for every Vaadin permission check — unlike
+     * the REST controllers, that request path does not keep an open-in-view session alive between loading
+     * the user here and {@link de.hallerweb.enterprise.prioritize.service.security.AuthorizationService}
+     * touching {@code user.getRoles()} later, so a still-lazy collection would throw
+     * {@code LazyInitializationException} at that point instead. {@code Role.permissions} is
+     * {@code FetchType.EAGER}, so initializing {@code roles} brings each role's permissions along for
+     * free; only {@code roles} and {@code personalPermissions} themselves are lazy and need forcing here,
+     * while the loading transaction is still open.
+     */
+    @Transactional(readOnly = true)
     public PUser findUserByUsername(String username) {
         PUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new NoSuchElementException("User " + username + " not found"));
         if (!user.isActive()) {
             throw new NoSuchElementException("User " + username + " not found");
         }
+        user.getRoles().size();
+        user.getPersonalPermissions().size();
         return user;
     }
 

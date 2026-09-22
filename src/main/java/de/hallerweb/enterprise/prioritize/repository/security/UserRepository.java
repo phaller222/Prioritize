@@ -75,4 +75,8 @@ public interface UserRepository extends JpaRepository<PUser, Long> {
 
     /** Everyone on a qualification level, in no particular order. */
     List<PUser> findByQualificationLevel(QualificationLevel level);
+
+    /** The id of the level a user currently holds, without loading the lazy {@code qualificationLevel} relation. */
+    @Query("select u.qualificationLevel.id from PUser u where u.id = :userId")
+    Optional<Long> findQualificationLevelId(@Param("userId") Long userId);
 }

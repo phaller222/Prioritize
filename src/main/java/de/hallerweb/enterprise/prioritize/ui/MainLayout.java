@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.ui;
 import de.hallerweb.enterprise.prioritize.ui.security.UserView;
 import de.hallerweb.enterprise.prioritize.ui.skill.SkillsView;
 import de.hallerweb.enterprise.prioritize.ui.skill.SkillCategoriesView;
+import de.hallerweb.enterprise.prioritize.ui.skill.QualificationLevelsView;
 import de.hallerweb.enterprise.prioritize.ui.security.RoleView;
 import de.hallerweb.enterprise.prioritize.ui.resource.ResourcesView;
 import de.hallerweb.enterprise.prioritize.ui.security.LoginView;
@@ -90,6 +91,7 @@ public class MainLayout extends AppLayout {
         nav.addItem(new SideNavItem("Documents", DocumentsView.class, VaadinIcon.FILE_TEXT.create()));
         nav.addItem(new SideNavItem("Skills", SkillsView.class, VaadinIcon.ACADEMY_CAP.create()));
         nav.addItem(new SideNavItem("Skill Categories", SkillCategoriesView.class, VaadinIcon.TAGS.create()));
+        nav.addItem(new SideNavItem("Qualification Levels", QualificationLevelsView.class, VaadinIcon.COIN_PILES.create()));
         nav.addItem(new SideNavItem("Task Schedules", TaskSchedulesView.class, VaadinIcon.CALENDAR_CLOCK.create()));
         nav.addItem(new SideNavItem("Process Definitions", ProcessDefinitionsView.class, VaadinIcon.FILE_PROCESS.create()));
         nav.addItem(new SideNavItem("Process Instances", ProcessInstancesView.class, VaadinIcon.COGS.create()));

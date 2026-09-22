@@ -58,7 +58,7 @@ import java.math.BigDecimal;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
+@EqualsAndHashCode(callSuper = true)
 @Builder
 public class QualificationLevel extends PObject implements PAuthorizedObject {
 

@@ -154,6 +154,16 @@ public class QualificationLevelService {
         return userRepository.save(target);
     }
 
+    /**
+     * The id of the level {@code userId} currently holds, or empty when unassigned. A plain read with no
+     * permission gate — {@code UserView} needs it only to pre-select the right item in its assignment combo
+     * box, never to expose a rate.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Long> getAssignedLevelId(Long userId) {
+        return userRepository.findQualificationLevelId(userId);
+    }
+
     // ==========================================
     // INTERNALS
     // ==========================================

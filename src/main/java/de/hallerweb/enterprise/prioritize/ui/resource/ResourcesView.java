@@ -36,6 +36,7 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.component.textfield.IntegerField;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.PageTitle;
@@ -44,6 +45,7 @@ import com.vaadin.flow.spring.data.VaadinSpringDataHelpers;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceSummaryDTO;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
+import de.hallerweb.enterprise.prioritize.model.cost.CostRateUnit;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
@@ -55,6 +57,8 @@ import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService
 import jakarta.annotation.security.PermitAll;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Stream;
@@ -123,6 +127,10 @@ public class ResourcesView extends VerticalLayout {
     private final TextField mqttUUID = new TextField("MQTT UUID");
     private final TextField mqttSendTopic = new TextField("MQTT send topic");
     private final TextField mqttReceiveTopic = new TextField("MQTT receive topic");
+    private final NumberField costRate = new NumberField("Cost rate");
+    private final TextField costCurrency = new TextField("Currency (ISO 4217)");
+    private final ComboBox<CostRateUnit> costRateUnit = new ComboBox<>("Cost rate unit");
+    private final Button clearCostRate = new Button("Clear cost rate");
     private final Button save = new Button("Save");
     private final Button delete = new Button("Delete");
     private final Button cancel = new Button("Cancel");
@@ -306,20 +314,27 @@ public class ResourcesView extends VerticalLayout {
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR);
         delete.addClickListener(e -> delete());
         cancel.addClickListener(e -> cancel());
+        clearCostRate.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+        clearCostRate.addClickListener(e -> onClearCostRate());
 
         name.setWidthFull();
         description.setWidthFull();
         mqttUUID.setWidthFull();
         mqttSendTopic.setWidthFull();
         mqttReceiveTopic.setWidthFull();
+        costCurrency.setWidth("180px");
+        costCurrency.setMaxLength(3);
+        costRateUnit.setItems(CostRateUnit.values());
+        costRateUnit.setWidth("140px");
 
         HorizontalLayout net = new HorizontalLayout(ip, port, maxSlots);
         HorizontalLayout flags = new HorizontalLayout(stationary, remote, mqttResource);
+        HorizontalLayout cost = new HorizontalLayout(costRate, costCurrency, costRateUnit, clearCostRate);
         HorizontalLayout actions = new HorizontalLayout(save, delete, cancel);
 
         configureReservationGrid();
 
-        formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, actions,
+        formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, cost, actions,
                 reservationTitle, reservationGrid, rulesPanel, nfcTagsPanel);
         formFields.setPadding(false);
 
@@ -381,6 +396,9 @@ public class ResourcesView extends VerticalLayout {
             mqttUUID.clear();
             mqttSendTopic.clear();
             mqttReceiveTopic.clear();
+            costRate.clear();
+            costCurrency.clear();
+            costRateUnit.clear();
         } else {
             name.setValue(nullToEmpty(row.getName()));
             description.setValue(nullToEmpty(row.getDescription()));
@@ -397,8 +415,10 @@ public class ResourcesView extends VerticalLayout {
             mqttReceiveTopic.clear();
             stationary.setValue(false);
             remote.setValue(false);
+            loadCostRate(row.getId());
         }
         delete.setVisible(!creating);
+        clearCostRate.setVisible(!creating);
         boolean showRes = !creating;
         reservationTitle.setVisible(showRes);
         reservationGrid.setVisible(showRes);
@@ -421,6 +441,41 @@ public class ResourcesView extends VerticalLayout {
             reservationGrid.setItems(resourceService.getReservationsForResourceDTO(editingId, currentUser.require()));
         } catch (AccessDeniedException denied) {
             reservationGrid.setItems(List.of());
+        }
+    }
+
+    /** Cost rate is not part of the summary DTO ({@code ResourceSummaryDTO}), so the full entity is fetched. */
+    private void loadCostRate(Long resourceId) {
+        try {
+            Resource full = resourceService.getResource(resourceId, currentUser.require());
+            if (full.getCostRate() != null) {
+                costRate.setValue(full.getCostRate().doubleValue());
+            } else {
+                costRate.clear();
+            }
+            costCurrency.setValue(nullToEmpty(full.getCostCurrency()));
+            costRateUnit.setValue(full.getCostRateUnit());
+        } catch (AccessDeniedException denied) {
+            costRate.clear();
+            costCurrency.clear();
+            costRateUnit.clear();
+        }
+    }
+
+    private void onClearCostRate() {
+        if (editingId == null || creating) {
+            return;
+        }
+        try {
+            resourceService.clearCostRate(editingId, currentUser.require());
+            costRate.clear();
+            costCurrency.clear();
+            costRateUnit.clear();
+            notifySuccess("Cost rate cleared");
+        } catch (AccessDeniedException denied) {
+            notifyError("You are not allowed to update this resource.");
+        } catch (RuntimeException ex) {
+            notifyError(ex.getMessage());
         }
     }
 
@@ -469,6 +524,10 @@ public class ResourcesView extends VerticalLayout {
                 .mqttUUID(emptyToNull(mqttUUID.getValue()))
                 .mqttDataSendTopic(emptyToNull(mqttSendTopic.getValue()))
                 .mqttDataReceiveTopic(emptyToNull(mqttReceiveTopic.getValue()))
+                .costRate(costRate.getValue() != null
+                        ? BigDecimal.valueOf(costRate.getValue()).setScale(2, RoundingMode.HALF_UP) : null)
+                .costCurrency(emptyToNull(costCurrency.getValue()))
+                .costRateUnit(costRateUnit.getValue())
                 .build();
     }
 
