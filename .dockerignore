@@ -16,5 +16,4 @@ src/main/bundles/
 *.zip
 README.pdf
 Prioritize.uml
-Prioritize.yaml
 .env
