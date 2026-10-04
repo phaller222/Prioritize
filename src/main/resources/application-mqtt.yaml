@@ -13,3 +13,5 @@ prioritize:
       - DISCOVERY          # self-registration of devices (type=DISCOVERY)
       - "+/status"         # <uuid>/status: online/offline heartbeats (type=STATUS)
       - "+/values"         # <uuid>/values: telemetry readings (type=VALUE)
+      - "tele/+/SENSOR"    # Tasmota sensor reports, matched to a resource by its mqttDeviceTopic
+      - "tele/+/LWT"       # Tasmota last will (Online/Offline) -> resource online flag

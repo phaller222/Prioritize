@@ -56,6 +56,7 @@ public record ResourceRequest(String name,
                               String mqttUUID,
                               String mqttDataSendTopic,
                               String mqttDataReceiveTopic,
+                              String mqttDeviceTopic,
                               Boolean mqttOnline,
                               BigDecimal costRate,
                               String costCurrency,
@@ -83,6 +84,7 @@ public record ResourceRequest(String name,
         resource.setMqttUUID(mqttUUID);
         resource.setMqttDataSendTopic(mqttDataSendTopic);
         resource.setMqttDataReceiveTopic(mqttDataReceiveTopic);
+        resource.setMqttDeviceTopic(mqttDeviceTopic);
         resource.setMqttOnline(mqttOnline);
         resource.setCostRate(costRate);
         resource.setCostCurrency(costCurrency);

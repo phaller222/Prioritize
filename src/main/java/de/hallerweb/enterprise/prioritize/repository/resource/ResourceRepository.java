@@ -65,4 +65,7 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
 
     // Helpful for MQTT updates
     Optional<Resource> findByMqttUUID(String mqttUUID);
+
+    /** The resource claiming a device's own topic (e.g. a Tasmota topic); unique by service rule. */
+    Optional<Resource> findByMqttDeviceTopic(String mqttDeviceTopic);
 }

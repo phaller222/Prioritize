@@ -218,7 +218,7 @@ class ResourceServiceTest {
     @DisplayName("createResource: weggelassene maxSlots bleiben auf 1 vorbelegt")
     void createResource_OmittedSlots_ShouldDefaultToOne() {
         ResourceRequest request = new ResourceRequest("Ohne-Slots", "x", null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         Resource created = resourceService.createResource(request.toResource(), testGroup.getId(), adminUser);
 
@@ -239,7 +239,7 @@ class ResourceServiceTest {
     @DisplayName("reserveResource: frisch angelegte Ressource ist sofort reservierbar")
     void reserveResource_FreshResource_ShouldSucceedOnSlotOne() {
         ResourceRequest request = new ResourceRequest("Frisch", "x", null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         Resource fresh = resourceService.createResource(request.toResource(), testGroup.getId(), adminUser);
 
         Instant from = Instant.now();
@@ -354,7 +354,7 @@ class ResourceServiceTest {
     void partialUpdateResource_ShouldApplyEveryRequestField() {
         ResourceRequest patch = new ResourceRequest("Neuer-Name", "Neue Beschreibung", "10.0.0.7", 1883,
                 5, true, true, true, "50.1109", "8.6821",
-                true, "uuid-patch-test", "send/topic", "receive/topic", true,
+                true, "uuid-patch-test", "send/topic", "receive/topic", null, true,
                 null, null, null);
 
         Resource updated = resourceService.partialUpdateResource(testResource.getId(), patch.toResource(), adminUser);
@@ -382,7 +382,7 @@ class ResourceServiceTest {
     void partialUpdateResource_NullFields_ShouldLeaveResourceUntouched() {
         ResourceRequest onlyName = new ResourceRequest("Nur-Name-Test", null, null, null,
                 null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
 
         Resource updated = resourceService.partialUpdateResource(testResource.getId(), onlyName.toResource(), adminUser);
 
@@ -511,6 +511,62 @@ class ResourceServiceTest {
     void recordMqttValueById_unknownId_throws() {
         assertThrows(NoSuchElementException.class,
                 () -> resourceService.recordMqttValue(999999L, "temp", "21", adminUser));
+    }
+
+    // ==========================================
+    // DEVICE-FORMAT INGEST (e.g. Tasmota)
+    // ==========================================
+
+    @Test
+    @DisplayName("recordDeviceReadings: Werte landen über das Geräte-Topic an der Ressource")
+    void recordDeviceReadings_recordsOnClaimingResource() {
+        testResource.setMqttDeviceTopic("tasmota_TEST01");
+        resourceRepository.save(testResource);
+
+        boolean claimed = resourceService.recordDeviceReadings("tasmota_TEST01",
+                new java.util.LinkedHashMap<>(java.util.Map.of("MT681.Total_in", "15119.035")));
+
+        assertTrue(claimed);
+        assertEquals("15119.035", resourceService.getLatestValues(testResource.getId(), adminUser).stream()
+                .filter(v -> "MT681.Total_in".equals(v.name())).findFirst().orElseThrow().value());
+    }
+
+    @Test
+    @DisplayName("recordDeviceReadings / setDeviceOnline: Unbekanntes Geräte-Topic wird ignoriert")
+    void deviceMessages_unclaimedTopic_areIgnored() {
+        assertFalse(resourceService.recordDeviceReadings("tasmota_NOBODY", java.util.Map.of("x", "1")));
+        assertDoesNotThrow(() -> resourceService.setDeviceOnline("tasmota_NOBODY", true));
+    }
+
+    @Test
+    @DisplayName("setDeviceOnline: Last Will setzt das Online-Flag der Ressource")
+    void setDeviceOnline_setsFlag() {
+        testResource.setMqttDeviceTopic("tasmota_TEST02");
+        testResource.setMqttOnline(true);
+        resourceRepository.save(testResource);
+
+        resourceService.setDeviceOnline("tasmota_TEST02", false);
+
+        assertFalse(resourceRepository.findById(testResource.getId()).orElseThrow().getMqttOnline());
+    }
+
+    @Test
+    @DisplayName("Geräte-Topic ist eindeutig: zweite Ressource mit demselben Topic → IllegalStateException")
+    void deviceTopic_mustBeUnique() {
+        Resource patch = new Resource();
+        patch.setMqttDeviceTopic("  tasmota_TEST03 ");
+        Resource updated = resourceService.partialUpdateResource(testResource.getId(), patch, adminUser);
+        assertEquals("tasmota_TEST03", updated.getMqttDeviceTopic(), "getrimmt");
+
+        Resource second = Resource.builder().name("Zweiter-Leser").description("x").maxSlots(1)
+                .mqttDeviceTopic("tasmota_TEST03").build();
+        assertThrows(IllegalStateException.class,
+                () -> resourceService.createResource(second, testGroup.getId(), adminUser));
+
+        // re-saving the same topic on the claiming resource itself is not a conflict
+        Resource same = new Resource();
+        same.setMqttDeviceTopic("tasmota_TEST03");
+        assertDoesNotThrow(() -> resourceService.partialUpdateResource(testResource.getId(), same, adminUser));
     }
 
     // ==========================================
