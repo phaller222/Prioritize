@@ -35,6 +35,7 @@ import de.hallerweb.enterprise.prioritize.repository.resource.ResourceReservatio
 import de.hallerweb.enterprise.prioritize.repository.telemetry.TelemetryRuleRepository;
 import de.hallerweb.enterprise.prioritize.service.security.AuthorizationService;
 import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetryRuleService;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetrySeriesService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -64,6 +65,7 @@ public class ResourceService {
     private final AuthorizationService authService; // Your central guard
     private final TelemetryRuleService telemetryRuleService;
     private final TelemetryRuleRepository telemetryRuleRepository;
+    private final TelemetrySeriesService telemetrySeriesService;
 
     /** Maximum number of readings kept per data point in the comma-separated history. */
     private static final int MAX_VALUE_HISTORY = 100;
@@ -649,8 +651,9 @@ public class ResourceService {
      * Records a telemetry value reported by an MQTT device (VALUE message). The value is
      * appended to the named data point's comma-separated history ({@link NameValueEntry}),
      * which is created on first sight. Only the most recent {@link #MAX_VALUE_HISTORY}
-     * readings are kept. Also refreshes the last-ping timestamp. Unknown UUIDs are ignored
-     * (logged), like STATUS, since devices register themselves via discovery first.
+     * readings are kept there; numeric readings also go into the timestamped measurement series
+     * ({@link TelemetrySeriesService}). Also refreshes the last-ping timestamp. Unknown UUIDs are
+     * ignored (logged), like STATUS, since devices register themselves via discovery first.
      *
      * @param mqttUuid the MQTT UUID of the reporting device
      * @param name     the data point name (e.g. {@code temp})
@@ -660,6 +663,7 @@ public class ResourceService {
         resourceRepository.findByMqttUUID(mqttUuid).ifPresentOrElse(resource -> {
             appendValue(resource, name, value);
             resourceRepository.save(resource);
+            telemetrySeriesService.record(resource, name, value, Instant.now());
             telemetryRuleService.evaluate(resource.getId(), name, value);
             log.debug("VALUE recorded for resource (uuid={}): {}={}", mqttUuid, name, value);
         }, () -> log.warn("VALUE for unknown MQTT UUID '{}' ignored.", mqttUuid));
@@ -689,6 +693,7 @@ public class ResourceService {
 
         appendValue(resource, name, value);
         Resource saved = resourceRepository.save(resource);
+        telemetrySeriesService.record(saved, name, value, Instant.now());
         telemetryRuleService.evaluate(saved.getId(), name, value);
         log.debug("VALUE recorded via REST for resource (id={}): {}={}", resourceId, name, value);
         return saved;
