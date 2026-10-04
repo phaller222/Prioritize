@@ -71,6 +71,9 @@ public class ResourceService {
     /** Maximum number of readings kept per data point in the comma-separated history. */
     private static final int MAX_VALUE_HISTORY = 100;
 
+    /** Length of the history column ({@code NameValueEntry.mqttValues}, a default {@code varchar(255)}). */
+    static final int MAX_HISTORY_CHARS = 255;
+
     /** Canonical type name of {@link Department} for the string-based authorization overload. */
     private static final String DEPARTMENT_TYPE = "de.hallerweb.enterprise.prioritize.model.company.Department";
 
@@ -799,20 +802,31 @@ public class ResourceService {
     }
 
     /**
-     * Appends {@code value} to a comma-separated history, keeping only the most recent
-     * {@link #MAX_VALUE_HISTORY} entries.
+     * Appends {@code value} to a comma-separated history, keeping only the most recent entries: at most
+     * {@link #MAX_VALUE_HISTORY} of them, and no more than fit into {@link #MAX_HISTORY_CHARS}.
+     * <p>
+     * The character bound is what actually limits it in practice. The history lives in a plain
+     * {@code varchar(255)} column, and 100 readings never fitted into that: a 20-character meter id
+     * filled it after 12 messages, the 13th failed with "value too long" — and because a message is
+     * stored as a whole, it took the measurement series down with it. Long-term history is the series'
+     * job now; this list only has to answer "what was it lately".
      */
-    private static String appendCapped(String history, String value) {
-        if (history == null || history.isBlank()) {
-            return value;
+    static String appendCapped(String history, String value) {
+        String newest = value.length() > MAX_HISTORY_CHARS ? value.substring(0, MAX_HISTORY_CHARS) : value;
+        java.util.Deque<String> kept = new java.util.ArrayDeque<>();
+        kept.addFirst(newest);
+        int length = newest.length();
+        if (history != null && !history.isBlank()) {
+            String[] older = history.split(",");
+            for (int i = older.length - 1; i >= 0 && kept.size() < MAX_VALUE_HISTORY; i--) {
+                if (length + 1 + older[i].length() > MAX_HISTORY_CHARS) {
+                    break;
+                }
+                kept.addFirst(older[i]);
+                length += 1 + older[i].length();
+            }
         }
-        java.util.List<String> values = new java.util.ArrayList<>(
-                java.util.Arrays.asList(history.split(",")));
-        values.add(value);
-        if (values.size() > MAX_VALUE_HISTORY) {
-            values = values.subList(values.size() - MAX_VALUE_HISTORY, values.size());
-        }
-        return String.join(",", values);
+        return String.join(",", kept);
     }
 
 

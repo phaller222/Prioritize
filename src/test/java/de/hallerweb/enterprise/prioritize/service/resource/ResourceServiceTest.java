@@ -80,6 +80,9 @@ class ResourceServiceTest {
     @Autowired
     private TelemetryRuleService telemetryRuleService;
 
+    @Autowired
+    private de.hallerweb.enterprise.prioritize.repository.telemetry.TelemetrySampleRepository telemetrySampleRepository;
+
     private PUser adminUser;
     private Department testDept;
     private ResourceGroup testGroup;
@@ -531,6 +534,29 @@ class ResourceServiceTest {
                 "ein Gerät, das gerade Werte schickt, ist online");
         assertEquals("15119.035", resourceService.getLatestValues(testResource.getId(), adminUser).stream()
                 .filter(v -> "MT681.Total_in".equals(v.name())).findFirst().orElseThrow().value());
+    }
+
+    /**
+     * Regression: the history column is a varchar(255). Before the character cap, the 13th message of a
+     * Tasmota meter (20-character meter id) failed with "value too long" — and since a message is stored
+     * as a whole, the measurement series stopped recording too. Runs against the real column.
+     */
+    @Test
+    @DisplayName("recordDeviceReadings: 30 Meldungen mit langer Meter_id laufen durch, die Messreihe vollständig")
+    void recordDeviceReadings_longTextValues_doNotBreakRecording() {
+        testResource.setMqttDeviceTopic("tasmota_TEST04");
+        resourceRepository.save(testResource);
+
+        for (int i = 0; i < 30; i++) {
+            java.util.Map<String, String> readings = new java.util.LinkedHashMap<>();
+            readings.put("MT681.Total_in", String.valueOf(15148.0 + i / 1000.0));
+            readings.put("MT681.Meter_id", "090149534b00046dcaef");
+            resourceService.recordDeviceReadings("tasmota_TEST04", readings);
+            resourceRepository.flush();
+        }
+
+        assertEquals(30, telemetrySampleRepository.countSeries(testResource.getId(), "MT681.Total_in",
+                Instant.EPOCH, Instant.now().plusSeconds(60)));
     }
 
     @Test

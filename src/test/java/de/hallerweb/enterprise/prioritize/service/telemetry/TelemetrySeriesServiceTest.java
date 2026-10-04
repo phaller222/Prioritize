@@ -83,7 +83,10 @@ class TelemetrySeriesServiceTest {
         TelemetrySeriesDTO series = seriesService.getSeries(resource.getId(), "power",
                 null, null, null, null, null, admin);
 
-        assertEquals(2, series.points().size(), "'ON' stays out of the series");
+        assertEquals(2, series.points().size(), () -> "'ON' stays out of the series. DIAG now=" + Instant.now()
+                + " window=" + series.from() + ".." + series.to() + " all=" + seriesService.getSeries(resource.getId(),
+                "power", Instant.EPOCH, Instant.now().plusSeconds(86400 * 2), null, null, null, admin).points()
+                + " jvmZone=" + java.time.ZoneId.systemDefault());
         assertEquals(377.0, series.points().get(0).value());
         assertEquals(-12.5, series.points().get(1).value());
         assertEquals(SeriesBucket.NONE, series.bucket(), "defaults are echoed");
