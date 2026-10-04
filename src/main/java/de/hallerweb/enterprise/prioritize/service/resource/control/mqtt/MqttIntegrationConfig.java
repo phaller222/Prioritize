@@ -110,7 +110,8 @@ public class MqttIntegrationConfig {
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(props.getQos());
         adapter.setOutputChannel(mqttInboundChannel());
-        log.info("MQTT-Inbound-Adapter abonniert Topics: {}", props.getSubscribeTopics());
+        log.info("MQTT inbound adapter connecting to {} as {}-sub, topics: {}",
+                props.getBrokerUrl(), props.getClientId(), props.getSubscribeTopics());
         return adapter;
     }
 
