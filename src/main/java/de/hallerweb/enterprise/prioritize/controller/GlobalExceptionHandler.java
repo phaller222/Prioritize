@@ -34,6 +34,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -84,6 +85,22 @@ public class GlobalExceptionHandler {
                         ? field.getField() + ": " + field.getDefaultMessage()
                         : error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
+        }
+        log.warn("Bad request: {}", message);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(ApiError.of(message, HttpStatus.BAD_REQUEST.value()));
+    }
+
+    /**
+     * A query or path parameter that cannot be converted to its declared type — an unknown enum constant
+     * ({@code bucket=YEAR}) or a malformed instant ({@code from=yesterday}). Mapped here so it arrives as
+     * the same {@link ApiError} 400 as every other bad request, naming the parameter and the value.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'.";
+        if (ex.getRequiredType() != null && ex.getRequiredType().isEnum()) {
+            message += " Allowed: " + java.util.Arrays.toString(ex.getRequiredType().getEnumConstants()) + ".";
         }
         log.warn("Bad request: {}", message);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

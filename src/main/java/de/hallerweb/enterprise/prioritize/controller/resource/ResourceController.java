@@ -24,6 +24,7 @@ import de.hallerweb.enterprise.prioritize.dto.resource.ResourceReservationDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceStatusDTO;
 import de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordDTO;
+import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetrySeriesDTO;
 import de.hallerweb.enterprise.prioritize.dto.skill.SkillRecordRequest;
 import de.hallerweb.enterprise.prioritize.model.company.Department;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
@@ -35,6 +36,9 @@ import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
+import de.hallerweb.enterprise.prioritize.service.telemetry.SeriesAggregation;
+import de.hallerweb.enterprise.prioritize.service.telemetry.SeriesBucket;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetrySeriesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -47,7 +51,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 
-@Tag(name = "Resources", description = "Manage resources and groups, reservations, control commands and telemetry ingest.")
+@Tag(name = "Resources", description = "Manage resources and groups, reservations, control commands, telemetry ingest and measurement series.")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -57,6 +61,7 @@ public class ResourceController {
     private final DepartmentService departmentService;
     private final SkillService skillService;
     private final ResourceControlService resourceControlService;
+    private final TelemetrySeriesService telemetrySeriesService;
 
     /**
      * Helper method to determine the currently authenticated user.
@@ -428,6 +433,37 @@ public class ResourceController {
         @AuthenticatedUser PUser currentUser) {
 
         return ResponseEntity.ok(resourceService.getLatestValues(id, currentUser));
+    }
+
+    /**
+     * Returns the measurement series of one telemetry data point: every numeric reading the ingest
+     * received in the window, stamped with its arrival time — raw, or grouped into calendar slots of the
+     * given zone and reduced per slot. {@code DELTA} turns a cumulative counter (a meter reading) into
+     * consumption per slot. Requires READ permission on the resource.
+     *
+     * @param id     ID of the resource
+     * @param name   data point name (may contain dots, e.g. {@code MT681.Total_in})
+     * @param from   window start, inclusive (ISO-8601 instant); default 24 h before {@code to}
+     * @param to     window end, exclusive (ISO-8601 instant); default now
+     * @param bucket slot size; {@code NONE} (default) returns raw readings, at most 10,000
+     * @param agg    slot reduction, default {@code AVG}; ignored for {@code NONE}
+     * @param zone   time zone the slots are cut in (IANA id), default {@code UTC}
+     * @return ResponseEntity with the series (empty when nothing was recorded in the window)
+     */
+    @Operation(summary = "Returns the measurement series of a telemetry data point, raw or aggregated per time slot")
+    @GetMapping("/resources/{id}/values/{name}/series")
+    public ResponseEntity<TelemetrySeriesDTO> getValueSeries(
+        @PathVariable Long id,
+        @PathVariable String name,
+        @RequestParam(required = false) Instant from,
+        @RequestParam(required = false) Instant to,
+        @RequestParam(defaultValue = "NONE") SeriesBucket bucket,
+        @RequestParam(defaultValue = "AVG") SeriesAggregation agg,
+        @RequestParam(defaultValue = "UTC") String zone,
+        @AuthenticatedUser PUser currentUser) {
+
+        return ResponseEntity.ok(
+                telemetrySeriesService.getSeries(id, name, from, to, bucket, agg, zone, currentUser));
     }
 
     // ==========================================

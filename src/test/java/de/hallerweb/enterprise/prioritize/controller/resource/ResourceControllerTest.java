@@ -21,6 +21,11 @@ import de.hallerweb.enterprise.prioritize.service.company.DepartmentService;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.resource.control.ResourceControlService;
 import de.hallerweb.enterprise.prioritize.service.skill.SkillService;
+import de.hallerweb.enterprise.prioritize.dto.telemetry.TelemetrySeriesDTO;
+import de.hallerweb.enterprise.prioritize.service.telemetry.SeriesAggregation;
+import de.hallerweb.enterprise.prioritize.service.telemetry.SeriesBucket;
+import de.hallerweb.enterprise.prioritize.service.telemetry.TelemetrySeriesService;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +49,7 @@ import static org.mockito.Mockito.when;
 class ResourceControllerTest {
 
     private ResourceService resourceService;
+    private TelemetrySeriesService telemetrySeriesService;
     private ResourceController controller;
 
     private final PUser user = new PUser();
@@ -55,8 +61,27 @@ class ResourceControllerTest {
         SkillService skillService = mock(SkillService.class);
         ResourceControlService resourceControlService = mock(ResourceControlService.class);
 
+        telemetrySeriesService = mock(TelemetrySeriesService.class);
+
         controller = new ResourceController(
-                resourceService, departmentService, skillService, resourceControlService);
+                resourceService, departmentService, skillService, resourceControlService, telemetrySeriesService);
+    }
+
+    @Test
+    @DisplayName("getValueSeries: passes every parameter through to the series service unchanged")
+    void getValueSeries_delegates() {
+        Instant from = Instant.parse("2026-10-01T00:00:00Z");
+        Instant to = Instant.parse("2026-10-02T00:00:00Z");
+        TelemetrySeriesDTO series = new TelemetrySeriesDTO(7L, "MT681.Total_in", from, to,
+                SeriesBucket.HOUR, SeriesAggregation.DELTA, "Europe/Berlin", java.util.List.of());
+        when(telemetrySeriesService.getSeries(7L, "MT681.Total_in", from, to,
+                SeriesBucket.HOUR, SeriesAggregation.DELTA, "Europe/Berlin", user)).thenReturn(series);
+
+        ResponseEntity<TelemetrySeriesDTO> response = controller.getValueSeries(
+                7L, "MT681.Total_in", from, to, SeriesBucket.HOUR, SeriesAggregation.DELTA, "Europe/Berlin", user);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(series, response.getBody());
     }
 
     @Test

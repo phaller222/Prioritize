@@ -644,6 +644,54 @@ class RestApiIntegrationTest {
     }
 
     // ==========================================
+    // Measurement series
+    // ==========================================
+
+    /**
+     * The series read over the wire: a dotted data point name survives the path, instants and enums bind
+     * from the query string, and a value ingested over REST comes back with a timestamp.
+     */
+    @Test
+    @DisplayName("A REST-ingested value comes back in the series of its (dotted) data point")
+    void ingestedValueAppearsInTheSeries() throws Exception {
+        long resourceId = createMqttResourceWithPing().getId();
+        Instant before = Instant.now().minusSeconds(5);
+
+        HttpResponse<String> ingested = send(authorized("/api/v1/resources/" + resourceId + "/values", ADMIN, ADMIN_PASSWORD)
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(json.createObjectNode()
+                        .put("name", "MT681.Power_cur").put("value", "-377")))));
+        assertEquals(202, ingested.statusCode(), ingested.body());
+
+        HttpResponse<String> response = send(authorized("/api/v1/resources/" + resourceId
+                + "/values/MT681.Power_cur/series?from=" + before + "&bucket=MINUTE&agg=MIN&zone=Europe/Berlin",
+                ADMIN, ADMIN_PASSWORD).GET());
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode series = json.readTree(response.body());
+        assertEquals("MT681.Power_cur", series.path("datapoint").asText());
+        assertEquals("MINUTE", series.path("bucket").asText());
+        assertEquals("Europe/Berlin", series.path("zone").asText());
+        assertEquals(1, series.path("points").size(), response.body());
+        assertEquals(-377.0, series.path("points").get(0).path("value").asDouble());
+        assertTrue(series.path("points").get(0).path("at").asText().endsWith("Z"), response.body());
+    }
+
+    @Test
+    @DisplayName("An unknown bucket or a malformed instant is a 400 in the ApiError shape")
+    void malformedSeriesParametersAreRejected() throws Exception {
+        long resourceId = createMqttResourceWithPing().getId();
+        String base = "/api/v1/resources/" + resourceId + "/values/power/series";
+
+        HttpResponse<String> badBucket = send(authorized(base + "?bucket=YEAR", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(400, badBucket.statusCode(), badBucket.body());
+        assertEquals(400, json.readTree(badBucket.body()).path("status").asInt(), badBucket.body());
+        assertTrue(badBucket.body().contains("bucket"), badBucket.body());
+
+        HttpResponse<String> badInstant = send(authorized(base + "?from=yesterday", ADMIN, ADMIN_PASSWORD).GET());
+        assertEquals(400, badInstant.statusCode(), badInstant.body());
+    }
+
+    // ==========================================
     // Helpers
     // ==========================================
 
