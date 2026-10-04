@@ -725,6 +725,9 @@ public class ResourceService {
         Resource resource = claimed.get();
         Instant receivedAt = Instant.now();
         readings.forEach((name, value) -> appendValue(resource, name, value));
+        // A device that just sent readings is online, whatever its last will said — and a resource
+        // created after the device's retained "Online" would otherwise read offline until it reconnects.
+        resource.setMqttOnline(true);
         resourceRepository.save(resource);
         readings.forEach((name, value) -> {
             telemetrySeriesService.record(resource, name, value, receivedAt);

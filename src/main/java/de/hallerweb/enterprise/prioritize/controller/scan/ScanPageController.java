@@ -17,12 +17,14 @@
 package de.hallerweb.enterprise.prioritize.controller.scan;
 
 import de.hallerweb.enterprise.prioritize.config.AuthenticatedUser;
+import de.hallerweb.enterprise.prioritize.dto.resource.ResourceValueDTO;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
 import de.hallerweb.enterprise.prioritize.model.resource.Resource;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.service.nfc.NfcUnitService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
+import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -42,12 +44,16 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.web.csrf.CsrfToken;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 
 /**
@@ -97,6 +103,7 @@ public class ScanPageController {
 
     private final NfcUnitService nfcUnitService;
     private final TaskService taskService;
+    private final ResourceService resourceService;
 
     /** Renders the tag's current state. Never changes anything — see the class comment. */
     @GetMapping(value = "/{uuid}", produces = MediaType.TEXT_HTML_VALUE)
@@ -110,8 +117,10 @@ public class ScanPageController {
             return switch (unit.getType()) {
                 case TIMETRACKER -> renderTracker(unit, uuid, done, currentUser, request);
                 case EQUIPMENT -> renderEquipment(unit, uuid, done, currentUser, request);
+                case INFOPOINT -> renderInfo(unit, currentUser);
                 default -> page(escape(label(unit)),
-                        "<p class=\"state\">Tag vom Typ " + escape(unit.getType().name()) + ".</p>",
+                        "<p class=\"state\">Tag vom Typ " + escape(unit.getType().name()) + ".</p>"
+                                + measurements(unit.getResource(), currentUser),
                         button(uuid, "Scan registrieren", request));
             };
         } catch (NoSuchElementException e) {
@@ -264,10 +273,106 @@ public class ScanPageController {
                 .append("</p>")
                 .append("<p class=\"total\">Bisher gebucht: ")
                 .append(escape(humanDuration(usage == null ? 0 : usage.totalSeconds())))
-                .append("</p>");
+                .append("</p>")
+                .append(measurements(device, user));
 
         return page(escape(task.getName()), state.toString(),
                 button(uuid, running ? "Gerät ausstechen" : "Gerät einstechen", request));
+    }
+
+    /**
+     * An info sticker on a device: tapping it answers "what does it measure right now?". Nothing to
+     * confirm, so no button — the page is the whole point, and a reload just shows fresher values.
+     */
+    private String renderInfo(NfcUnit unit, PUser user) {
+        Resource device = unit.getResource();
+        if (device == null) {
+            return problem("Aufkleber ohne Gerät",
+                    "Dieser Info-Aufkleber hängt an keinem Gerät, es gibt also nichts anzuzeigen. Im "
+                            + "Admin-Bereich das Gerät zuordnen.");
+        }
+        String values = measurements(device, user);
+        StringBuilder body = new StringBuilder();
+        if (device.getDescription() != null && !device.getDescription().isBlank()) {
+            body.append("<p class=\"total\">").append(escape(device.getDescription())).append("</p>");
+        }
+        body.append(values.isEmpty()
+                ? "<p class=\"state\">Noch keine Messwerte.</p>" + connectionLine(device)
+                : values);
+        return page(escape(label(unit)), body.toString(), "");
+    }
+
+    /**
+     * The device's newest readings as a small table, plus whether it is reporting at all. Empty when the
+     * tag has no device, the device has no readings yet, or the scanner may not read it — the tracker
+     * and equipment pages then simply look as they did before.
+     * <p>
+     * Data point names from device formats carry a shared prefix ({@code MT681.Total_in},
+     * {@code MT681.Power_cur}); it is shown once as the caption rather than on every row, which matters
+     * on a phone-width table.
+     */
+    private String measurements(Resource device, PUser user) {
+        if (device == null) {
+            return "";
+        }
+        List<ResourceValueDTO> values;
+        try {
+            values = resourceService.getLatestValues(device.getId(), user).stream()
+                    .filter(v -> v.value() != null)
+                    .toList();
+        } catch (AccessDeniedException | NoSuchElementException e) {
+            return "";
+        }
+        if (values.isEmpty()) {
+            return "";
+        }
+        String prefix = sharedPrefix(values);
+        StringBuilder html = new StringBuilder("<section class=\"values\"><p class=\"caption\">Messwerte")
+                .append(prefix.isEmpty() ? "" : " · " + escape(prefix))
+                .append("</p><table>");
+        for (ResourceValueDTO v : values) {
+            html.append("<tr><td>").append(escape(v.name().substring(prefix.isEmpty() ? 0 : prefix.length() + 1)))
+                    .append("</td><td class=\"num\">").append(escape(formatValue(v.value())))
+                    .append("</td></tr>");
+        }
+        return html.append("</table>").append(connectionLine(device)).append("</section>").toString();
+    }
+
+    /** "online · letzte Meldung 04:11" for devices that report over MQTT; nothing for the others. */
+    private String connectionLine(Resource device) {
+        if (!Boolean.TRUE.equals(device.getMqttResource())) {
+            return "";
+        }
+        String state = Boolean.TRUE.equals(device.getMqttOnline()) ? "online" : "offline";
+        String last = device.getMqttLastPing() != null
+                ? " · letzte Meldung " + TIME.format(device.getMqttLastPing())
+                : "";
+        return "<p class=\"meta\">" + state + last + "</p>";
+    }
+
+    /** The first name segment if every data point shares it ({@code MT681}), otherwise empty. */
+    private static String sharedPrefix(List<ResourceValueDTO> values) {
+        String first = values.get(0).name();
+        int dot = first.indexOf('.');
+        if (dot <= 0) {
+            return "";
+        }
+        String prefix = first.substring(0, dot);
+        boolean shared = values.stream().allMatch(v -> v.name().startsWith(prefix + ".")
+                && v.name().length() > prefix.length() + 1);
+        return shared ? prefix : "";
+    }
+
+    /** Numbers in German notation ({@code 15.148,559}); anything else verbatim. */
+    private static String formatValue(String raw) {
+        try {
+            BigDecimal number = new BigDecimal(raw.trim());
+            NumberFormat format = NumberFormat.getNumberInstance(Locale.GERMANY);
+            format.setMaximumFractionDigits(3);
+            return format.format(number);
+        } catch (NumberFormatException e) {
+            return raw;
+        }
     }
 
     /**
@@ -365,6 +470,12 @@ public class ScanPageController {
                              font-size: 1.3rem; font-weight: 600; color: #fff; background: #1f6feb;
                              border: 0; border-radius: .75rem; }
                     button:active { background: #1a5fcc; }
+                    .values { margin-top: 1.5rem; }
+                    .caption { font-size: .95rem; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+                    table { width: 100%; border-collapse: collapse; font-size: 1.15rem; }
+                    td { padding: .45rem 0; border-bottom: 1px solid #e3e3e6; }
+                    td.num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+                    .meta { font-size: .95rem; color: #555; }
                   </style>
                 </head>
                 <body>

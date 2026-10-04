@@ -19,8 +19,12 @@ package de.hallerweb.enterprise.prioritize.controller;
 import de.hallerweb.enterprise.prioritize.model.nfc.NfcUnit;
 import de.hallerweb.enterprise.prioritize.model.project.Project;
 import de.hallerweb.enterprise.prioritize.model.project.Task;
+import de.hallerweb.enterprise.prioritize.model.resource.Resource;
+import de.hallerweb.enterprise.prioritize.model.resource.ResourceGroup;
 import de.hallerweb.enterprise.prioritize.model.security.PUser;
 import de.hallerweb.enterprise.prioritize.repository.nfc.NfcUnitRepository;
+import de.hallerweb.enterprise.prioritize.repository.resource.ResourceGroupRepository;
+import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
 import de.hallerweb.enterprise.prioritize.service.project.ProjectService;
 import de.hallerweb.enterprise.prioritize.service.project.TaskService;
 import de.hallerweb.enterprise.prioritize.service.security.UserService;
@@ -77,6 +81,8 @@ class ScanPageIntegrationTest {
     @Autowired private ProjectService projectService;
     @Autowired private TaskService taskService;
     @Autowired private NfcUnitRepository nfcUnitRepository;
+    @Autowired private ResourceService resourceService;
+    @Autowired private ResourceGroupRepository resourceGroupRepository;
 
     /** One cookie jar for both clients, so the session survives when a test stops at a redirect. */
     private final CookieManager cookies = new CookieManager();
@@ -332,5 +338,57 @@ class ScanPageIntegrationTest {
         assertTrue(page.contains("Du bist nicht eingestochen"),
                 "die Uhr des Kollegen ist nicht meine: " + page);
         assertTrue(page.contains("Einstechen"), "der Knopf bietet weiterhin das eigene Einstechen an");
+    }
+    /**
+     * An info sticker on a device that reports over MQTT: the page lists its newest readings, numbers in
+     * German notation, the shared device prefix shown once as the caption, and offers no button —
+     * there is nothing to confirm.
+     */
+    @Test
+    @DisplayName("An info sticker shows the device's newest readings and no button")
+    void infoTagShowsMeasurements() throws Exception {
+        Resource meter = createResource("Stromzähler <Keller>");
+        resourceService.recordMqttValue(meter.getId(), "MT681.Total_in", "15148.559", admin());
+        resourceService.recordMqttValue(meter.getId(), "MT681.Power_cur", "-377", admin());
+        resourceService.recordMqttValue(meter.getId(), "MT681.Meter_id", "0901abc", admin());
+        String uuid = saveTag(NfcUnit.NfcUnitType.INFOPOINT, meter);
+
+        login();
+        String page = get("/scan/" + uuid);
+
+        assertTrue(page.contains("Messwerte · MT681"), "shared prefix as caption: " + page);
+        assertTrue(page.contains(">Total_in<") && page.contains("15.148,559"), page);
+        assertTrue(page.contains("-377"), page);
+        assertTrue(page.contains("0901abc"), "text values verbatim: " + page);
+        assertTrue(page.contains("Stromzähler &lt;Keller&gt;"), "device name escaped in the heading: " + page);
+        assertFalse(page.contains("<form"), "an info page has nothing to confirm: " + page);
+    }
+
+    @Test
+    @DisplayName("An info sticker on a silent device says so instead of showing an empty table")
+    void infoTagWithoutReadings() throws Exception {
+        String uuid = saveTag(NfcUnit.NfcUnitType.INFOPOINT, createResource("Leser ohne Daten"));
+
+        login();
+        String page = get("/scan/" + uuid);
+
+        assertTrue(page.contains("Noch keine Messwerte"), page);
+        assertFalse(page.contains("<table"), page);
+    }
+
+    private Resource createResource(String name) {
+        ResourceGroup group = resourceGroupRepository.findAll().stream().findFirst().orElseThrow();
+        Resource resource = new Resource();
+        resource.setName(name);
+        resource.setDescription("created by ScanPageIntegrationTest");
+        resource.setMaxSlots(1);
+        resource.setMqttResource(true);
+        return resourceService.createResource(resource, group.getId(), admin());
+    }
+
+    private String saveTag(NfcUnit.NfcUnitType type, Resource resource) {
+        String uuid = "it-" + type.name().toLowerCase() + "-" + System.nanoTime();
+        nfcUnitRepository.save(NfcUnit.builder().uuid(uuid).type(type).resource(resource).build());
+        return uuid;
     }
 }
