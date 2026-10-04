@@ -86,6 +86,13 @@ public class Resource extends PActor implements PAuthorizedObject, Comparable<Re
     private String mqttUUID;
     private String mqttDataSendTopic;
     private String mqttDataReceiveTopic;
+    /**
+     * The topic a device publishes under in its <em>own</em> format, e.g. {@code tasmota_6F0690} for a
+     * Tasmota device (which then reports on {@code tele/tasmota_6F0690/SENSOR}). Lets an off-the-shelf
+     * device feed this resource without speaking the platform's own JSON. Unique across resources;
+     * {@code null} for resources that report natively or not at all.
+     */
+    private String mqttDeviceTopic;
     @Builder.Default
     private Boolean mqttOnline = false;
     @Builder.Default

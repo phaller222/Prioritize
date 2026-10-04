@@ -127,6 +127,7 @@ public class ResourcesView extends VerticalLayout {
     private final TextField mqttUUID = new TextField("MQTT UUID");
     private final TextField mqttSendTopic = new TextField("MQTT send topic");
     private final TextField mqttReceiveTopic = new TextField("MQTT receive topic");
+    private final TextField mqttDeviceTopic = new TextField("Device topic (Tasmota)");
     private final NumberField costRate = new NumberField("Cost rate");
     private final TextField costCurrency = new TextField("Currency (ISO 4217)");
     private final ComboBox<CostRateUnit> costRateUnit = new ComboBox<>("Cost rate unit");
@@ -322,6 +323,8 @@ public class ResourcesView extends VerticalLayout {
         mqttUUID.setWidthFull();
         mqttSendTopic.setWidthFull();
         mqttReceiveTopic.setWidthFull();
+        mqttDeviceTopic.setWidthFull();
+        mqttDeviceTopic.setHelperText("The device's own MQTT topic, e.g. tasmota_6F0690 for tele/tasmota_6F0690/SENSOR");
         costCurrency.setWidth("180px");
         costCurrency.setMaxLength(3);
         costRateUnit.setItems(CostRateUnit.values());
@@ -334,7 +337,8 @@ public class ResourcesView extends VerticalLayout {
 
         configureReservationGrid();
 
-        formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, cost, actions,
+        formFields.add(name, description, net, flags, mqttUUID, mqttSendTopic, mqttReceiveTopic, mqttDeviceTopic, cost,
+                actions,
                 reservationTitle, reservationGrid, rulesPanel, nfcTagsPanel);
         formFields.setPadding(false);
 
@@ -396,6 +400,7 @@ public class ResourcesView extends VerticalLayout {
             mqttUUID.clear();
             mqttSendTopic.clear();
             mqttReceiveTopic.clear();
+            mqttDeviceTopic.clear();
             costRate.clear();
             costCurrency.clear();
             costRateUnit.clear();
@@ -415,7 +420,7 @@ public class ResourcesView extends VerticalLayout {
             mqttReceiveTopic.clear();
             stationary.setValue(false);
             remote.setValue(false);
-            loadCostRate(row.getId());
+            loadStoredDetails(row.getId());
         }
         delete.setVisible(!creating);
         clearCostRate.setVisible(!creating);
@@ -444,8 +449,12 @@ public class ResourcesView extends VerticalLayout {
         }
     }
 
-    /** Cost rate is not part of the summary DTO ({@code ResourceSummaryDTO}), so the full entity is fetched. */
-    private void loadCostRate(Long resourceId) {
+    /**
+     * Cost rate and device topic are not part of the summary DTO ({@code ResourceSummaryDTO}), so the full
+     * entity is fetched. Unlike the other MQTT fields the device topic is shown with its stored value: it is
+     * the field an admin looks up to find out which device feeds the resource.
+     */
+    private void loadStoredDetails(Long resourceId) {
         try {
             Resource full = resourceService.getResource(resourceId, currentUser.require());
             if (full.getCostRate() != null) {
@@ -455,7 +464,9 @@ public class ResourcesView extends VerticalLayout {
             }
             costCurrency.setValue(nullToEmpty(full.getCostCurrency()));
             costRateUnit.setValue(full.getCostRateUnit());
+            mqttDeviceTopic.setValue(nullToEmpty(full.getMqttDeviceTopic()));
         } catch (AccessDeniedException denied) {
+            mqttDeviceTopic.clear();
             costRate.clear();
             costCurrency.clear();
             costRateUnit.clear();
@@ -524,6 +535,7 @@ public class ResourcesView extends VerticalLayout {
                 .mqttUUID(emptyToNull(mqttUUID.getValue()))
                 .mqttDataSendTopic(emptyToNull(mqttSendTopic.getValue()))
                 .mqttDataReceiveTopic(emptyToNull(mqttReceiveTopic.getValue()))
+                .mqttDeviceTopic(emptyToNull(mqttDeviceTopic.getValue()))
                 .costRate(costRate.getValue() != null
                         ? BigDecimal.valueOf(costRate.getValue()).setScale(2, RoundingMode.HALF_UP) : null)
                 .costCurrency(emptyToNull(costCurrency.getValue()))

@@ -20,6 +20,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,6 +36,10 @@ import org.springframework.stereotype.Component;
  * Current scope: status messages (online/offline), discovery (self-registration of new
  * devices, see {@link MqttDiscoveryService}) and telemetry (key/value readings, persisted
  * as {@code NameValueEntry} history on the resource).
+ * <p>
+ * Messages in a device's own format (e.g. Tasmota's {@code tele/<topic>/SENSOR}) are offered to the
+ * {@link DeviceMessageAdapter}s first, by topic; only messages no adapter claims are read as the
+ * native JSON below.
  * <p>
  * Inbound JSON (examples):
  * <pre>
@@ -53,12 +59,16 @@ public class InboundResourceEventHandler {
     private final ResourceService resourceService;
     private final ObjectMapper objectMapper;
     private final MqttDiscoveryService discoveryService;
+    private final List<DeviceMessageAdapter> deviceAdapters;
 
     @ServiceActivator(inputChannel = "mqttInboundChannel")
     public void handle(Message<?> message,
                        @Header(name = "mqtt_receivedTopic", required = false) String topic) {
         String payload = String.valueOf(message.getPayload());
         try {
+            if (handleDeviceMessage(topic, payload)) {
+                return;
+            }
             JsonNode node = objectMapper.readTree(payload);
             String type = node.path("type").asText("");
 
@@ -73,6 +83,27 @@ public class InboundResourceEventHandler {
             log.error("Inbound MQTT message on topic '{}' could not be processed: {}",
                     topic, ex.getMessage());
         }
+    }
+
+    /**
+     * Offers the message to the device-format adapters; the first that recognizes the topic wins.
+     *
+     * @return whether an adapter claimed the message
+     */
+    private boolean handleDeviceMessage(String topic, String payload) {
+        for (DeviceMessageAdapter adapter : deviceAdapters) {
+            Optional<DeviceMessageAdapter.DeviceMessage> parsed = adapter.parse(topic, payload);
+            if (parsed.isPresent()) {
+                DeviceMessageAdapter.DeviceMessage msg = parsed.get();
+                if (msg.online() != null) {
+                    resourceService.setDeviceOnline(msg.deviceTopic(), msg.online());
+                } else if (!msg.readings().isEmpty()) {
+                    resourceService.recordDeviceReadings(msg.deviceTopic(), msg.readings());
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handleStatus(JsonNode node) {

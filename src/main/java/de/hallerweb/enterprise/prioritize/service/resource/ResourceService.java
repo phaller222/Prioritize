@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -132,6 +133,7 @@ public class ResourceService {
         }
 
         requireConsistentCostRate(resource);
+        requireUniqueDeviceTopic(resource, null);
 
         resource.setResourceGroup(group);
         resource.setDepartment(group.getDepartment());
@@ -563,6 +565,10 @@ public class ResourceService {
         if (patch.getMqttUUID() != null) existing.setMqttUUID(patch.getMqttUUID());
         if (patch.getMqttDataReceiveTopic() != null) existing.setMqttDataReceiveTopic(patch.getMqttDataReceiveTopic());
         if (patch.getMqttDataSendTopic() != null) existing.setMqttDataSendTopic(patch.getMqttDataSendTopic());
+        if (patch.getMqttDeviceTopic() != null) {
+            existing.setMqttDeviceTopic(patch.getMqttDeviceTopic());
+            requireUniqueDeviceTopic(existing, existing.getId());
+        }
 
         // Cost rate. The three fields travel together, so a PATCH that touches any of them is
         // validated as a whole against the result — otherwise a rate could be set on one request
@@ -697,6 +703,74 @@ public class ResourceService {
         telemetryRuleService.evaluate(saved.getId(), name, value);
         log.debug("VALUE recorded via REST for resource (id={}): {}={}", resourceId, name, value);
         return saved;
+    }
+
+    /**
+     * Records a batch of readings a device sent in its own format (e.g. one Tasmota {@code SENSOR}
+     * message), addressed by the resource's {@code mqttDeviceTopic}. Each reading takes the same path
+     * as a native VALUE message — latest-value history, measurement series, monitoring rules — and
+     * the resource is saved once for the whole batch. A topic no resource claims is ignored: a shared
+     * broker usually carries devices the platform does not manage.
+     *
+     * @param deviceTopic the device's own topic, e.g. {@code tasmota_6F0690}
+     * @param readings    data point name to value, in message order
+     * @return whether a resource claimed the topic
+     */
+    public boolean recordDeviceReadings(String deviceTopic, Map<String, String> readings) {
+        Optional<Resource> claimed = resourceRepository.findByMqttDeviceTopic(deviceTopic);
+        if (claimed.isEmpty()) {
+            log.debug("Readings for unclaimed device topic '{}' ignored.", deviceTopic);
+            return false;
+        }
+        Resource resource = claimed.get();
+        Instant receivedAt = Instant.now();
+        readings.forEach((name, value) -> appendValue(resource, name, value));
+        resourceRepository.save(resource);
+        readings.forEach((name, value) -> {
+            telemetrySeriesService.record(resource, name, value, receivedAt);
+            telemetryRuleService.evaluate(resource.getId(), name, value);
+        });
+        log.debug("{} readings recorded for device topic '{}' (resource id={}).",
+                readings.size(), deviceTopic, resource.getId());
+        return true;
+    }
+
+    /**
+     * Sets the online flag of the resource claiming {@code deviceTopic}, from a device's own
+     * availability message (Tasmota's last-will {@code LWT}). Unclaimed topics are ignored.
+     */
+    public void setDeviceOnline(String deviceTopic, boolean online) {
+        resourceRepository.findByMqttDeviceTopic(deviceTopic).ifPresent(resource -> {
+            resource.setMqttOnline(online);
+            resource.setMqttLastPing(java.time.LocalDateTime.now());
+            resourceRepository.save(resource);
+            log.debug("Device topic '{}' (resource id={}) online={}", deviceTopic, resource.getId(), online);
+        });
+    }
+
+    /**
+     * Normalizes {@code resource}'s device topic (trimmed; blank means none) and rejects it when another
+     * resource already claims it — two claimants would make every incoming message ambiguous.
+     *
+     * @param selfId the id of the resource being updated, or {@code null} on create
+     * @throws IllegalStateException if another resource claims the topic (mapped to 409)
+     */
+    private void requireUniqueDeviceTopic(Resource resource, Long selfId) {
+        String topic = resource.getMqttDeviceTopic();
+        if (topic == null) {
+            return;
+        }
+        topic = topic.trim();
+        resource.setMqttDeviceTopic(topic.isEmpty() ? null : topic);
+        if (topic.isEmpty()) {
+            return;
+        }
+        resourceRepository.findByMqttDeviceTopic(topic)
+                .filter(other -> !other.getId().equals(selfId))
+                .ifPresent(other -> {
+                    throw new IllegalStateException("Device topic '" + resource.getMqttDeviceTopic()
+                            + "' is already claimed by resource " + other.getId() + ".");
+                });
     }
 
     /**

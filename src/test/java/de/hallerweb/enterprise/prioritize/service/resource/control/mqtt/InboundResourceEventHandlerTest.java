@@ -18,6 +18,7 @@ package de.hallerweb.enterprise.prioritize.service.resource.control.mqtt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.hallerweb.enterprise.prioritize.service.resource.ResourceService;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,8 @@ class InboundResourceEventHandlerTest {
     void setUp() {
         resourceService = mock(ResourceService.class);
         discoveryService = mock(MqttDiscoveryService.class);
-        handler = new InboundResourceEventHandler(resourceService, new ObjectMapper(), discoveryService);
+        handler = new InboundResourceEventHandler(resourceService, new ObjectMapper(), discoveryService,
+                java.util.List.of(new TasmotaMessageAdapter(new ObjectMapper())));
     }
 
     private void dispatch(String payload) {
@@ -107,6 +109,41 @@ class InboundResourceEventHandlerTest {
         dispatch("""
             { "type": "VALUE", "uuid": "u1", "name": "temp" }
             """);
+
+        verifyNoInteractions(resourceService);
+        verifyNoInteractions(discoveryService);
+    }
+
+    @Test
+    @DisplayName("A Tasmota SENSOR report is flattened and recorded under its device topic")
+    void tasmotaSensor_isRecordedByDeviceTopic() {
+        handler.handle(new GenericMessage<>("""
+            {"Time":"2026-09-28T21:20:25","MT681":{"Total_in":15119.035,"Power_cur":-377,"Total_out":62331.037}}
+            """), "tele/tasmota_6F0690/SENSOR");
+
+        verify(resourceService).recordDeviceReadings("tasmota_6F0690", Map.of(
+                "MT681.Total_in", "15119.035",
+                "MT681.Power_cur", "-377",
+                "MT681.Total_out", "62331.037"));
+        verifyNoInteractions(discoveryService);
+    }
+
+    @Test
+    @DisplayName("Tasmota's last will sets the device online flag; a non-JSON payload is fine")
+    void tasmotaLwt_setsOnlineFlag() {
+        handler.handle(new GenericMessage<>("Offline"), "tele/tasmota_6F0690/LWT");
+        handler.handle(new GenericMessage<>("Online"), "tele/tasmota_6F0690/LWT");
+
+        verify(resourceService).setDeviceOnline("tasmota_6F0690", false);
+        verify(resourceService).setDeviceOnline("tasmota_6F0690", true);
+    }
+
+    @Test
+    @DisplayName("Tasmota topics the adapter does not read (STATE) fall through without side effects")
+    void tasmotaState_isNotClaimed() {
+        handler.handle(new GenericMessage<>("""
+            {"Time":"2026-09-28T21:20:25","Uptime":"0T01:00:00","Wifi":{"RSSI":60}}
+            """), "tele/tasmota_6F0690/STATE");
 
         verifyNoInteractions(resourceService);
         verifyNoInteractions(discoveryService);
