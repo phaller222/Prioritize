@@ -527,6 +527,8 @@ class ResourceServiceTest {
                 new java.util.LinkedHashMap<>(java.util.Map.of("MT681.Total_in", "15119.035")));
 
         assertTrue(claimed);
+        assertTrue(resourceRepository.findById(testResource.getId()).orElseThrow().getMqttOnline(),
+                "ein Gerät, das gerade Werte schickt, ist online");
         assertEquals("15119.035", resourceService.getLatestValues(testResource.getId(), adminUser).stream()
                 .filter(v -> "MT681.Total_in".equals(v.name())).findFirst().orElseThrow().value());
     }
